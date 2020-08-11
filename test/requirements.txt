@@ -1,0 +1,6 @@
+pukala
+grpcio
+grpcio-tools
+pynacl
+configparser
+requests

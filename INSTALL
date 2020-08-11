@@ -1,0 +1,6 @@
+--- required packages
+cmake
+python2.7
+python-pip
+
+--- binaries / libraries are compiled for x64

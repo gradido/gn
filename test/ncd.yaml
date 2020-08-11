@@ -1,0 +1,361 @@
+cmdline-opts: [_fcall, {priority: 9999}, get_cmdline_params]
+default-config:
+  output-file-name: /tmp/ncd-output.yaml
+  output-step-file-name: /tmp/ncd-output-steps.yaml
+  case: simple-talk
+  hedera-credentials-file: hedera-credentials.cfg
+  hedera-node-endpoint: 0.testnet.hedera.com:50211
+  hedera-node-id: [0, 0, 3]
+  hedera-mirror-endpoint: hcs.testnet.mirrornode.hedera.com:5600
+  hedera-create-topic-settle-time: 10
+  hedera-topic-id: null
+test-config:
+  output-file-name: [_fcall, {priority: 2000}, get_opt]
+  output-step-file-name: [_fcall, {priority: 2000}, get_opt]
+  test-time: [_fcall, {priority: 2000}, get_datetime]
+  case: [_fcall, {priority: 2000}, get_opt]
+  hedera-credentials-file: [_fcall, {priority: 2000}, get_opt]
+  hedera-account-id: [_fcall, {priority: 1900}, get_hedera_account_id]
+  hedera-node-endpoint: [_fcall, {priority: 2000}, get_opt]
+  hedera-node-id: [_fcall, {priority: 2000}, get_opt, int_arr]
+  hedera-mirror-endpoint: [_fcall, {priority: 2000}, get_opt]
+  hedera-create-topic-settle-time: [_fcall, {priority: 2000}, get_opt, int]
+  hedera-topic-id: [_fcall, {priority: 2000}, get_opt, int_arr]
+_fcall_conf:
+  ignored:
+    - [path, /scraps]
+  sort:
+    "^/$":
+      - test-config
+      - steps
+    "^/steps/[\\d]*/$":
+      - instance
+      - input
+      - state
+      - new-state
+      - output
+scraps:
+  # assorted step templates
+  steps:
+    create-topic:
+      instance: login-server
+      state:
+        topic-id: null
+      output:
+        type: create-topic
+    create-topic-receive:        
+      instance: hedera-service
+      input-from: [_fcall, {priority: 700}, get_input_from]
+      state:
+        topic-ids: []
+      new-state:
+        topic-ids: [_fcall, {priority: 600}, append_topic_id, ../state]
+      output:
+        topic-id: [_fcall, {priority: 500}, do_getval, ../../new-state/topic-ids/-1]
+    create-topic-response:
+      instance: login-server
+      input-from: [_fcall, {priority: 700}, get_input_from]
+      state-from: [_fcall, {priority: 600}, get_state_from]
+      state-new:
+        topic-id: [_fcall, {priority: 500}, do_getval, ../../input-from/val/topic-id]
+    alice-hello:
+      instance: alice
+      output: hello, bob
+    bob-answers-hello:
+      instance: bob
+      input: [_fcall, {priority: 700}, get_input_from]
+      state: [_fcall, {priority: 600}, get_state_from]
+      new-state:
+        received-hello: [_fcall, {priority: 600}, contains_hello,
+          [_fcall, do_getval, ../../input/val],
+          [_fcall, do_getval, ../../state]]
+      output: [_fcall, {priority: 500}, get_answer,
+          [_fcall, do_getval, ../state]]
+    hedera-login-create-topic:
+      instance: login-server
+      output:
+      ####### createTopic
+      - _class: ConsensusServiceStub
+        _method: createTopic
+        _arg:
+          request:
+            _type: Transaction
+            bodyBytes:
+              _type: TransactionBody
+              _use_with: SerializeToString
+              consensusCreateTopic:
+                _type: ConsensusCreateTopicTransactionBody
+                memo: just some topic
+                autoRenewPeriod:
+                  _type: Duration
+                  seconds: 7000000
+              transactionID:
+                _type: TransactionID
+                transactionValidStart:
+                  _type: Timestamp
+                  seconds: [_fcall, get_seconds_from_epoch]
+                accountID:
+                  _type: AccountID
+                  shardNum: [_fcall, do_getval, /test-config/hedera-account-id/0]
+                  realmNum: [_fcall, do_getval, /test-config/hedera-account-id/1]
+                  accountNum: [_fcall, do_getval, /test-config/hedera-account-id/2]
+              nodeAccountID:
+                _type: AccountID
+                shardNum: [_fcall, do_getval, /test-config/hedera-node-id/0]
+                realmNum: [_fcall, do_getval, /test-config/hedera-node-id/1]
+                accountNum: [_fcall, do_getval, /test-config/hedera-node-id/2]
+              transactionValidDuration:
+                _type: Duration
+                seconds: 100
+              transactionFee: 100000000
+            sigMap:
+              _type: SignatureMap
+              _pass: 1
+              sigPair:
+                - _type: SignaturePair
+                  # those are populated when serialization occurs
+                  pubKeyPrefix:
+                    _type: PubKeyWrapper
+                    _use_with: str
+                    context:
+                      _type: HederaContext
+                    # -1 for current transaction (all transactions are
+                    # accumulated in a list as they are prepared and
+                    # executed; -1 is last); also, only _arg data is
+                    # accumulated, therefore second segment is "request"
+                    body_path: /-1/request/bodyBytes/_transformed_use_with
+                  ed25519:
+                    _type: ed25519Signature
+                    _use_with: str
+                    context:
+                      _type: HederaContext
+                    body_path: /-1/request/bodyBytes/_transformed_use_with
+      ####### end createTopic
+      ####### wait
+      - _class: Utils
+        _method: sleep
+        _arg:
+          settle_time: [_fcall, do_getval, /test-config/hedera-create-topic-settle-time]
+      ####### getTransactionReceipts
+      - _class: CryptoServiceStub
+        _method: getTransactionReceipts
+        _arg:
+          request:
+            _type: Query
+            transactionGetReceipt:
+              _type: TransactionGetReceiptQuery
+              header:
+                _type: QueryHeader
+              transactionID:
+                _type: SomeTransactionID
+                _use_with: get_grpc_obj
+                context:
+                  _type: HederaContext
+                transaction_path: /0/request/bodyBytes/transactionID/_transformed
+    hedera-serve-transaction:
+      instance: hedera-node-service
+      input: [_fcall, {priority: 1700}, get_input_from]
+      output: [_fcall, {priority: 1600}, do_hedera_calls]
+    hedera-login-submit-message:
+      instance: login-server
+      output:
+      ####### submitMessage
+      - _class: ConsensusServiceStub
+        _method: submitMessage
+        _arg:
+          request:
+            _type: Transaction
+            bodyBytes:
+              _type: TransactionBody
+              _use_with: SerializeToString
+              consensusSubmitMessage:
+                _type: ConsensusSubmitMessageTransactionBody
+                message: "hello"
+                topicID:
+                  _type: TopicID
+                  shardNum: [_fcall, do_getval, /test-config/hedera-topic-id/0]
+                  realmNum: [_fcall, do_getval, /test-config/hedera-topic-id/1]
+                  topicNum: [_fcall, do_getval, /test-config/hedera-topic-id/2]
+              transactionID:
+                _type: TransactionID
+                transactionValidStart:
+                  _type: Timestamp
+                  seconds: [_fcall, get_seconds_from_epoch]
+                accountID:
+                  _type: AccountID
+                  shardNum: [_fcall, do_getval, /test-config/hedera-account-id/0]
+                  realmNum: [_fcall, do_getval, /test-config/hedera-account-id/1]
+                  accountNum: [_fcall, do_getval, /test-config/hedera-account-id/2]
+              nodeAccountID:
+                _type: AccountID
+                shardNum: [_fcall, do_getval, /test-config/hedera-node-id/0]
+                realmNum: [_fcall, do_getval, /test-config/hedera-node-id/1]
+                accountNum: [_fcall, do_getval, /test-config/hedera-node-id/2]
+              transactionValidDuration:
+                _type: Duration
+                seconds: 100
+              transactionFee: 1000000
+            sigMap:
+              _type: SignatureMap
+              _pass: 1
+              sigPair:
+                - _type: SignaturePair
+                  pubKeyPrefix:
+                    _type: PubKeyWrapper
+                    _use_with: str
+                    context:
+                      _type: HederaContext
+                    body_path: /-1/request/bodyBytes/_transformed_use_with
+                  ed25519:
+                    _type: ed25519Signature
+                    _use_with: str
+                    context:
+                      _type: HederaContext
+                    body_path: /-1/request/bodyBytes/_transformed_use_with
+      ####### end submitMessage
+    hedera-login-submit-gradido-message:
+      instance: login-server
+      output:
+      ####### submitGradidoMessage
+      - _class: ConsensusServiceStub
+        _method: submitMessage
+        _arg:
+          request:
+            _type: Transaction
+            bodyBytes:
+              _type: TransactionBody
+              _use_with: SerializeToString
+              consensusSubmitMessage:
+                _type: ConsensusSubmitMessageTransactionBody
+                message:
+                  _type: Transaction_gradido
+                  _use_with: SerializeToString
+                  transaction_type: 0
+                  gradido_transaction:
+                    _type: GradidoTransaction
+                    gradido_transfer_type: 0
+                    local: 
+                      _type: LocalTransfer
+                      user_from:
+                        _type: Participant
+                        user_id: 1
+                      user_to:
+                        _type: Participant
+                        user_id: 2
+                    amount: 10
+                    amount_with_deduction: 11
+                    sender_signature: ""
+                  validation_schema: 0
+                  # TODO: use the same
+                  transaction_id: 
+                    _type: TransactionID
+                    transactionValidStart:
+                      _type: Timestamp
+                      seconds: [_fcall, get_seconds_from_epoch]
+                    accountID:
+                      _type: AccountID
+                      shardNum: [_fcall, do_getval, /test-config/hedera-account-id/0]
+                      realmNum: [_fcall, do_getval, /test-config/hedera-account-id/1]
+                      accountNum: [_fcall, do_getval, /test-config/hedera-account-id/2]
+                  version_number: 1
+                  reserved: ""
+                topicID:
+                  _type: TopicID
+                  shardNum: [_fcall, do_getval, /test-config/hedera-topic-id/0]
+                  realmNum: [_fcall, do_getval, /test-config/hedera-topic-id/1]
+                  topicNum: [_fcall, do_getval, /test-config/hedera-topic-id/2]
+              transactionID:
+                _type: TransactionID
+                transactionValidStart:
+                  _type: Timestamp
+                  seconds: [_fcall, get_seconds_from_epoch]
+                accountID:
+                  _type: AccountID
+                  shardNum: [_fcall, do_getval, /test-config/hedera-account-id/0]
+                  realmNum: [_fcall, do_getval, /test-config/hedera-account-id/1]
+                  accountNum: [_fcall, do_getval, /test-config/hedera-account-id/2]
+              nodeAccountID:
+                _type: AccountID
+                shardNum: [_fcall, do_getval, /test-config/hedera-node-id/0]
+                realmNum: [_fcall, do_getval, /test-config/hedera-node-id/1]
+                accountNum: [_fcall, do_getval, /test-config/hedera-node-id/2]
+              transactionValidDuration:
+                _type: Duration
+                seconds: 100
+              transactionFee: 1000000
+            sigMap:
+              _type: SignatureMap
+              _pass: 1
+              sigPair:
+                - _type: SignaturePair
+                  pubKeyPrefix:
+                    _type: PubKeyWrapper
+                    _use_with: str
+                    context:
+                      _type: HederaContext
+                    body_path: /-1/request/bodyBytes/_transformed_use_with
+                  ed25519:
+                    _type: ed25519Signature
+                    _use_with: str
+                    context:
+                      _type: HederaContext
+                    body_path: /-1/request/bodyBytes/_transformed_use_with
+      ####### end submitGradidoMessage
+  cases:
+    # just demonstrating talk involving two parties, with usage of state
+    simple-talk:
+      - [_fcall, do_getval, /scraps/steps/alice-hello]
+      - [_fcall, do_getval, /scraps/steps/bob-answers-hello]
+      - [_fcall, do_getval, /scraps/steps/alice-hello]
+      - [_fcall, do_getval, /scraps/steps/bob-answers-hello]
+    # communication between steps exclusively via input-output fields,
+    # which simulates real-world process
+    create-topic:
+      - [_fcall, do_getval, /scraps/steps/create-topic]
+      - [_fcall, do_getval, /scraps/steps/create-topic-receive]
+      - [_fcall, do_getval, /scraps/steps/create-topic-response]
+    hedera-create-topic:
+      - [_fcall, {priority: 300}, do_getval, /scraps/steps/hedera-login-create-topic]
+      - [_fcall, {deps: /steps/0}, do_getval, /scraps/steps/hedera-serve-transaction]
+    create-group:
+      - [_fcall, do_getval, /scraps/steps/create-topic]
+      - [_fcall, do_getval, /scraps/steps/create-topic-receive]
+      - instance: login-server
+        input-from: [_fcall, {priority: 700}, get_input_from]
+        state-from: [_fcall, {priority: 600}, get_state_from]
+        state-new:
+          topic-id: [_fcall, {priority: 500}, do_getval, ../../input-from/val/topic-id]
+        output:
+          type: submit-message
+          value: hello, world
+      - instance: hedera-service
+        input-from: [_fcall, {priority: 700}, get_input_from]
+        output:
+          - type: transaction-accepted
+            transaction-id: 1
+          - type: notifying-subscribers
+            value: [_fcall, {priority: 600}, do_getval, ../../../input-from/val/value]
+      - instance: login-server
+        input-from: [_fcall, {priority: 700}, get_input_from]
+        state-from: [_fcall, {priority: 600}, get_state_from]
+        state-new:
+          topic-id: [_fcall, {priority: 500}, do_getval, ../../input-from/val/topic-id]
+      - instance: gradido-node
+        input-from: [_fcall, {priority: 700}, get_input_from, -1, 1]
+    grpc-test-sleep:
+      - instance: login-server
+        output:
+        - _class: Utils
+          _method: sleep
+          _arg:
+            settle_time: [_fcall, {priority: 1010}, do_getval, /test-config/hedera-create-topic-settle-time]
+      - [_fcall, {priority: 200}, do_getval, /scraps/steps/hedera-serve-transaction]
+    hedera-submit-message:
+      - [_fcall, {priority: 300}, do_getval, /scraps/steps/hedera-login-submit-message]
+      - [_fcall, {deps: /steps/0}, do_getval, /scraps/steps/hedera-serve-transaction]
+    hedera-submit-gradido-message:
+      - [_fcall, {priority: 300}, do_getval, /scraps/steps/hedera-login-submit-gradido-message]
+      - [_fcall, {deps: /steps/0}, do_getval, /scraps/steps/hedera-serve-transaction]
+      
+steps: [_fcall, {priority: 1000}, do_getval, /scraps/cases/%s, [_fcall, do_getval, /test-config/case]]
+

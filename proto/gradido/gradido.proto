@@ -1,0 +1,122 @@
+syntax = "proto3";
+
+package com.gradido.proto;
+
+import "BasicTypes.proto";
+
+message Participant {
+    uint64 user_id = 1;
+}
+
+message RemoteParticipant {
+    uint64 user_id = 1;
+    uint64 group_id = 2;
+}
+
+message LocalTransfer {
+    Participant user_from = 1;
+    Participant user_to = 2;
+}
+message InboundTransfer {
+    RemoteParticipant user_from = 1;
+    Participant user_to = 2;
+}
+message OutboundTransfer {
+    Participant user_from = 1;
+    RemoteParticipant user_to = 2;
+}
+
+message GradidoTransaction {
+    enum GradidoTransferType {
+        LOCAL = 0;
+        INBOUND = 1;
+        OUTBOUND = 2;
+    }
+
+    GradidoTransferType gradido_transfer_type = 1;
+
+    oneof data {
+        LocalTransfer local = 2;
+        InboundTransfer inbound = 3;
+        OutboundTransfer outbound = 4;
+    }
+    
+    uint64 amount = 5;
+    uint64 amount_with_deduction = 6;
+
+    // bytes[64]
+    bytes sender_signature = 7;
+}
+
+message GroupUpdate {
+    bool is_disabled = 1;
+    uint64 update_author_user_id = 2;
+
+    // update_author_signature[64]
+    bytes update_author_signature = 3;
+}
+
+message GroupFriendsUpdate {
+    bool is_disabled = 1;
+    uint64 update_author_user_id = 2;
+
+    // update_author_signature[64]
+    bytes update_author_signature = 3;
+    uint64 group_id = 4;
+}
+
+message GroupMemberUpdate {
+    bool is_disabled = 1;
+    uint64 update_author_user_id = 2;
+
+    // update_author_signature[64]
+    bytes update_author_signature = 3;
+
+    uint64 user_id = 4;
+    enum MemberStatus {
+        OWNER=0;
+        MEMBER=1;
+    };
+    MemberStatus member_status = 5;
+
+    enum MemberUpdateType {
+        ADD_USER=0;
+        UPDATE_USER=1;
+        MOVE_USER_INBOUND=2;
+        MOVE_USER_OUTBOUND=3;
+        DISABLE_USER=4;
+    };
+    MemberUpdateType member_update_type = 6;
+    
+    // public_key[32]
+    bytes public_key = 7;
+}
+
+// this is sent inside ConsensusTopicResponse.message
+message Transaction {
+    enum TransactionType {
+        GRADIDO_TRANSACTION = 0;
+        GROUP_UPDATE = 1;
+        GROUP_FRIENDS_UPDATE = 2;
+        GROUP_MEMBER_UPDATE = 3;
+    }
+    TransactionType transaction_type = 1;
+
+    oneof data {
+        GradidoTransaction gradido_transaction = 2;
+        GroupUpdate group_update = 3;
+        GroupFriendsUpdate group_friends_update = 4;
+        GroupMemberUpdate group_member_update = 5;
+    }
+
+    enum ValidationSchema {
+        DEFAULT = 0;
+    }
+    ValidationSchema validation_schema = 6;
+    .proto.TransactionID transaction_id = 7;
+
+    uint64 version_number = 8;
+    
+    // bytes[32]
+    bytes reserved = 9;
+}
