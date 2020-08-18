@@ -162,8 +162,7 @@ class TestContext(LoginServerContext, HederaServiceContext, SimpleTalk, HederaCo
         tp = os.path.abspath(tp)
         if not tp.startswith("%s/" % dir_path):
             raise PukalaPathException("test-stage should reside in /test folder, to minimize risk of deleting important data", context.path)
-
-        shutil.rmtree(tp)
+        shutil.rmtree(tp, True)
         os.makedirs(tp)
         print "test folder %s created" % tp
         return tp
