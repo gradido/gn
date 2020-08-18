@@ -67,7 +67,7 @@ namespace gradido {
     }
 
     
-    CommunicationLayer::CommunicationLayer() : round_robin_distribute_counter(0) {
+    CommunicationLayer::CommunicationLayer(IGradidoFacade* gf) : gf(gf), round_robin_distribute_counter(0) {
     }
 
     void CommunicationLayer::init(int worker_count) {
@@ -90,6 +90,7 @@ namespace gradido {
     void CommunicationLayer::receive_gradido_transactions(std::string endpoint,
                                                           HederaTopicID topic_id,
                                                           std::shared_ptr<TransactionListener> tl) {
+        // TODO: synchronize for multi-thread access
         PollService* ps = get_poll_service();
         TopicSubscriber* ts = new TopicSubscriber(endpoint, topic_id, tl);
         ps->add_client(ts);
@@ -98,7 +99,33 @@ namespace gradido {
         // TODO
     }
 
+    void CommunicationLayer::receive_manage_group_requests(
+                 std::string endpoint, 
+                 std::shared_ptr<ManageGroupListener> mgl) {
+        this->mgl = mgl;
+        // TODO
+    }
+
+    void CommunicationLayer::receive_record_requests(
+                 std::string endpoint, 
+                 std::shared_ptr<RecordRequestListener> rrl) {
+        // TODO
+    }
+    
+    void CommunicationLayer::require_records(std::string endpoint,
+                                             grpr::BlockRangeDescriptor brd, 
+                                             std::shared_ptr<RecordReceiver> rr) {
+        // TODO
+    }
+
+    void CommunicationLayer::receive_manage_network_requests(
+                 std::string endpoint, 
+                 std::shared_ptr<ManageNetworkReceiver> mnr) {
+        
+    }
+    
 
 }
+
 
 

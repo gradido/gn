@@ -2,21 +2,38 @@
 #define GRADIDO_CONFIG_H
 
 #include "gradido_interfaces.h"
+#include <Poco/Util/PropertyFileConfiguration.h>
+#include <pthread.h>
 
 namespace gradido {
 
     class Config : public IGradidoConfig {
-
+    private:
+        Poco::AutoPtr<Poco::Util::PropertyFileConfiguration> pfc;
+        std::vector<GroupInfo> gis;
+        std::vector<std::string> siblings;
+        
+        void write_siblings();
+        pthread_mutex_t main_lock;
     public:
-        virtual void init();
+        Config();
+        virtual ~Config();
+        virtual void init(const std::vector<std::string>& params);
         virtual std::vector<GroupInfo> get_group_info_list();
         virtual int get_worker_count();
         virtual int get_io_worker_count();
-        virtual int get_number_of_concurrent_blockchain_initializations();
         virtual std::string get_data_root_folder();
         virtual std::string get_hedera_mirror_endpoint();
-        virtual int blockchain_append_batch_size();
-
+        virtual int get_blockchain_append_batch_size();
+        virtual int get_blockchain_init_batch_size();
+        virtual int get_block_record_outbound_batch_size();
+        virtual void add_blockchain(GroupInfo gi);
+        virtual bool add_sibling_node(std::string endpoint);
+        virtual bool remove_sibling_node(std::string endpoint);
+        virtual std::vector<std::string> get_sibling_nodes();
+        virtual std::string get_group_requests_endpoint();
+        virtual std::string get_record_requests_endpoint();
+        virtual std::string get_manage_network_requests_endpoint();
     };
 
 }

@@ -13,7 +13,6 @@ namespace gradido {
 
 class GradidoFacade : public IGradidoFacade {
  private:
-    std::stack<IBlockchain*> uninitialized_gis;
     pthread_mutex_t main_lock;
     Config config;
     WorkerPool worker_pool;
@@ -22,12 +21,17 @@ class GradidoFacade : public IGradidoFacade {
  public:
     GradidoFacade();
     virtual ~GradidoFacade();
-    virtual void init();
+    virtual void init(const std::vector<std::string>& params);
     virtual void join();
-    virtual IBlockchain* pop_to_initialize_blockchain();
     virtual IBlockchain* get_group_blockchain(uint64_t group_id);
+    virtual IBlockchain* create_group_blockchain(GroupInfo gi);
+
     virtual void push_task(ITask* task);
     virtual IGradidoConfig* get_conf();
+    virtual bool add_group(GroupInfo gi);
+    virtual bool remove_group(uint64_t group_id);
+    virtual ICommunicationLayer* get_communications();
+    virtual void exit(int ret_val);
 };
  
 }

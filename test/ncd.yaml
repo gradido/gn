@@ -1,7 +1,11 @@
 cmdline-opts: [_fcall, {priority: 9999}, get_cmdline_params]
+# priority will be fixed with next release of pukala, which includes
+# global / local fcall dependencies with wildcards
 default-config:
-  output-file-name: /tmp/ncd-output.yaml
-  output-step-file-name: /tmp/ncd-output-steps.yaml
+  # from project's /test folder
+  test-stage: test-stage
+  output-file-name: ncd-output.yaml
+  output-step-file-name: ncd-output-steps.yaml
   case: simple-talk
   hedera-credentials-file: hedera-credentials.cfg
   hedera-node-endpoint: 0.testnet.hedera.com:50211
@@ -10,6 +14,8 @@ default-config:
   hedera-create-topic-settle-time: 10
   hedera-topic-id: null
 test-config:
+  test-stage: [_fcall, {priority: 2000}, get_opt]
+  test-stage-absolute: [_fcall, {priority: 1900}, ensure_test_folder]
   output-file-name: [_fcall, {priority: 2000}, get_opt]
   output-step-file-name: [_fcall, {priority: 2000}, get_opt]
   test-time: [_fcall, {priority: 2000}, get_datetime]
@@ -21,6 +27,7 @@ test-config:
   hedera-mirror-endpoint: [_fcall, {priority: 2000}, get_opt]
   hedera-create-topic-settle-time: [_fcall, {priority: 2000}, get_opt, int]
   hedera-topic-id: [_fcall, {priority: 2000}, get_opt, int_arr]
+  git-commit-hash: [_fcall, {priority: 1900}, get_git_commit_hash]
 _fcall_conf:
   ignored:
     - [path, /scraps]
@@ -30,11 +37,67 @@ _fcall_conf:
       - steps
     "^/steps/[\\d]*/$":
       - instance
+      - parts
       - input
       - state
       - new-state
       - output
 scraps:
+  parts:
+    hedera-transaction-id:
+      _type: TransactionID
+      transactionValidStart:
+        _type: Timestamp
+        seconds: [_fcall, get_seconds_from_epoch]
+        nanos: 0
+      accountID:
+        _type: AccountID
+        shardNum: [_fcall, do_getval, /test-config/hedera-account-id/0]
+        realmNum: [_fcall, do_getval, /test-config/hedera-account-id/1]
+        accountNum: [_fcall, do_getval, /test-config/hedera-account-id/2]
+    gradido-topic-id:
+      _type: TopicID
+      shardNum: [_fcall, do_getval, /test-config/hedera-topic-id/0]
+      realmNum: [_fcall, do_getval, /test-config/hedera-topic-id/1]
+      topicNum: [_fcall, do_getval, /test-config/hedera-topic-id/2]
+    gradido-transfer-message-body:
+      _type: Transaction_gradido
+      _use_with: SerializeToString
+      transaction_type: 0
+      gradido_transaction:
+        _type: GradidoTransaction
+        gradido_transfer_type: 0
+        local: 
+          _type: LocalTransfer
+          user_from:
+            _type: Participant
+            user_id: 1
+          user_to:
+            _type: Participant
+            user_id: 2
+        amount: 10
+        amount_with_deduction: 11
+        sender_signature: "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"
+      version_number: 1
+      reserved: "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"
+
+    hedera-custom-message-body:
+      _type: TransactionBody
+      _use_with: SerializeToString
+      consensusSubmitMessage:
+        _type: ConsensusSubmitMessageTransactionBody
+        message: [_fcall, do_getval, ../../../message]
+        topicID: [_fcall, do_getval, ../../../topic-id]
+      transactionID: [_fcall, do_getval, ../../transaction-id]
+      nodeAccountID:
+        _type: AccountID
+        shardNum: [_fcall, do_getval, /test-config/hedera-node-id/0]
+        realmNum: [_fcall, do_getval, /test-config/hedera-node-id/1]
+        accountNum: [_fcall, do_getval, /test-config/hedera-node-id/2]
+      transactionValidDuration:
+        _type: Duration
+        seconds: 100
+      transactionFee: 1000000
   # assorted step templates
   steps:
     create-topic:
@@ -244,21 +307,9 @@ scraps:
                         user_id: 2
                     amount: 10
                     amount_with_deduction: 11
-                    sender_signature: ""
-                  validation_schema: 0
-                  # TODO: use the same
-                  transaction_id: 
-                    _type: TransactionID
-                    transactionValidStart:
-                      _type: Timestamp
-                      seconds: [_fcall, get_seconds_from_epoch]
-                    accountID:
-                      _type: AccountID
-                      shardNum: [_fcall, do_getval, /test-config/hedera-account-id/0]
-                      realmNum: [_fcall, do_getval, /test-config/hedera-account-id/1]
-                      accountNum: [_fcall, do_getval, /test-config/hedera-account-id/2]
+                    sender_signature: "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"
                   version_number: 1
-                  reserved: ""
+                  reserved: "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"
                 topicID:
                   _type: TopicID
                   shardNum: [_fcall, do_getval, /test-config/hedera-topic-id/0]
@@ -301,6 +352,40 @@ scraps:
                       _type: HederaContext
                     body_path: /-1/request/bodyBytes/_transformed_use_with
       ####### end submitGradidoMessage
+
+    ####### customGradidoMessage      
+    hedera-login-custom-message:
+      _class: ConsensusServiceStub
+      _method: submitMessage
+      _arg:
+        request:
+          _type: Transaction
+          bodyBytes: [_fcall, do_getval, ../../../../../parts/message-body]
+          sigMap:
+            _type: SignatureMap
+            _pass: 1
+            sigPair:
+              - _type: SignaturePair
+                pubKeyPrefix:
+                  _type: PubKeyWrapper
+                  _use_with: str
+                  context:
+                    _type: HederaContext
+                  body_path: /-1/request/bodyBytes/_transformed_use_with
+                ed25519:
+                  _type: ed25519Signature
+                  _use_with: str
+                  context:
+                    _type: HederaContext
+                  body_path: /-1/request/bodyBytes/_transformed_use_with
+    ####### end customGradidoMessage
+
+    sleep-10:
+      instance: sleeper
+      output: [_fcall, do_sleep, 10]
+    sleep-2:
+      instance: sleeper
+      output: [_fcall, do_sleep, 2]
   cases:
     # just demonstrating talk involving two parties, with usage of state
     simple-talk:
@@ -356,6 +441,49 @@ scraps:
     hedera-submit-gradido-message:
       - [_fcall, {priority: 300}, do_getval, /scraps/steps/hedera-login-submit-gradido-message]
       - [_fcall, {deps: /steps/0}, do_getval, /scraps/steps/hedera-serve-transaction]
-      
+    gradido-custom-message:
+      - parts:
+          topic-id: [_fcall, {priority: 1110}, do_getval, /scraps/parts/gradido-topic-id]
+          transaction-id: [_fcall, {priority: 1100}, do_getval, /scraps/parts/hedera-transaction-id]
+          message: [_fcall, {priority: 1090}, do_getval, /scraps/parts/gradido-transfer-message-body]
+          message-body: [_fcall, {priority: 1080}, do_getval, /scraps/parts/hedera-custom-message-body]
+        output: 
+          - [_fcall, {priority: -10000}, do_getval, /scraps/steps/hedera-login-custom-message]
+    gradido-configured-transfer:
+      - instance: gradido-node-0
+        parts:
+          listening-groups:
+            - alias: t_blocks
+              group_id: 1
+              shardNum: [_fcall, do_getval, /test-config/hedera-topic-id/0]
+              realmNum: [_fcall, do_getval, /test-config/hedera-topic-id/1]
+              topicNum: [_fcall, do_getval, /test-config/hedera-topic-id/2]
+          instance-root: [_fcall, {priority: 1100}, get_instance_root]
+          conf:
+            worker_count: 10
+            io_worker_count: 1
+            data_root_folder: [_fcall, {priority: 1090}, do_getval, ../../instance-root]
+            hedera_mirror_endpoint: [_fcall, do_getval, /test-config/hedera-mirror-endpoint]
+            blockchain_append_batch_size: 5
+            blochchain_init_batch_size: 1000
+            block_record_outbound_batch_size: 100
+            group_requests_endpoint: 0.0.0.0:13701
+            record_requests_endpoint: 0.0.0.0:13702
+            manage_network_requests_endpoint: 0.0.0.0:13703
+            sibling_node_file: [_fcall, {priority: 1090}, get_sibling_node_file]
+        state: [_fcall, {priority: -100}, start_gradido_node]
+      - instance: login-server
+        parts:
+          topic-id: [_fcall, {priority: 1110}, do_getval, /scraps/parts/gradido-topic-id]
+          transaction-id: [_fcall, {priority: 1100}, do_getval, /scraps/parts/hedera-transaction-id]
+          message: [_fcall, {priority: 1090}, do_getval, /scraps/parts/gradido-transfer-message-body]
+          message-body: [_fcall, {priority: 1080}, do_getval, /scraps/parts/hedera-custom-message-body]
+        output: 
+          - [_fcall, {priority: -10000}, do_getval, /scraps/steps/hedera-login-custom-message]
+      - [_fcall, {deps: /steps/1}, do_getval, /scraps/steps/hedera-serve-transaction]
+      - [_fcall, {deps: /steps/2}, do_getval, /scraps/steps/sleep-10]
+      - instance: gradido-node-0
+        state: [_fcall, {deps: /steps/3}, finish_gradido_node]
+    empty: empty
 steps: [_fcall, {priority: 1000}, do_getval, /scraps/cases/%s, [_fcall, do_getval, /test-config/case]]
 

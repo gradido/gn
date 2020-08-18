@@ -1,6 +1,7 @@
 #ifndef GRADIDO_UTILS_H
 #define GRADIDO_UTILS_H
 
+// don't introduce dependencies to project infrastructure
 #include "blockchain_gradido_def.h"
 #include <iostream>
 

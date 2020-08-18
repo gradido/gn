@@ -1,4 +1,6 @@
 #include "worker_pool.h"
+#include "gradido_interfaces.h"
+#include <Poco/Exception.h>
 
 namespace gradido {
 
@@ -17,7 +19,17 @@ namespace gradido {
                 task = wp->queue.front();
                 wp->queue.pop();
             }
-            task->run();
+            try {
+                task->run();
+            } catch (std::runtime_error& e) {
+                std::string msg = "error in worker thread: " + 
+                    std::string(e.what());
+                LOG(msg);
+            } catch (Poco::Exception& e) {
+                std::string msg = "error in worker thread: " + 
+                    std::string(e.what());
+                LOG(msg);
+            }
             delete task;
         }
         

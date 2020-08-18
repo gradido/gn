@@ -6,7 +6,6 @@
 #include <string>
 #include <memory>
 #include "blockchain_gradido_def.h"
-#include "gradido_messages.h"
 #include "grpc/grpc.h"
 #include "grpc++/channel.h"
 #include "grpc++/client_context.h"
@@ -19,17 +18,15 @@
 #include <grpcpp/channel.h>
 #include <grpcpp/client_context.h>
 #include <grpcpp/generic/generic_stub.h>
+#include "gradido_interfaces.h"
 
 namespace gradido {
 
-class CommunicationLayer final {
-public:
-    class TransactionListener {
-    public:
-        virtual void on_transaction(ConsensusTopicResponse& transaction) = 0;
-    };
-    
+class CommunicationLayer : public ICommunicationLayer {
 private:
+
+    // TODO: consider removal
+    IGradidoFacade* gf;
 
     WorkerPool worker_pool;
     int round_robin_distribute_counter;
@@ -78,16 +75,32 @@ private:
         virtual void init(grpc::CompletionQueue& cq);
     };
 
+    std::shared_ptr<ManageGroupListener> mgl;
+
 public:
-    CommunicationLayer();
+    CommunicationLayer(IGradidoFacade* gf);
     ~CommunicationLayer();
 
-    void init(int worker_count);
+    virtual void init(int worker_count);
     
-    void receive_gradido_transactions(std::string endpoint,
+    virtual void receive_gradido_transactions(std::string endpoint,
                                       HederaTopicID topic_id,
                                       std::shared_ptr<TransactionListener> tl);
-    void stop_receiving_gradido_transactions(HederaTopicID topic_id);
+    virtual void stop_receiving_gradido_transactions(HederaTopicID topic_id);
+
+    virtual void receive_manage_group_requests(
+                 std::string endpoint, 
+                 std::shared_ptr<ManageGroupListener> mgl);
+
+    virtual void receive_record_requests(
+                 std::string endpoint, 
+                 std::shared_ptr<RecordRequestListener> rrl);
+    virtual void require_records(std::string endpoint,
+                                 grpr::BlockRangeDescriptor brd, 
+                                 std::shared_ptr<RecordReceiver> rr);
+    virtual void receive_manage_network_requests(
+                 std::string endpoint, 
+                 std::shared_ptr<ManageNetworkReceiver> mnr);
 };
 
 }

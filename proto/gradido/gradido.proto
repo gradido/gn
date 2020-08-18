@@ -3,6 +3,7 @@ syntax = "proto3";
 package com.gradido.proto;
 
 import "BasicTypes.proto";
+import "Timestamp.proto";
 
 message Participant {
     uint64 user_id = 1;
@@ -20,10 +21,14 @@ message LocalTransfer {
 message InboundTransfer {
     RemoteParticipant user_from = 1;
     Participant user_to = 2;
+    // this matches related OutboundTransfer.paired_transaction_id
+    .proto.Timestamp paired_transaction_id = 3;
 }
 message OutboundTransfer {
     Participant user_from = 1;
     RemoteParticipant user_to = 2;
+    // this matches related InboundTransfer.paired_transaction_id
+    .proto.Timestamp paired_transaction_id = 3;
 }
 
 message GradidoTransaction {
@@ -87,9 +92,13 @@ message GroupMemberUpdate {
         DISABLE_USER=4;
     };
     MemberUpdateType member_update_type = 6;
+
+    // this only makes sense for user move, TODO: probably restructure
+    .proto.Timestamp paired_transaction_id = 7;
+    uint64 target_group = 8;
     
     // public_key[32]
-    bytes public_key = 7;
+    bytes public_key = 9;
 }
 
 // this is sent inside ConsensusTopicResponse.message
@@ -109,14 +118,62 @@ message Transaction {
         GroupMemberUpdate group_member_update = 5;
     }
 
-    enum ValidationSchema {
-        DEFAULT = 0;
-    }
-    ValidationSchema validation_schema = 6;
-    .proto.TransactionID transaction_id = 7;
-
-    uint64 version_number = 8;
+    uint64 version_number = 6;
     
     // bytes[32]
-    bytes reserved = 9;
+    bytes reserved = 7;
+}
+
+message ManageGroupRequest {
+    enum Action {
+         ADD_GROUP = 0;
+         REMOVE_GROUP = 1;
+    }
+    Action action = 1;
+    // this is the only needed field for REMOVE_GOUP
+    uint64 group_id = 2;
+    bytes alias = 3;
+    .proto.TopicID topic_id = 4;
+}
+
+message ManageGroupResponse {
+    bool success = 1;    
+}
+
+message BlockRangeDescriptor {
+    uint64 group_id = 1;
+    uint64 first_record = 2;        
+    uint64 record_count = 3;
+}
+
+message BlockRecord {
+    bool success = 1;
+    // 64 bytes
+    bytes hash = 2;
+    Transaction transaction = 3;
+}
+
+message ManageNodeNetwork {
+    enum Action {
+         ADD_NODE = 0;
+         REMOVE_NODE = 1;
+    }
+    Action action = 1;
+    bytes endpoint = 2;
+}
+
+message ManageNodeNetworkResponse {
+    bool success = 1;
+}
+
+service BlockService {
+    rpc subscribe_to_blocks (BlockRangeDescriptor) returns (stream BlockRecord);
+}
+
+service GradidoNode {
+    rpc manage_group (ManageGroupRequest) returns (ManageGroupResponse);
+}
+
+service NodeService {
+    rpc manage_node_network (ManageNodeNetwork) returns (ManageNodeNetworkResponse);
 }

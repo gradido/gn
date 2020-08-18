@@ -25,12 +25,12 @@ from proto_gen.gradido.gradido_pb2 import GradidoTransaction
 from proto_gen.gradido.gradido_pb2 import Participant
 from proto_gen.gradido.gradido_pb2 import LocalTransfer
 
-
+# TODO: remove
 class Utils(object):
     def __init__(self, channel):
         self.channel = channel
     def sleep(self, settle_time):
-        print "sleeping for %d seconds..." % settle_time
+        print "sleeping for %d seconds" % settle_time
         time.sleep(settle_time)
         return "slept for %d" % settle_time
 

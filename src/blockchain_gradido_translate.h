@@ -2,12 +2,13 @@
 #define BLOCKCHAIN_GRADIDO_TRANSLATE_H
 
 #include "gradido_messages.h"
+#include "gradido_interfaces.h"
 
 namespace gradido {
     
 class TransactionUtils {
 
-private:
+public:
     // TODO: optimize with move or putting result as a parameter
     // (although it is likely that compiler does the thing already)
     // TODO: check enum overflows
@@ -72,6 +73,8 @@ private:
     static Participant translate_Participant_from_pb(const grpr::Participant& val) {
         Participant res;
         res.user_id = val.user_id();
+        res.prev_user_rec_num = 0;
+        res.new_balance = 0;
         return res;
     }
     static grpr::Participant translate_Participant_to_pb(const Participant& val) {
@@ -113,6 +116,7 @@ private:
         InboundTransfer res;
         res.user_from = translate_RemoteParticipant_from_pb(val.user_from());
         res.user_to = translate_Participant_from_pb(val.user_to());
+        res.paired_transaction_id = translate_Timestamp_from_pb(val.paired_transaction_id());
         return res;
     }
     static grpr::InboundTransfer translate_InboundTransfer_to_pb(const InboundTransfer& val) {
@@ -121,6 +125,8 @@ private:
         *p0 = translate_RemoteParticipant_to_pb(val.user_from);
         grpr::Participant* p1 = res.mutable_user_to();
         *p1 = translate_Participant_to_pb(val.user_to);
+        ::proto::Timestamp* tid = res.mutable_paired_transaction_id();
+        *tid = translate_Timestamp_to_pb(val.paired_transaction_id);
         return res;
     }
 
@@ -128,6 +134,7 @@ private:
         OutboundTransfer res;
         res.user_from = translate_Participant_from_pb(val.user_from());
         res.user_to = translate_RemoteParticipant_from_pb(val.user_to());
+        res.paired_transaction_id = translate_Timestamp_from_pb(val.paired_transaction_id());
         return res;
     }
     static grpr::OutboundTransfer translate_OutboundTransfer_to_pb(const OutboundTransfer& val) {
@@ -136,6 +143,8 @@ private:
         *p0 = translate_Participant_to_pb(val.user_from);
         grpr::RemoteParticipant* p1 = res.mutable_user_to();
         *p1 = translate_RemoteParticipant_to_pb(val.user_to);
+        ::proto::Timestamp* tid = res.mutable_paired_transaction_id();
+        *tid = translate_Timestamp_to_pb(val.paired_transaction_id);
         return res;
     }
         
@@ -228,6 +237,8 @@ private:
         res.user_id = val.user_id();
         res.member_status = (MemberStatus)val.member_status();
         res.member_update_type = (MemberUpdateType)val.member_update_type();
+        res.paired_transaction_id = translate_Timestamp_from_pb(val.paired_transaction_id());
+        res.target_group = val.target_group();
         memcpy((void*)res.public_key,
                (void*)val.public_key().c_str(), 32);
         return res;
@@ -240,6 +251,9 @@ private:
         res.set_user_id(val.user_id);
         res.set_member_status((grpr::GroupMemberUpdate_MemberStatus)val.member_status);
         res.set_member_update_type((grpr::GroupMemberUpdate_MemberUpdateType)val.member_update_type);
+        ::proto::Timestamp* tid = res.mutable_paired_transaction_id();
+        *tid = translate_Timestamp_to_pb(val.paired_transaction_id);
+        res.set_target_group(val.target_group);
         res.set_public_key(std::string(val.public_key, val.public_key + 32));
         return res;
     }
@@ -261,7 +275,6 @@ private:
             res.data.group_member_update = translate_GroupMemberUpdate_from_pb(val.group_member_update());
             break;
         }
-        res.validation_schema = (ValidationSchema)val.validation_schema();
         res.version_number = val.version_number();
         memcpy((void*)res.reserved,
                (void*)val.reserved().c_str(), 32);
@@ -293,7 +306,6 @@ private:
             break;
         }
         }        
-        res.set_validation_schema((grpr::Transaction_ValidationSchema)val.validation_schema);
         res.set_version_number(val.version_number);
         res.set_reserved(std::string(val.reserved, val.reserved + 32));
         return res;
@@ -321,12 +333,12 @@ private:
     
 public:
     static Transaction translate_from_pb(const ConsensusTopicResponse& tr) {
-
         grpr::Transaction tx;
         tx.ParseFromString(tr.message());
 
         Transaction res = translate_Transaction_from_pb(tx);
         res.hedera_transaction = translate_HederaTransaction_from_pb(tr);
+        res.result = SUCCESS;
         return res;
     }
 

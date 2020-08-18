@@ -1,8 +1,8 @@
-import yaml, requests, json, sys, random, time, copy, datetime, traceback, re
-from pukala import grow, ContextBase, PukalaGrowException, Path
+import yaml, requests, json, sys, random, time, copy, datetime, traceback, re, os, shutil, subprocess
+from pukala import grow, ContextBase, PukalaGrowException, Path, PukalaPathException, FCall
 sys.path.append("./hedera/proto_gen")
 from hedera.hedera_context import HederaContext
-
+from gradido.gradido_context import GradidoContext
 
 
 # avoiding unicode mentions in output yaml
@@ -109,14 +109,21 @@ class HederaServiceContext(object):
         return topic_ids + ["0.0.%d" % ti]
 
     
-class TestContext(LoginServerContext, HederaServiceContext, SimpleTalk, HederaContext, StepContext, ContextBase):
+class TestContext(LoginServerContext, HederaServiceContext, SimpleTalk, HederaContext, StepContext, GradidoContext, ContextBase):
     def __init__(self):
         LoginServerContext.__init__(self)
         HederaServiceContext.__init__(self)
         SimpleTalk.__init__(self)
         HederaContext.__init__(self)
         StepContext.__init__(self)
+        GradidoContext.__init__(self)
         ContextBase.__init__(self)
+
+    def do_sleep(self, context):
+        print "sleeping for %d seconds" % context.args[0]
+        time.sleep(context.args[0])
+        print "woke up"
+        return "slept for %d seconds" % context.args[0]
 
     def get_cmdline_params(self, context):
         res = {}
@@ -142,13 +149,27 @@ class TestContext(LoginServerContext, HederaServiceContext, SimpleTalk, HederaCo
                 elif cf == "int_arr":
                     res = [int(i) for i in res.split(",")]
                 else:
-                    raise PukalaBaseException("unrecognized get_opt() convert function " + cf)
+                    raise PukalaPathException("unrecognized get_opt() convert function " + cf, context.path)
             return res
         else:
             return context.doc["default-config"][opt_name]
     def get_seconds_from_epoch(self, context):
         return long(time.time())
+    def ensure_test_folder(self, context):
+        print "ensuring test folder exists"
+        dir_path = os.path.dirname(os.path.realpath(__file__))
+        tp = os.path.join(dir_path, context.doc["test-config"]["test-stage"])
+        tp = os.path.abspath(tp)
+        if not tp.startswith("%s/" % dir_path):
+            raise PukalaPathException("test-stage should reside in /test folder, to minimize risk of deleting important data", context.path)
 
+        shutil.rmtree(tp)
+        os.makedirs(tp)
+        print "test folder %s created" % tp
+        return tp
+    def get_git_commit_hash(self, context):
+        return subprocess.check_output(["git", "rev-parse", "--verify", "HEAD"], stderr=subprocess.STDOUT).strip()
+        
 
 def prepare_for_dump(doc, regexps, path):
     if isinstance(doc, list):
@@ -191,6 +212,13 @@ def do_output(output_file_name, doc):
     elif doc:
         print yaml.dump(doc, encoding='utf-8', allow_unicode=True, default_flow_style=False, explicit_start=True)        
 
+def obtain_file_path_from_config(res, key, default_value):
+    zz = default_value
+    if (res and "test-config" in res and 
+        key in res["test-config"] and 
+        isinstance(res["test-config"][key], str)):
+        zz = res["test-config"][key]
+    return zz
 
 def do_grow():
     if len(sys.argv) < 2:
@@ -201,17 +229,23 @@ def do_grow():
         doc = yaml.load(f.read(), Loader=yaml.FullLoader)
     
     tc = TestContext()
-    res = None
     try:
-        print "growing..."
+        print "growing %s" % doctree_file_name
         res = grow(doc, tc)
-        print "writing..."
-        output_file_name = res["test-config"]["output-file-name"]
+        test_stage = res["test-config"]["test-stage"]
+        output_file_name = os.path.join(test_stage, res["test-config"]["output-file-name"])
+        print "writing %s" % output_file_name
         do_output(output_file_name, res)
-        output_step_file_name = res["test-config"]["output-step-file-name"]
+        output_step_file_name = os.path.join(test_stage, res["test-config"]["output-step-file-name"])
         do_output(output_step_file_name, {"steps": res["steps"]})
     except PukalaGrowException as e:
-        output_file_name = doc["default-config"]["output-file-name"]
+        test_stage = "/tmp"
+        test_stage = obtain_file_path_from_config(e.doc,
+                                                  "test-stage", "/tmp")
+        output_name = obtain_file_path_from_config(e.doc,
+                                                   "output-file-name",
+                                                   "ncd-output.yaml")
+        output_file_name = os.path.join(test_stage, output_name)
         do_output(output_file_name, e.doc)
         print e.get_formed_desc()
     except Exception as e:

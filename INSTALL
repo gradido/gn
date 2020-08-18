@@ -1,6 +1,23 @@
 --- required packages
+git
 cmake
 python2.7
 python-pip
 
 --- binaries / libraries are compiled for x64
+
+--- how to build
+./gen-proto.sh
+mkdir build
+cd build
+cmake ..
+make
+
+--- black box tests 
+- build first
+- then
+cd test
+submit-transfer.sh
+
+- this will start Gradido_Node and test data will be in 
+  /tmp/ncd-output.yaml (by default); check /steps

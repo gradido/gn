@@ -1,5 +1,7 @@
 *~
+*.pyc
 test/hedera-credentials.cfg
 build
 proto_gen
 test/hedera/proto_gen
+test/test-stage

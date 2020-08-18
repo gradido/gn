@@ -85,11 +85,13 @@ struct LocalTransfer {
 struct InboundTransfer {
     RemoteParticipant user_from;
     Participant user_to;
+    HederaTimestamp paired_transaction_id;
 };
 
 struct OutboundTransfer {
     Participant user_from;
     RemoteParticipant user_to;
+    HederaTimestamp paired_transaction_id;
 };
 
 
@@ -146,8 +148,8 @@ struct GroupMemberUpdate : public Disableable, UpdateAuthor {
     MemberStatus member_status;
     MemberUpdateType member_update_type;
 
-    // TODO: target group for user move
-    
+    HederaTimestamp paired_transaction_id;
+    uint64_t target_group;
     char public_key[32];
 };
 
@@ -171,13 +173,14 @@ enum TransactionResult {
     SUCCESS=0,
     NOT_ENOUGH_GRADIDOS,
     NOT_ALLOWED,
-    INVALID_SIGNATURE
+    INVALID_SIGNATURE,
+    BAD_USER_ID,
+    USER_DISABLED
 };
 
 struct Transaction {
     HederaTransaction hedera_transaction;
     TransactionType transaction_type;
-    ValidationSchema validation_schema;
     union {
         GradidoTransaction gradido_transaction;
         GroupUpdate group_update;
@@ -185,17 +188,9 @@ struct Transaction {
         GroupMemberUpdate group_member_update;
     } data;
 
-    // this is not part of data sent by Hedera itself, however, it can
-    // be included in payload, as transactionID is generated on user
-    // side; here it is necessary only for cross-group transfer
-    // validations (to quickly find other part of transfer in respective
-    // blokchain); however, it can be used in debugging as well, so
-    // it appears here; if 36 bytes are too much, then it can be stored
-    // only inside inbound/outbound transfer data
-    HederaTransactionID transaction_id;
-    
     TransactionResult result;
-    // to facilitate small updates, if they are necessary
+    // to facilitate small updates, if they are necessary; starts with 1;
+    // version_number == 0 are considered blank
     char version_number;
     char reserved[32];
 
