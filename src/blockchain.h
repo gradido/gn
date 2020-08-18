@@ -55,12 +55,7 @@ private:
         block_num(block_num) {
             Poco::File bf(fname);
             if (!bf.exists() || bf.getSize() == 0) {
-                
                 std::ofstream ff(fname, std::ios::binary | std::ios::out);
-                
-                LOG("traki");
-                LOG(ff.is_open());
-
                 Record empty = {0};
                 for (int i = 0; i < rec_per_block; i++)
                     ff.write((char*)&empty, sizeof(Record));

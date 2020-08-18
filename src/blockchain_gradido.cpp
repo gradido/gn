@@ -334,8 +334,6 @@ namespace gradido {
             is_busy = false;
             ITask* task = new AttemptToContinueBlockchainTask(this);
             gf->push_task(task);
-
-            LOG("OMMITTT!!!");
             return;
         }
 
