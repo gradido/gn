@@ -2,6 +2,8 @@ import logging, sys, time, nacl, configparser, copy
 from nacl.encoding import Base64Encoder, HexEncoder
 from nacl.signing import SigningKey
 from pukala import Path
+import os, signal, subprocess
+
 
 import grpc
 
@@ -14,16 +16,33 @@ from proto_gen.ConsensusCreateTopic_pb2 import ConsensusCreateTopicTransactionBo
 from proto_gen.TransactionBody_pb2 import TransactionBody
 from proto_gen.Duration_pb2 import Duration
 from proto_gen.Timestamp_pb2 import Timestamp
+from proto_gen.Timestamp_pb2 import Timestamp
+
 from proto_gen.TransactionGetReceipt_pb2 import TransactionGetReceiptQuery
 from proto_gen.Query_pb2 import Query
 from proto_gen.QueryHeader_pb2 import QueryHeader
 from proto_gen.CryptoService_pb2_grpc import CryptoServiceStub
 from proto_gen.ConsensusSubmitMessage_pb2 import ConsensusSubmitMessageTransactionBody
 
-from proto_gen.gradido.gradido_pb2 import Transaction as Transaction_gradido
-from proto_gen.gradido.gradido_pb2 import GradidoTransaction
-from proto_gen.gradido.gradido_pb2 import Participant
+from proto_gen.gradido.gradido_pb2 import SignaturePair as gradido_SignaturePair
+from proto_gen.gradido.gradido_pb2 import SignatureMap as gradido_SignatureMap
+from proto_gen.gradido.gradido_pb2 import Amount
 from proto_gen.gradido.gradido_pb2 import LocalTransfer
+from proto_gen.gradido.gradido_pb2 import CrossGroupTransfer
+from proto_gen.gradido.gradido_pb2 import GradidoTransfer
+from proto_gen.gradido.gradido_pb2 import GroupFriendsUpdate
+from proto_gen.gradido.gradido_pb2 import GroupMemberUpdate
+from proto_gen.gradido.gradido_pb2 import GradidoCreation
+from proto_gen.gradido.gradido_pb2 import TransactionBody as gradido_TransactionBody
+from proto_gen.gradido.gradido_pb2 import ManageGroupRequest
+from proto_gen.gradido.gradido_pb2 import ManageGroupResponse
+from proto_gen.gradido.gradido_pb2 import BlockRangeDescriptor
+from proto_gen.gradido.gradido_pb2 import TransactionPart
+from proto_gen.gradido.gradido_pb2 import BlockRecord
+from proto_gen.gradido.gradido_pb2 import ManageNodeNetwork
+from proto_gen.gradido.gradido_pb2 import ManageNodeNetworkResponse
+from proto_gen.gradido.gradido_pb2 import GradidoTransaction
+
 
 # TODO: remove
 class Utils(object):
@@ -165,7 +184,13 @@ class HederaContext(object):
         self.transaction_args = []
         res = []
 
-        with grpc.insecure_channel(context.doc["test-config"]["hedera-node-endpoint"]) as channel:
+        endpoint = context.doc["test-config"]["hedera-node-endpoint"]
+        # TODO: fix here
+        if len(context.args) > 0 and context.args[0] == True:
+            # simulated; TODO: consider enabling globaly
+            endpoint = "localhost:%d" % context.doc["test-config"]["hedera-simulated-port"]
+
+        with grpc.insecure_channel(endpoint) as channel:
             for i in inp:
                 stub = globals()[i["_class"]](channel)
                 method = i["_method"]
@@ -182,5 +207,26 @@ class HederaContext(object):
                 res.append(getattr(stub, method)(**kw))
         # should extract data explicitly with _output: field_name: method_to_call
         return [self.extract_response(i) for i in res]
-                
-                
+
+    def start_simulated_hedera(self, context):
+        err_file = "/tmp/hedsim-err.txt"
+        cmd = "python hedera/simulated_hedera.py 2> %s" % err_file
+        self.hedsim = (err_file,
+                       subprocess.Popen(cmd, 
+                                       stdout=subprocess.PIPE, 
+                                       shell=True, 
+                                       preexec_fn=os.setsid))
+        self.add_proc(self.hedsim[1].pid)
+        time.sleep(1)
+        return "launched"
+    def finish_simulated_hedera(self, context):
+        (err_file, pro) = self.hedsim
+        os.killpg(os.getpgid(pro.pid), signal.SIGTERM) 
+        self.remove_proc(pro.pid)
+        time.sleep(1)
+        with open(err_file) as f:
+            lines = f.read().split("\n")
+        return {
+            "stderr": lines
+        }
+            

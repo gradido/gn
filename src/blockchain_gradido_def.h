@@ -2,25 +2,57 @@
 #define BLOCKCHAIN_GRADIDO_DEF_H
 
 #include <cstdint>
+#include <math.h>
+
 
 namespace gradido {
-// TODO: add blockchain for group list as well
 
 // change with care; blockchain validity depends on those structs
 
+// all structures has to be set to 0 before putting any data in them
+
 #define GRADIDO_BLOCK_SIZE 1000
 
-enum TransactionType {
-    GRADIDO_TRANSACTION=0,
-    GROUP_UPDATE,
-    GROUP_FRIENDS_UPDATE,
-    GROUP_MEMBER_UPDATE
+#define HEDERA_RUNNING_HASH_LENGTH 48
+
+#define MAX_RECORD_PARTS 5
+
+#define PUB_KEY_LENGTH 32
+#define SIGNATURE_LENGTH 32
+
+#define MEMO_MAIN_SIZE 16
+#define MEMO_FULL_SIZE 150
+
+// group alias field ends with null characters to have exact length and
+// have null-terminated string as well
+#define GROUP_ALIAS_LENGTH 16
+
+typedef double GradidoValue;
+
+struct User {
+    uint8_t user[PUB_KEY_LENGTH];
 };
 
-enum GradidoTransferType {
-    LOCAL=0,
-    INBOUND,
-    OUTBOUND
+struct UserTransfer : public User {
+    GradidoValue new_balance;
+    uint64_t prev_transfer_rec_num;
+};
+
+struct Signature {
+    uint8_t pubkey[PUB_KEY_LENGTH];
+    uint8_t signature[SIGNATURE_LENGTH];
+};
+
+enum TransactionType {
+    GRADIDO_CREATION=1,
+    ADD_GROUP_FRIEND,
+    REMOVE_GROUP_FRIEND,
+    ADD_USER,
+    MOVE_USER_INBOUND,
+    MOVE_USER_OUTBOUND,
+    LOCAL_TRANSFER,
+    INBOUND_TRANSFER,
+    OUTBOUND_TRANSFER
 };
 
 struct HederaTimestamp {
@@ -46,156 +78,142 @@ struct HederaTransactionID  {
 };
 
 struct HederaTransaction {
-    // TODO: consider includind topic_id
     HederaTimestamp consensusTimestamp;
-    char runningHash[48];
+    uint8_t runningHash[HEDERA_RUNNING_HASH_LENGTH];
     uint64_t sequenceNumber;
     uint64_t runningHashVersion;
 };
 
-struct ParticipantBase {
-    uint64_t user_id;
+struct AbstractTransferOp {
+    GradidoValue amount;
 };
 
-struct Participant : public ParticipantBase {
-
-    // TODO: consider including those for RemoteParticipant as well, as
-    // they could speed up search
-    
-    uint64_t prev_user_rec_num; // refers to record in blockchain which
-                                // contains previous Gradido transaction
-                                // involving this user; this is only
-                                // needed to speed up searches;
-                                // blockchain can be validated without it;
-                                // TODO: consider if needed; indexes can
-                                // be built during validation, if not only
-                                // too large to fit in RAM, in general
-    uint64_t new_balance;
+struct LocalTransfer : public AbstractTransferOp {
+    UserTransfer sender;
+    UserTransfer receiver;
 };
 
-struct RemoteParticipant : public ParticipantBase {
-    uint64_t group_id;
-};
-
-struct LocalTransfer {
-    Participant user_from;
-    Participant user_to;
-};
-
-struct InboundTransfer {
-    RemoteParticipant user_from;
-    Participant user_to;
+struct PairedTransaction {
     HederaTimestamp paired_transaction_id;
+    uint8_t other_group[GROUP_ALIAS_LENGTH];
 };
 
-struct OutboundTransfer {
-    Participant user_from;
-    RemoteParticipant user_to;
-    HederaTimestamp paired_transaction_id;
+struct InboundTransfer : public AbstractTransferOp, PairedTransaction {
+    User sender;
+    UserTransfer receiver;
+};
+struct OutboundTransfer : public AbstractTransferOp, PairedTransaction {
+    UserTransfer sender;
+    User receiver;
 };
 
-
-struct GradidoTransaction {
-    GradidoTransferType gradido_transfer_type;
-    union {
-        LocalTransfer local;
-        InboundTransfer inbound;
-        OutboundTransfer outbound;
-    } data;
-    uint64_t amount;
-    uint64_t amount_with_deduction; // includes Gradido deduction
-    char sender_signature[64];
-};
-
-struct Disableable {
-    bool is_disabled;
-};
-
-struct UpdateAuthor {
-    uint64_t update_author_user_id;
-    char update_author_signature[64];
-};
-
-struct GroupUpdate : public Disableable, UpdateAuthor {
-    // assuming topic_id stays unchanged forever; for now there aren't
-    // things to update apart from disabling / enabling group
-};
-
-struct GroupFriendsUpdate : public Disableable, UpdateAuthor {
-    uint64_t group_id;
-};
-
-enum MemberStatus {
-    OWNER=0,
-    MEMBER
-};
-
-enum MemberUpdateType {
-
-    // only owner can manipulate with users for now
-    ADD_USER=0,
-    UPDATE_USER,
-    MOVE_USER_INBOUND,
-    MOVE_USER_OUTBOUND,
-    DISABLE_USER
+struct FriendUpdate {
+    uint8_t group[GROUP_ALIAS_LENGTH];
 };
 
 // first transaction is ADD_USER with user_id of group's creator;
 // for this transaction update_author_user_id is set to 0,
 // member_status is OWNER
-struct GroupMemberUpdate : public Disableable, UpdateAuthor {
-    uint64_t user_id;
-    MemberStatus member_status;
-    MemberUpdateType member_update_type;
-
-    HederaTimestamp paired_transaction_id;
-    uint64_t target_group;
-    char public_key[32];
+struct AbstractUserOp {
+    uint8_t user[PUB_KEY_LENGTH];
 };
 
-// this is included to allow further customizations of how permissions
-// are decided for various operations (for example, in future some
-// things may get more strict, still blockchain would need to validate
-// anyway also for older ways)
-//
-// in other words, this refers to certain way how a transaction is
-// validated in the code
-enum ValidationSchema {
-
-    // group disable: allowed only to owner
-    // add, disable, update: allowed only to owner
-    // move user: allowed to user himself
-    // add group friend: allowed only to owner
-    DEFAULT=0
-};
+struct AddUser : public AbstractUserOp {}; 
+struct MoveUser : public AbstractUserOp, PairedTransaction {};
 
 enum TransactionResult {
     SUCCESS=0,
+
+    // not yet decided
+    UNKNOWN,
+
+    // transfer not possible, sender doesn't have enough funds
     NOT_ENOUGH_GRADIDOS,
-    NOT_ALLOWED,
+
+    // any of needed signatures is invalid
     INVALID_SIGNATURE,
-    BAD_USER_ID,
-    USER_DISABLED
+
+    // any of needed signatures is missing
+    MISSING_SIGNATURE,
+    
+    // user has to be in local group
+    BAD_LOCAL_USER_ID,
+
+    // user has to be in remote group
+    BAD_REMOTE_USER_ID,
+
+    // group has to be in list of friends
+    UNKNOWN_GROUP_ID,
+
+    // transaction is too large to be expressed by number of parts
+    // less or equal to MAX_RECORD_PARTS
+    TOO_LARGE
 };
+
+struct GradidoCreation : public UserTransfer, AbstractTransferOp {};
 
 struct Transaction {
+    // starts with 1; it may affect the way how transaction is parsed and
+    // validated; version_number is the same for all parts of single 
+    // transaction
+    uint8_t version_number;
+
+    // additional signatures can be stored in more parts
+    Signature signature;
+    uint8_t signature_count;
+
     HederaTransaction hedera_transaction;
-    TransactionType transaction_type;
+    uint8_t transaction_type; // enum TransactionType
     union {
-        GradidoTransaction gradido_transaction;
-        GroupUpdate group_update;
-        GroupFriendsUpdate group_friends_update;
-        GroupMemberUpdate group_member_update;
-    } data;
+        GradidoCreation gradido_creation;
+        FriendUpdate add_group_friend;
+        FriendUpdate remove_group_friend;
+        AddUser add_user;
+        MoveUser move_user_inbound;
+        MoveUser move_user_outbound;
+        LocalTransfer local_transfer;
+        InboundTransfer inbound_transfer;
+        OutboundTransfer outbound_transfer;
+    };
 
-    TransactionResult result;
-    // to facilitate small updates, if they are necessary; starts with 1;
-    // version_number == 0 are considered blank
-    char version_number;
-    char reserved[32];
+    uint8_t result; // enum TransactionResult
+    
+    // other parts may follow this record; if not, then parts == 1;
+    // cannot be larger than MAX_RECORD_PARTS
+    uint8_t parts;
 
+    // first part of memo, to avoid multi-parts, if possible (assuming,
+    // usually memos are small); has to be null-terminated string;
+    // memo is first of possible parts; if this->memo doesn't end with
+    // \0, then it is considered multi-part memo
+    uint8_t memo[MEMO_MAIN_SIZE];
 };
- 
+
+#define MEMO_PART_SIZE (int)fmax(sizeof(Transaction), MEMO_FULL_SIZE - MEMO_MAIN_SIZE)
+#define SIGNATURES_PER_RECORD (int)(sizeof(Transaction) / sizeof(Signature))
+
+enum GradidoRecordType {
+    BLANK=0,
+    GRADIDO_TRANSACTION,
+    MEMO,
+    SIGNATURES
+};
+
+struct GradidoRecord {
+    uint8_t record_type; // enum GradidoRecordType
+    union {
+        Transaction transaction;
+        uint8_t memo[MEMO_PART_SIZE];
+        Signature signature[SIGNATURES_PER_RECORD];
+    };
+};
+
+struct GroupRecord {
+    uint8_t alias[GROUP_ALIAS_LENGTH];
+    HederaTransaction hedera_transaction;
+    Signature signature;
+};
+
 }
 
 #endif

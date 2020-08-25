@@ -95,9 +95,9 @@ public:
     virtual void receive_record_requests(
                  std::string endpoint, 
                  std::shared_ptr<RecordRequestListener> rrl);
-    virtual void require_records(std::string endpoint,
-                                 grpr::BlockRangeDescriptor brd, 
-                                 std::shared_ptr<RecordReceiver> rr);
+    virtual void require_transactions(std::string endpoint,
+                                      grpr::BlockRangeDescriptor brd, 
+                                      std::shared_ptr<RecordReceiver> rr);
     virtual void receive_manage_network_requests(
                  std::string endpoint, 
                  std::shared_ptr<ManageNetworkReceiver> mnr);

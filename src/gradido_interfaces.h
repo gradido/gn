@@ -15,9 +15,9 @@
 
 #define SAFE_PT(expr) if (expr != 0) throw std::runtime_error("couldn't " #expr)
 
+#define BLOCKCHAIN_HASH_SIZE 32
 
 namespace gradido {
-
 
 class ITask {
 public:
@@ -25,13 +25,22 @@ public:
     virtual void run() = 0;
 };
 
+struct MultipartTransaction {
+    MultipartTransaction() : rec_count(0), rec{0} {}
+    GradidoRecord rec[MAX_RECORD_PARTS];
+    int rec_count;
+};
+
+struct HashedMultipartTransaction : public MultipartTransaction {
+    char hashes[MAX_RECORD_PARTS * BLOCKCHAIN_HASH_SIZE];
+};
+
 class IBlockchain {
  public:
     virtual ~IBlockchain() {}
     virtual void init() = 0;
-    virtual void add_transaction(const Transaction& tr) = 0;
-    virtual void add_transaction(const Transaction& tr, 
-                                 std::string rec_hash_to_check) = 0;
+    virtual void add_transaction(const MultipartTransaction& tr) = 0;
+    virtual void add_transaction(const HashedMultipartTransaction& tr) = 0;
 
     virtual void continue_with_transactions() = 0;
     virtual void continue_validation() = 0;
@@ -41,8 +50,8 @@ class IBlockchain {
     virtual void exec_once_paired_transaction_done(
                            ITask* task, 
                            HederaTimestamp hti) = 0;
-    virtual uint64_t get_total_rec_count() = 0;
-    virtual void require_records(std::vector<std::string> endpoints) = 0;
+    virtual uint64_t get_transaction_count() = 0;
+    virtual void require_transactions(std::vector<std::string> endpoints) = 0;
 };
 
 struct GroupInfo {
@@ -79,6 +88,7 @@ class IGradidoConfig {
     virtual std::string get_manage_network_requests_endpoint() = 0;
 };
 
+// communication layer threads should not be delayed much; use tasks
 class ICommunicationLayer {
 public:
     virtual ~ICommunicationLayer() {}
@@ -136,9 +146,9 @@ public:
                  std::string endpoint, 
                  std::shared_ptr<RecordRequestListener> rrl) = 0;
 
-    virtual void require_records(std::string endpoint,
-                                 grpr::BlockRangeDescriptor brd, 
-                                 std::shared_ptr<RecordReceiver> rr) = 0;
+    virtual void require_transactions(std::string endpoint,
+                                      grpr::BlockRangeDescriptor brd, 
+                                      std::shared_ptr<RecordReceiver> rr) = 0;
 
     // always single listener
     virtual void receive_manage_network_requests(

@@ -5,123 +5,96 @@ package com.gradido.proto;
 import "BasicTypes.proto";
 import "Timestamp.proto";
 
-message Participant {
-    uint64 user_id = 1;
+message SignaturePair {
+    bytes pub_key = 1;  
+    // TODO: simplify
+    oneof signature {
+        bytes ed25519 = 2; // ed25519 signature (libsodium default)
+		bytes ed25519_ref10 = 3; // ed25519 ref10 signature
+    }
 }
 
-message RemoteParticipant {
-    uint64 user_id = 1;
-    uint64 group_id = 2;
+message SignatureMap {
+    repeated SignaturePair sig_pair = 1; // Each signature pair corresponds to a unique Key required to sign the transaction.
+}
+
+message Amount {
+	bytes pubkey = 1;
+	double amount = 2;
 }
 
 message LocalTransfer {
-    Participant user_from = 1;
-    Participant user_to = 2;
+    Amount sender = 1;
+    bytes receiver = 2;
 }
-message InboundTransfer {
-    RemoteParticipant user_from = 1;
-    Participant user_to = 2;
+
+message CrossGroupTransfer {
+    Amount sender = 1;
+    bytes receiver = 2;
+    bytes other_group = 3;
     // this matches related OutboundTransfer.paired_transaction_id
-    .proto.Timestamp paired_transaction_id = 3;
-}
-message OutboundTransfer {
-    Participant user_from = 1;
-    RemoteParticipant user_to = 2;
-    // this matches related InboundTransfer.paired_transaction_id
-    .proto.Timestamp paired_transaction_id = 3;
+    .proto.Timestamp paired_transaction_id = 4;
 }
 
-message GradidoTransaction {
-    enum GradidoTransferType {
-        LOCAL = 0;
-        INBOUND = 1;
-        OUTBOUND = 2;
-    }
-
-    GradidoTransferType gradido_transfer_type = 1;
-
+message GradidoTransfer {
     oneof data {
-        LocalTransfer local = 2;
-        InboundTransfer inbound = 3;
-        OutboundTransfer outbound = 4;
+        LocalTransfer local = 1;
+        CrossGroupTransfer inbound = 2;
+        CrossGroupTransfer outbound = 3;
     }
-    
-    uint64 amount = 5;
-    uint64 amount_with_deduction = 6;
-
-    // bytes[64]
-    bytes sender_signature = 7;
-}
-
-message GroupUpdate {
-    bool is_disabled = 1;
-    uint64 update_author_user_id = 2;
-
-    // update_author_signature[64]
-    bytes update_author_signature = 3;
 }
 
 message GroupFriendsUpdate {
-    bool is_disabled = 1;
-    uint64 update_author_user_id = 2;
-
-    // update_author_signature[64]
-    bytes update_author_signature = 3;
-    uint64 group_id = 4;
+    // char[16], alias
+    bytes group = 1;
+    
+    enum Action {
+        ADD_FRIEND=0;
+        REMOVE_FRIEND=1;
+    };
+    Action action = 2;
 }
 
 message GroupMemberUpdate {
-    bool is_disabled = 1;
-    uint64 update_author_user_id = 2;
-
-    // update_author_signature[64]
-    bytes update_author_signature = 3;
-
-    uint64 user_id = 4;
-    enum MemberStatus {
-        OWNER=0;
-        MEMBER=1;
-    };
-    MemberStatus member_status = 5;
+    bytes user_pubkey = 1;
 
     enum MemberUpdateType {
         ADD_USER=0;
-        UPDATE_USER=1;
-        MOVE_USER_INBOUND=2;
-        MOVE_USER_OUTBOUND=3;
-        DISABLE_USER=4;
+        MOVE_USER_INBOUND=1;
+        MOVE_USER_OUTBOUND=2;
     };
-    MemberUpdateType member_update_type = 6;
+    MemberUpdateType member_update_type = 2;
 
     // this only makes sense for user move, TODO: probably restructure
-    .proto.Timestamp paired_transaction_id = 7;
-    uint64 target_group = 8;
-    
-    // public_key[32]
-    bytes public_key = 9;
+    .proto.Timestamp paired_transaction_id = 3;
+    bytes target_group = 4;
 }
 
-// this is sent inside ConsensusTopicResponse.message
-message Transaction {
-    enum TransactionType {
-        GRADIDO_TRANSACTION = 0;
-        GROUP_UPDATE = 1;
-        GROUP_FRIENDS_UPDATE = 2;
-        GROUP_MEMBER_UPDATE = 3;
-    }
-    TransactionType transaction_type = 1;
+message GradidoCreation {
+    Amount receiver = 1; 
+}
 
-    oneof data {
-        GradidoTransaction gradido_transaction = 2;
-        GroupUpdate group_update = 3;
+message TransactionBody {
+	string memo = 1; // max 150 chars
+
+	oneof data {
+        GradidoTransfer transfer = 2;
+		GradidoCreation creation = 3;
         GroupFriendsUpdate group_friends_update = 4;
         GroupMemberUpdate group_member_update = 5;
-    }
+	}
 
     uint64 version_number = 6;
-    
-    // bytes[32]
-    bytes reserved = 7;
+}
+
+message GradidoTransaction {
+	SignatureMap sig_map = 1;
+
+    // TODO: consider if having concrete type wouldn't be better; 
+    // having bytes would better show what is signed, still for 
+    // blockchain it doesn't matter, as it has to be serialized again
+    // when validating
+	bytes body_bytes = 2; // TransactionBody
 }
 
 message ManageGroupRequest {
@@ -146,11 +119,15 @@ message BlockRangeDescriptor {
     uint64 record_count = 3;
 }
 
+message TransactionPart {
+    // 64 bytes
+    bytes hash = 1;
+    bytes record = 2; // record as it is stored in blockchain
+}
+
 message BlockRecord {
     bool success = 1;
-    // 64 bytes
-    bytes hash = 2;
-    Transaction transaction = 3;
+    repeated TransactionPart part = 2;
 }
 
 message ManageNodeNetwork {

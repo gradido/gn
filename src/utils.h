@@ -19,8 +19,7 @@ public:
     }
 };
 
-void dump_transaction(const Transaction& t, std::ostream& out);
-void dump_transaction_in_json(const Transaction& t, std::ostream& out);
+void dump_transaction_in_json(const GradidoRecord& t, std::ostream& out);
 void dump_in_hex(const char* in, char* out, size_t in_len);
  
 }

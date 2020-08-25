@@ -13,48 +13,48 @@
 
 namespace gradido {
 
-class GradidoGroupBlockchain : public IBlockchain, Blockchain<Transaction>::BlockchainRecordValidator {
+class GradidoGroupBlockchain : public IBlockchain, Blockchain<GradidoRecord>::BlockchainRecordValidator {
 public:
+
+    typedef Blockchain<GradidoRecord>::RecordValidationResult RVR;
+
     // TODO: different levels of validation; when validating existing
     // chain it would be enough to just check hashes
-    virtual bool validate(const Transaction& rec);
+    virtual RVR validate(const GradidoRecord& rec);
 
     // builds data indexes while traversing blockchain
-    virtual void added_successfuly(const Transaction& rec);
+    virtual void added_successfuly(const GradidoRecord& rec);
 
 private:
     GroupInfo gi;
     IGradidoFacade* gf;
     HederaTopicID topic_id;    
-    Blockchain<Transaction> blockchain;
+    Blockchain<GradidoRecord> blockchain;
 
     struct UserInfo {
-        uint64_t current_balance;
-        char pub_key[64];
+        GradidoValue current_balance;
         uint64_t last_record_with_balance;
-        bool is_disabled;
     };
 
     struct FriendGroupInfo {
-        bool is_disabled;
     };
 
-    std::map<uint64_t, UserInfo> user_index;
-    std::map<uint64_t, FriendGroupInfo> friend_group_index;
+    std::map<std::string, UserInfo> user_index;
+    std::map<std::string, FriendGroupInfo> friend_group_index;
 
     // for testing purposes is set to true
     bool omit_previous_transactions;
 
     // takes into account indexes built by Validator
-    void prepare_rec_and_indexes(Transaction& tr);
+    void prepare_rec_and_indexes(MultipartTransaction& tr);
 
     class TransactionCompare {
     public:
-        bool operator()(const Transaction& lhs, 
-                        const Transaction& rhs) const;
+        bool operator()(const MultipartTransaction& lhs, 
+                        const MultipartTransaction& rhs) const;
     };
     pthread_mutex_t queue_lock;
-    std::priority_queue<Transaction, std::vector<Transaction>, TransactionCompare> inbound;
+    std::priority_queue<MultipartTransaction, std::vector<MultipartTransaction>, TransactionCompare> inbound;
 
 
     // idea is to allow only one thread to write to blockchain
@@ -98,7 +98,10 @@ private:
     };
     friend class BusyGuard;
 
-    void append(const Transaction& tr);
+    void append(const MultipartTransaction& tr);
+
+    uint64_t transaction_count;
+
 
 public:
     GradidoGroupBlockchain(GroupInfo gi, Poco::Path root_folder,
@@ -108,9 +111,8 @@ public:
     virtual void init();
 
 
-    virtual void add_transaction(const Transaction& tr);
-    virtual void add_transaction(const Transaction& tr, 
-                                 std::string rec_hash_to_check);
+    virtual void add_transaction(const MultipartTransaction& tr);
+    virtual void add_transaction(const HashedMultipartTransaction& tr);
 
     virtual void continue_with_transactions();
     virtual void continue_validation();
@@ -120,9 +122,9 @@ public:
     virtual void exec_once_paired_transaction_done(
                            ITask* task, 
                            HederaTimestamp hti);
-    virtual uint64_t get_total_rec_count();
+    virtual uint64_t get_transaction_count();
 
-    virtual void require_records(std::vector<std::string> endpoints);
+    virtual void require_transactions(std::vector<std::string> endpoints);
 
 };
 

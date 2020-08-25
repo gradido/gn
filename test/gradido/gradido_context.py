@@ -44,7 +44,7 @@ class GradidoContext(object):
         cmd = "../build/gradido_node %s 2> %s" % (conf_file, err_file)
         pro = subprocess.Popen(cmd, stdout=subprocess.PIPE, 
                                shell=True, preexec_fn=os.setsid) 
-
+        self.add_proc(pro.pid)
         self.procs[instance_name] = (instance_root, pro, err_file)
         return "launched"
     def finish_gradido_node(self, context):
@@ -57,6 +57,7 @@ class GradidoContext(object):
 
         (instance_root, pro, err_file) = self.procs[instance_name]
         os.killpg(os.getpgid(pro.pid), signal.SIGTERM) 
+        self.remove_proc(pro.pid)
         time.sleep(1)
         with open(err_file) as f:
             lines = f.read().split("\n")
@@ -67,6 +68,7 @@ class GradidoContext(object):
             if os.path.isdir(pp):
                 bchain = subprocess.check_output(["../build/dump_blockchain", pp], stderr=subprocess.STDOUT)
                 if bchain:
+                    print "hahah-------------", bchain
                     bchains[i] = json.loads(bchain)
                 else:
                     bchains[i] = None

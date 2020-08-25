@@ -8,11 +8,12 @@ default-config:
   output-step-file-name: ncd-output-steps.yaml
   case: simple-talk
   hedera-credentials-file: hedera-credentials.cfg
-  hedera-node-endpoint: 0.testnet.hedera.com:50211
+  hedera-node-endpoint: 1.testnet.hedera.com:50211
   hedera-node-id: [0, 0, 3]
   hedera-mirror-endpoint: hcs.testnet.mirrornode.hedera.com:5600
   hedera-create-topic-settle-time: 10
   hedera-topic-id: null
+  hedera-simulated-port: 50051
 test-config:
   test-stage: [_fcall, {priority: 2000}, get_opt]
   test-stage-absolute: [_fcall, {priority: 1900}, ensure_test_folder]
@@ -27,6 +28,7 @@ test-config:
   hedera-mirror-endpoint: [_fcall, {priority: 2000}, get_opt]
   hedera-create-topic-settle-time: [_fcall, {priority: 2000}, get_opt, int]
   hedera-topic-id: [_fcall, {priority: 2000}, get_opt, int_arr]
+  hedera-simulated-port: [_fcall, {priority: 2000}, get_opt, int_arr]
   git-commit-hash: [_fcall, {priority: 1900}, get_git_commit_hash]
 _fcall_conf:
   ignored:
@@ -61,26 +63,27 @@ scraps:
       realmNum: [_fcall, do_getval, /test-config/hedera-topic-id/1]
       topicNum: [_fcall, do_getval, /test-config/hedera-topic-id/2]
     gradido-transfer-message-body:
-      _type: Transaction_gradido
+      _type: GradidoTransaction
       _use_with: SerializeToString
-      transaction_type: 0
-      gradido_transaction:
-        _type: GradidoTransaction
-        gradido_transfer_type: 0
-        local: 
-          _type: LocalTransfer
-          user_from:
-            _type: Participant
-            user_id: 1
-          user_to:
-            _type: Participant
-            user_id: 2
-        amount: 10
-        amount_with_deduction: 11
-        sender_signature: "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"
-      version_number: 1
-      reserved: "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"
-
+      sig_map:
+        _type: gradido_SignatureMap
+        sig_pair:
+          - _type: gradido_SignaturePair
+            pub_key: "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"
+            ed25519: "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"
+      body_bytes:
+        _type: gradido_TransactionBody
+        _use_with: SerializeToString
+        memo: hello!
+        transfer:
+          _type: GradidoTransfer
+          local:
+            sender:
+              _type: Amount
+              pubkey: "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"
+              amount: 11
+            receiver: "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"
+        version_number: 1
     hedera-custom-message-body:
       _type: TransactionBody
       _use_with: SerializeToString
@@ -218,7 +221,7 @@ scraps:
     hedera-serve-transaction:
       instance: hedera-node-service
       input: [_fcall, {priority: 1700}, get_input_from]
-      output: [_fcall, {priority: 1600}, do_hedera_calls]
+      output: [_fcall, {priority: 1600}, do_hedera_calls, 1]
     hedera-login-submit-message:
       instance: login-server
       output:
@@ -383,6 +386,9 @@ scraps:
     sleep-10:
       instance: sleeper
       output: [_fcall, do_sleep, 10]
+    sleep-3:
+      instance: sleeper
+      output: [_fcall, do_sleep, 3]
     sleep-2:
       instance: sleeper
       output: [_fcall, do_sleep, 2]
@@ -450,6 +456,8 @@ scraps:
         output: 
           - [_fcall, {priority: -10000}, do_getval, /scraps/steps/hedera-login-custom-message]
     gradido-configured-transfer:
+      - instance: hedera-simulated
+        state: [_fcall, {priority: -100}, start_simulated_hedera]
       - instance: gradido-node-0
         parts:
           listening-groups:
@@ -463,7 +471,8 @@ scraps:
             worker_count: 10
             io_worker_count: 1
             data_root_folder: [_fcall, {priority: 1090}, do_getval, ../../instance-root]
-            hedera_mirror_endpoint: [_fcall, do_getval, /test-config/hedera-mirror-endpoint]
+            # TODO: fix here; should get from config
+            hedera_mirror_endpoint: localhost:50051
             blockchain_append_batch_size: 5
             blochchain_init_batch_size: 1000
             block_record_outbound_batch_size: 100
@@ -471,7 +480,7 @@ scraps:
             record_requests_endpoint: 0.0.0.0:13702
             manage_network_requests_endpoint: 0.0.0.0:13703
             sibling_node_file: [_fcall, {priority: 1090}, get_sibling_node_file]
-        state: [_fcall, {priority: -100}, start_gradido_node]
+        state: [_fcall, {deps: /steps/0}, start_gradido_node]
       - instance: login-server
         parts:
           topic-id: [_fcall, {priority: 1110}, do_getval, /scraps/parts/gradido-topic-id]
@@ -479,11 +488,13 @@ scraps:
           message: [_fcall, {priority: 1090}, do_getval, /scraps/parts/gradido-transfer-message-body]
           message-body: [_fcall, {priority: 1080}, do_getval, /scraps/parts/hedera-custom-message-body]
         output: 
-          - [_fcall, {priority: -10000}, do_getval, /scraps/steps/hedera-login-custom-message]
-      - [_fcall, {deps: /steps/1}, do_getval, /scraps/steps/hedera-serve-transaction]
-      - [_fcall, {deps: /steps/2}, do_getval, /scraps/steps/sleep-10]
+          - [_fcall, {deps: /steps/1}, do_getval, /scraps/steps/hedera-login-custom-message]
+      - [_fcall, {deps: /steps/2}, do_getval, /scraps/steps/hedera-serve-transaction]
+      - [_fcall, {deps: /steps/3}, do_getval, /scraps/steps/sleep-3]
       - instance: gradido-node-0
-        state: [_fcall, {deps: /steps/3}, finish_gradido_node]
+        state: [_fcall, {deps: /steps/4}, finish_gradido_node]
+      - instance: hedera-simulated
+        state: [_fcall, {deps: /steps/5}, finish_simulated_hedera]
     empty: empty
 steps: [_fcall, {priority: 1000}, do_getval, /scraps/cases/%s, [_fcall, do_getval, /test-config/case]]
 

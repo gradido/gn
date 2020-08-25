@@ -25,7 +25,7 @@ int main(int argc, char** argv) {
         return -1;
     }
 
-    typedef Blockchain<Transaction>::Record grec;
+    typedef Blockchain<GradidoRecord>::Record grec;
 
     try {
 
@@ -60,7 +60,7 @@ int main(int argc, char** argv) {
             for (int i = 0; i < GRADIDO_BLOCK_SIZE; i++) {
                 grec r;
                 fs.read((char*)&r, sizeof(grec));
-                if (r.payload.version_number > 0) {
+                if (r.hash_version > 0) {
                     if (is_first)
                         is_first = false;
                     else 

@@ -112,9 +112,9 @@ namespace gradido {
         // TODO
     }
     
-    void CommunicationLayer::require_records(std::string endpoint,
-                                             grpr::BlockRangeDescriptor brd, 
-                                             std::shared_ptr<RecordReceiver> rr) {
+    void CommunicationLayer::require_transactions(std::string endpoint,
+                                                  grpr::BlockRangeDescriptor brd, 
+                                                  std::shared_ptr<RecordReceiver> rr) {
         // TODO
     }
 

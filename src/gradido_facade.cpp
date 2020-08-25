@@ -55,7 +55,7 @@ namespace gradido {
                 uint64_t i = 0;
                 for (i = first; i <= last; i++) {
                     grpr::BlockRecord br;
-                    if (i < b->get_total_rec_count()) {
+                    if (i < b->get_transaction_count()) {
                         // TODO: try / catch
                         br = b->get_block_record(i);
                         br.set_success(true);

@@ -1,4 +1,4 @@
-import yaml, requests, json, sys, random, time, copy, datetime, traceback, re, os, shutil, subprocess
+import yaml, requests, json, sys, random, time, copy, datetime, traceback, re, os, shutil, subprocess, atexit, signal
 from pukala import grow, ContextBase, PukalaGrowException, Path, PukalaPathException, FCall
 sys.path.append("./hedera/proto_gen")
 from hedera.hedera_context import HederaContext
@@ -118,6 +118,15 @@ class TestContext(LoginServerContext, HederaServiceContext, SimpleTalk, HederaCo
         StepContext.__init__(self)
         GradidoContext.__init__(self)
         ContextBase.__init__(self)
+        self.managed_procs = []
+
+    def add_proc(self, proc):
+        self.managed_procs.append(proc)
+    def remove_proc(self, proc):
+        self.managed_procs.remove(proc)
+    def cleanup(self):
+        for i in self.managed_procs:
+            os.killpg(i, signal.SIGKILL)
 
     def do_sleep(self, context):
         print "sleeping for %d seconds" % context.args[0]
@@ -228,6 +237,8 @@ def do_grow():
         doc = yaml.load(f.read(), Loader=yaml.FullLoader)
     
     tc = TestContext()
+    atexit.register(tc.cleanup)
+
     try:
         print "growing %s" % doctree_file_name
         res = grow(doc, tc)
@@ -249,5 +260,6 @@ def do_grow():
         print e.get_formed_desc()
     except Exception as e:
         print traceback.format_exc()
+
 
 do_grow()

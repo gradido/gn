@@ -2,12 +2,6 @@
 
 namespace gradido {
 
-void dump_transaction(const Transaction& t, std::ostream& out) {
-    // TODO: more elaborate
-    out << "seq_num: " << t.hedera_transaction.sequenceNumber <<
-        "; transaction_type: " << t.transaction_type;
-}
-
 void dump_in_hex(const char* in, char* out, size_t in_len) {
     size_t i = 0;
     for (i = 0; i < in_len; i++)
@@ -16,131 +10,209 @@ void dump_in_hex(const char* in, char* out, size_t in_len) {
 }
 
 
-void dump_transaction_in_json(const Transaction& t, std::ostream& out) {
-
-    char buff[1024];
-    dump_in_hex(t.reserved, buff, 32);
-    std::string reserved(buff);
-
-    dump_in_hex(t.hedera_transaction.runningHash, buff, 64);
-    std::string running_hash(buff);
-
+void dump_transaction_in_json(const GradidoRecord& t, std::ostream& out) {
     out << "{" << std::endl
-        << "  \"hedera_transaction\": {" << std::endl
-        << "    \"consensusTimestamp\": {" << std::endl
-        << "      \"seconds\": " << t.hedera_transaction.consensusTimestamp.seconds << ", " << std::endl
-        << "      \"nanos\": " << t.hedera_transaction.consensusTimestamp.nanos  << std::endl
-        << "    }," << std::endl
-        << "    \"runningHash\": \"" << running_hash << "\", " << std::endl
-        << "    \"sequenceNumber\": " << t.hedera_transaction.sequenceNumber << ", " << std::endl
-        << "    \"runningHashVersion\": " << t.hedera_transaction.runningHashVersion << std::endl
-        << "  }," << std::endl
-        << "  \"transaction_type\": " << (int)t.transaction_type << ", " << std::endl;
+        << "  \"record_type\":" << t.record_type << ", " << std::endl;
 
-    switch (t.transaction_type) {
+    switch ((GradidoRecordType)t.record_type) {
     case GRADIDO_TRANSACTION: {
-        dump_in_hex(t.data.gradido_transaction.sender_signature, buff, 64);
-        std::string sender_signature(buff);
+        const Transaction& u = t.transaction;
 
-        out << "  \"gradido_transaction\": {" << std::endl
-            << "    \"gradido_transfer_type\": " << t.data.gradido_transaction.gradido_transfer_type << ", "  << std::endl;
+        char buff[1024];
+        dump_in_hex((char*)u.hedera_transaction.runningHash, buff, 48);
+        std::string running_hash(buff);
 
-        switch (t.data.gradido_transaction.gradido_transfer_type) {
-        case LOCAL: {
-            out << "    \"local\": {" << std::endl
-                << "      \"user_from\": {" << std::endl
-                << "        \"user_id\": " << t.data.gradido_transaction.data.local.user_from.user_id << ", " << std::endl
-                << "        \"prev_user_rec_num\": " << t.data.gradido_transaction.data.local.user_from.prev_user_rec_num << ", " << std::endl
-                << "        \"new_balance\": " << t.data.gradido_transaction.data.local.user_from.new_balance << std::endl
-                << "      }," << std::endl
-                << "      \"user_to\": {" << std::endl
-                << "        \"user_id\": " << t.data.gradido_transaction.data.local.user_to.user_id << ", " << std::endl
-                << "        \"prev_user_rec_num\": " << t.data.gradido_transaction.data.local.user_to.prev_user_rec_num << ", " << std::endl
-                << "        \"new_balance\": " << t.data.gradido_transaction.data.local.user_to.new_balance << std::endl
-                << "      }" << std::endl
-                << "    },"  << std::endl;
+        dump_in_hex((char*)u.signature.pubkey, buff, PUB_KEY_LENGTH);
+        std::string sig_pubkey(buff);
+
+        dump_in_hex((char*)u.signature.signature, buff, SIGNATURE_LENGTH);
+        std::string sig_sig(buff);
+
+        std::string memo = u.memo[MEMO_MAIN_SIZE - 1] == 0 ? 
+            std::string((char*)u.memo) : std::string((char*)u.memo, MEMO_MAIN_SIZE);
+
+        out << "  \"transaction\": {" << std::endl;
+        out << "    \"version_number\": " << u.version_number << ", " << std::endl;
+        out << "    \"signature\": {" << std::endl;
+        out << "      \"pubkey\": \"" << sig_pubkey << "\", " << std::endl;
+        out << "      \"signature\": \"" << sig_sig << "\"" << std::endl;
+        out << "    }, " << std::endl;
+        out << "    \"signature_count\": " << u.signature_count << ", " << std::endl;
+        out << "    \"hedera_transaction\": {" << std::endl
+            << "      \"consensusTimestamp\": {" << std::endl
+            << "        \"seconds\": " << u.hedera_transaction.consensusTimestamp.seconds << ", " << std::endl
+            << "        \"nanos\": " << u.hedera_transaction.consensusTimestamp.nanos  << std::endl
+            << "      }," << std::endl
+            << "      \"runningHash\": \"" << running_hash << "\", " << std::endl
+            << "      \"sequenceNumber\": " << u.hedera_transaction.sequenceNumber << ", " << std::endl
+            << "      \"runningHashVersion\": " << u.hedera_transaction.runningHashVersion << std::endl;
+        out << "    }," << std::endl;
+        out << "    \"transaction_type\": " << u.transaction_type << ", " << std::endl;
+
+        switch ((TransactionType)u.transaction_type) {
+        case GRADIDO_CREATION: {
+            const GradidoCreation& v = u.gradido_creation;
+            dump_in_hex((char*)v.user, buff, PUB_KEY_LENGTH);
+            std::string user(buff);
+            out << "    \"gradido_creation\": {" << std::endl;
+            out << "      \"user\": \"" << user << "\", " << std::endl;
+            out << "      \"new_balance\": " << v.new_balance << ", " << std::endl;
+            out << "      \"prev_transfer_rec_num\": " << v.prev_transfer_rec_num << ", " << std::endl;
+            out << "      \"amount\": " << v.amount << std::endl;
+            out << "    }," << std::endl;
             break;
         }
-        case INBOUND: {
-            out << "    \"outbound\": {" << std::endl
-                << "      \"user_from\": {" << std::endl
-                << "        \"user_id\": " << t.data.gradido_transaction.data.inbound.user_from.user_id << ", " << std::endl
-                << "        \"group_id\": " << t.data.gradido_transaction.data.inbound.user_from.group_id << std::endl
-                << "      }," << std::endl
-                << "      \"user_to\": {" << std::endl
-                << "        \"user_id\": " << t.data.gradido_transaction.data.inbound.user_to.user_id << ", " << std::endl
-                << "        \"prev_user_rec_num\": " << t.data.gradido_transaction.data.inbound.user_to.prev_user_rec_num << ", " << std::endl
-                << "        \"new_balance\": " << t.data.gradido_transaction.data.inbound.user_to.new_balance << std::endl
-                << "      }," << std::endl
-                << "      \"paired_transaction_id\": {" << std::endl
-                << "        \"seconds\": " << t.data.gradido_transaction.data.inbound.paired_transaction_id.seconds << ", " << std::endl
-                << "        \"nanos\": " << t.data.gradido_transaction.data.inbound.paired_transaction_id.nanos  << std::endl
-                << "        }" << std::endl
-                << "      }" << std::endl
-                << "    },"  << std::endl;
+        case ADD_GROUP_FRIEND: {
+            std::string group((char*)u.add_group_friend.group);
+            out << "    \"add_group_friend\": {" << std::endl;
+            out << "      \"group\": \"" << group << "\"" << std::endl;
+            out << "    }," << std::endl;
             break;
         }
-        case OUTBOUND: {
+        case REMOVE_GROUP_FRIEND: {
+            std::string group((char*)u.add_group_friend.group);
+            out << "    \"remove_group_friend\": {" << std::endl;
+            out << "      \"group\": \"" << group << "\"" << std::endl;
+            out << "    }," << std::endl;
+            break;
+        }
+        case ADD_USER: {
+            dump_in_hex((char*)u.add_user.user, buff, PUB_KEY_LENGTH);
+            std::string user(buff);
+            out << "    \"add_user\": {" << std::endl;
+            out << "      \"user\": \"" << user << "\"" << std::endl;
+            out << "    }," << std::endl;
+            break;
+        }
+        case MOVE_USER_INBOUND: {
+            dump_in_hex((char*)u.move_user_inbound.user, buff, 
+                        PUB_KEY_LENGTH);
+            std::string user(buff);
+            std::string other_group((char*)u.move_user_inbound.other_group);
+            HederaTimestamp ts = u.move_user_inbound.paired_transaction_id;
+            out << "    \"move_user_inbound\": {" << std::endl;
+            out << "      \"user\": \"" << user << "\"," << std::endl;
+            out << "      \"other_group\": \"" << other_group << "\"," << std::endl;
+            out << "      \"paired_transaction_id\": {" << std::endl;
+            out << "        \"seconds\": " << ts.seconds  << ", " << std::endl;
+            out << "        \"nanos\": " << ts.nanos << std::endl;
+            out << "      }" << std::endl;
+            out << "    }," << std::endl;
+            break;
+        }
+        case MOVE_USER_OUTBOUND: {
+            dump_in_hex((char*)u.move_user_outbound.user, buff, 
+                        PUB_KEY_LENGTH);
+            std::string user(buff);
+            std::string other_group((char*)u.move_user_outbound.other_group);
+            HederaTimestamp ts = u.move_user_outbound.paired_transaction_id;
+            out << "    \"move_user_outbound\": {" << std::endl;
+            out << "      \"user\": \"" << user << "\"," << std::endl;
+            out << "      \"other_group\": \"" << other_group << "\"," << std::endl;
+            out << "      \"paired_transaction_id\": {" << std::endl;
+            out << "        \"seconds\": " << ts.seconds  << ", " << std::endl;
+            out << "        \"nanos\": " << ts.nanos << std::endl;
+            out << "      }" << std::endl;
+            out << "    }," << std::endl;
+            break;
+        }
+        case LOCAL_TRANSFER: {
+            const LocalTransfer& tt = u.local_transfer;
+            dump_in_hex((char*)tt.sender.user, buff, 
+                        PUB_KEY_LENGTH);
+            std::string sender(buff);
+            dump_in_hex((char*)tt.receiver.user, buff, 
+                        PUB_KEY_LENGTH);
+            std::string receiver(buff);
 
-            out << "    \"inbound\": {" << std::endl
-                << "      \"user_from\": {" << std::endl
-                << "        \"user_id\": " << t.data.gradido_transaction.data.outbound.user_from.user_id << ", " << std::endl
-                << "        \"prev_user_rec_num\": " << t.data.gradido_transaction.data.outbound.user_from.prev_user_rec_num << ", " << std::endl
-                << "        \"new_balance\": " << t.data.gradido_transaction.data.outbound.user_from.new_balance << std::endl
-                << "      }," << std::endl
-                << "      \"user_to\": {" << std::endl
-                << "        \"user_id\": " << t.data.gradido_transaction.data.outbound.user_to.user_id << ", " << std::endl
-                << "        \"group_id\": " << t.data.gradido_transaction.data.outbound.user_to.group_id << std::endl
-                << "      }," << std::endl
-                << "      \"paired_transaction_id\": {" << std::endl
-                << "        \"seconds\": " << t.data.gradido_transaction.data.inbound.paired_transaction_id.seconds << ", " << std::endl
-                << "        \"nanos\": " << t.data.gradido_transaction.data.inbound.paired_transaction_id.nanos  << std::endl
-                << "        }" << std::endl
-                << "      }" << std::endl
-                << "    }," << std::endl;
+            out << "    \"local_transfer\": {" << std::endl;
+            out << "      \"sender\": {" << std::endl;
+            out << "        \"user\": \"" << sender << "\", " << std::endl;
+            out << "        \"new_balance\": " << tt.sender.new_balance << ", " << std::endl;
+            out << "        \"prev_transfer_rec_num\": " << tt.sender.prev_transfer_rec_num << std::endl;
+            out << "      }," << std::endl;
+            out << "      \"receiver\": {" << std::endl;
+            out << "        \"user\": \"" << receiver << "\", " << std::endl;
+            out << "        \"new_balance\": " << tt.receiver.new_balance << ", " << std::endl;
+            out << "        \"prev_transfer_rec_num\": " << tt.receiver.prev_transfer_rec_num << std::endl;
+            out << "      }," << std::endl;
+            out << "      \"amount\": " << tt.amount << std::endl;
+            out << "    }," << std::endl;
+            break;
+        }
+        case INBOUND_TRANSFER: {
+            const InboundTransfer& tt = u.inbound_transfer;
+            dump_in_hex((char*)tt.sender.user, buff, 
+                        PUB_KEY_LENGTH);
+            std::string sender(buff);
+            dump_in_hex((char*)tt.receiver.user, buff, 
+                        PUB_KEY_LENGTH);
+            std::string receiver(buff);
+
+            out << "    \"inbound_transfer\": {" << std::endl;
+            out << "      \"sender\": {" << std::endl;
+            out << "        \"user\": \"" << sender << std::endl;
+            out << "      }," << std::endl;
+            out << "      \"receiver\": {" << std::endl;
+            out << "        \"user\": \"" << receiver << "\", " << std::endl;
+            out << "        \"new_balance\": " << tt.receiver.new_balance << ", " << std::endl;
+            out << "        \"prev_transfer_rec_num\": " << tt.receiver.prev_transfer_rec_num << std::endl;
+            out << "      }," << std::endl;
+            out << "      \"amount\": " << tt.amount << std::endl;
+            out << "    }," << std::endl;
+            break;
+        }
+        case OUTBOUND_TRANSFER: {
+            const OutboundTransfer& tt = u.outbound_transfer;
+            dump_in_hex((char*)tt.sender.user, buff, 
+                        PUB_KEY_LENGTH);
+            std::string sender(buff);
+            dump_in_hex((char*)tt.receiver.user, buff, 
+                        PUB_KEY_LENGTH);
+            std::string receiver(buff);
+
+            out << "    \"outbound_transfer\": {" << std::endl;
+            out << "      \"sender\": {" << std::endl;
+            out << "        \"user\": \"" << sender << "\", " << std::endl;
+            out << "        \"new_balance\": " << tt.sender.new_balance << ", " << std::endl;
+            out << "        \"prev_transfer_rec_num\": " << tt.sender.prev_transfer_rec_num << std::endl;
+            out << "      }," << std::endl;
+            out << "      \"receiver\": {" << std::endl;
+            out << "        \"user\": \"" << receiver << std::endl;
+            out << "      }," << std::endl;
+            out << "      \"amount\": " << tt.amount << std::endl;
+            out << "    }," << std::endl;
             break;
         }
         }
 
-        out << "    \"amount\": " << t.data.gradido_transaction.amount << ", "  << std::endl
-            << "    \"amount_with_deduction\": " << t.data.gradido_transaction.amount_with_deduction << ", " << std::endl
-            << "    \"sender_signature\": \"" << sender_signature << "\"" << std::endl
-            << "  }," << std::endl;
+        out << "    \"result\": " << u.result << ", " << std::endl;
+        out << "    \"parts\": " << u.parts << ", " << std::endl;
+        out << "    \"memo\": \"" << memo << "\"" << std::endl;        
+        out << "  }" << std::endl;
         break;
     }
-    case GROUP_UPDATE: {
-        // TODO
+
+    case MEMO: {
+        out << "  \"memo\": \"" << std::string((char*)t.memo) << "\", " << std::endl;
         break;
     }
-    case GROUP_FRIENDS_UPDATE: {
-        // TODO
+    case SIGNATURES: {
+        for (int i = 0; i < SIGNATURES_PER_RECORD; i++) {
+            const Signature* s = t.signature + i;
+            if (s->pubkey[0] == 0)
+                break;
+            out << "  \"signature\": [" << std::endl;
+            out << "    {" << std::endl;
+            out << "      \"pubkey\": \"" << std::string((char*)s->pubkey, PUB_KEY_LENGTH) << "\", " << std::endl;
+            out << "      \"signature\": \"" << std::string((char*)s->signature, SIGNATURE_LENGTH) << "\"" << std::endl;
+            out << "    }" << std::endl;
+            out << "  ]" << std::endl;
+        }
         break;
     }
-    case GROUP_MEMBER_UPDATE: {
-        dump_in_hex(t.data.group_member_update.public_key, buff, 32);
-        std::string public_key(buff);
-
-        dump_in_hex(t.data.group_member_update.update_author_signature, buff, 64);
-        std::string update_author_signature(buff);
-
-
-        out << "  \"group_member_update\": {" << std::endl
-            << "    \"user_id\": " << t.data.group_member_update.user_id << ", " << std::endl
-            << "    \"member_status\": " << (int)t.data.group_member_update.member_status << ", " << std::endl
-            << "    \"member_update_type\": " << t.data.group_member_update.member_update_type << ", " << std::endl
-            << "    \"is_disabled\": " << t.data.group_member_update.is_disabled << ", " << std::endl
-            << "    \"public_key\": \"" << public_key << "\", " << std::endl
-            << "    \"update_author_user_id\": " << t.data.group_member_update.update_author_user_id << ", " << std::endl
-            << "    \"update_author_signature\": \"" << update_author_signature << "\", " << std::endl
-            << "  }," << std::endl;
-        break;
     }
-    }        
-
-    out << "  \"result\": " << (int)t.result << ", " << std::endl
-        << "  \"version_number\": " << (int)t.version_number << ", " << std::endl
-        << "  \"reserved\": \"" << reserved << "\"" << std::endl
-        << "}";
+    out << "}" << std::endl;
 }
 
 
