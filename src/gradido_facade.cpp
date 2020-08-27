@@ -18,17 +18,21 @@ namespace gradido {
             res.set_success(false);
             
             if (r.action() == 0) {
-                GroupInfo gi;
-                HederaTopicID tid;
-                tid.shardNum = r.topic_id().shardnum();
-                tid.realmNum = r.topic_id().realmnum();
-                tid.topicNum = r.topic_id().topicnum();
-                gi.group_id = r.group_id();
-                gi.topic_id = tid;
-                gi.alias = r.alias();
-                res.set_success(gf->add_group(gi));
+                if (r.group().size() >= GROUP_ALIAS_LENGTH - 1) {
+                    res.set_success(false);
+                } else {
+                    GroupInfo gi;
+                    HederaTopicID tid;
+                    tid.shardNum = r.topic_id().shardnum();
+                    tid.realmNum = r.topic_id().realmnum();
+                    tid.topicNum = r.topic_id().topicnum();
+                    gi.topic_id = tid;
+                    memcpy(gi.alias, r.group().c_str(), 
+                           r.group().size());
+                    res.set_success(gf->add_group(gi));
+                }
             } else if (r.action() == 1) {
-                res.set_success(gf->remove_group(r.group_id()));
+                res.set_success(gf->remove_group(r.group()));
             }
             return res;
         }
@@ -45,7 +49,7 @@ namespace gradido {
                             std::shared_ptr<ICommunicationLayer::BlockRecordSink> brs) : 
             gf(gf), brd(brd), brs(brs) {}
         virtual void run() {
-            IBlockchain* b = gf->get_group_blockchain(brd.group_id());
+            IBlockchain* b = gf->get_group_blockchain(brd.group());
             if (b) {
                 uint64_t first = brd.first_record();
                 uint64_t cnt = fmin(brd.record_count(), 
@@ -56,6 +60,7 @@ namespace gradido {
                 for (i = first; i <= last; i++) {
                     grpr::BlockRecord br;
                     if (i < b->get_transaction_count()) {
+                        // TODO: transaction_count in case when offset
                         // TODO: try / catch
                         br = b->get_block_record(i);
                         br.set_success(true);
@@ -159,9 +164,9 @@ namespace gradido {
         worker_pool.join();
     }
 
-    IBlockchain* GradidoFacade::get_group_blockchain(uint64_t group_id) {
+    IBlockchain* GradidoFacade::get_group_blockchain(std::string group) {
         MLock lock(main_lock);
-        auto ii = blockchains.find(group_id);
+        auto ii = blockchains.find(group);
         if (ii == blockchains.end()) 
             return 0;
         return ii->second;
@@ -169,7 +174,8 @@ namespace gradido {
 
     IBlockchain* GradidoFacade::create_group_blockchain(GroupInfo gi) {
         MLock lock(main_lock);
-        auto ii = blockchains.find(gi.group_id);
+        std::string alias(gi.alias);
+        auto ii = blockchains.find(alias);
         if (ii != blockchains.end()) {
             LOG("group already exists");
             exit(1);
@@ -177,7 +183,21 @@ namespace gradido {
         Poco::Path data_root(config.get_data_root_folder());
         Poco::Path bp = data_root.append(gi.get_directory_name());
         IBlockchain* b = new GradidoGroupBlockchain(gi, bp, this);
-        blockchains.insert({gi.group_id, b});
+        blockchains.insert({alias, b});
+        return b;
+    }
+
+    IBlockchain* GradidoFacade::create_or_get_group_blockchain(std::string group) {
+        MLock lock(main_lock);
+        auto ii = blockchains.find(group);
+        if (ii != blockchains.end())
+            return ii->second;
+        // TODO: finish; this has to be acquired from group blockchain
+        GroupInfo gi;
+        Poco::Path data_root(config.get_data_root_folder());
+        Poco::Path bp = data_root.append(gi.get_directory_name());
+        IBlockchain* b = new GradidoGroupBlockchain(gi, bp, this);
+        blockchains.insert({group, b});
         return b;
     }
 
@@ -191,7 +211,8 @@ namespace gradido {
 
     bool GradidoFacade::add_group(GroupInfo gi) {
         MLock lock(main_lock);
-        if (get_group_blockchain(gi.group_id) != 0) {
+        std::string alias(gi.alias);
+        if (get_group_blockchain(alias) != 0) {
             LOG("group already exists");
             return false;
         }
@@ -200,7 +221,7 @@ namespace gradido {
         return true;
     }
 
-    bool GradidoFacade::remove_group(uint64_t group_id) {
+    bool GradidoFacade::remove_group(std::string group) {
         // TODO: finish here
         return false;
     }

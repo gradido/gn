@@ -56,7 +56,7 @@ namespace gradido {
         
         try {
             Poco::File block_root(get_data_root_folder());
-            Poco::RegularExpression re("^([a-zA-Z0-9_]+)\\.(\\d+)\\.(\\d+)\\.(\\d+)\\.(\\d+)\\.bc$");
+            Poco::RegularExpression re("^([a-zA-Z0-9_]+)\\.(\\d+)\\.(\\d+)\\.(\\d+)\\.bc$");
             for (Poco::DirectoryIterator it(block_root);
                  it != Poco::DirectoryIterator{}; ++it) {
                 Poco::File curr(it.path());
@@ -64,12 +64,13 @@ namespace gradido {
                     std::string fname = it.path().getFileName();
                     std::vector<std::string> ss;
                     if (re.split(fname, ss)) {
-                        GroupInfo gi;
-                        gi.alias = ss[1];
-                        gi.group_id = static_cast<uint64_t>(std::stoul(ss[2]));
-                        gi.topic_id.shardNum = static_cast<uint64_t>(std::stoul(ss[3]));
-                        gi.topic_id.realmNum = static_cast<uint64_t>(std::stoul(ss[4]));
-                        gi.topic_id.topicNum = static_cast<uint64_t>(std::stoul(ss[5]));
+                        GroupInfo gi = {0};
+                        if (ss[1].size() >= GROUP_ALIAS_LENGTH - 1)
+                            throw std::runtime_error("blockchain name too long: " + ss[1]);
+                        memcpy(gi.alias, ss[1].c_str(), ss[1].size());
+                        gi.topic_id.shardNum = static_cast<uint64_t>(std::stoul(ss[2]));
+                        gi.topic_id.realmNum = static_cast<uint64_t>(std::stoul(ss[3]));
+                        gi.topic_id.topicNum = static_cast<uint64_t>(std::stoul(ss[4]));
                         gis.push_back(gi);
                     }
                 }

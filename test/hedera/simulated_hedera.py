@@ -87,7 +87,7 @@ class ConsensusServiceServicerImpl(ConsensusServiceServicer):
         tb = TransactionBody()
         tb.ParseFromString(request.bodyBytes)
         topic_id = str(tb.consensusSubmitMessage.topicID)
-        topics.push(topic_id, request)
+        topics.push(topic_id, tb.consensusSubmitMessage)
         return TransactionResponse(nodeTransactionPrecheckCode=0, 
                                    cost=17)
 
@@ -99,10 +99,9 @@ class mirror_ConsensusServiceServicerImpl(
             (msg, seq_num, timestamp) = queue.pop()
             sys.stderr.write("seq_num, timestamp: %d, %d.%d\n" % (
                 seq_num, timestamp.seconds, timestamp.nanos))
-
             res = ConsensusTopicResponse(
                 consensusTimestamp=timestamp, 
-                message=msg.bodyBytes,
+                message=msg.message,
                 runningHash="\0" * 48,
                 sequenceNumber=seq_num,
                 runningHashVersion=2

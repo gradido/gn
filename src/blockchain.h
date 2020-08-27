@@ -256,12 +256,13 @@ public:
             for (auto i : pending_insertions) {
                 ensure_tail_points_to_upcoming_rec();
                 tail->write_rec(i, total_rec_count++);
+                validator->added_successfuly(i.payload);
             }
             ensure_tail_points_to_upcoming_rec();
             tail->write_rec(rec, total_rec_count++);
+            validator->added_successfuly(last_rec.payload);
             last_rec = rec;
             pending_insertions.clear();
-            validator->added_successfuly(last_rec.payload);
             return true;
         }
     }

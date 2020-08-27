@@ -103,10 +103,7 @@ message ManageGroupRequest {
          REMOVE_GROUP = 1;
     }
     Action action = 1;
-    // this is the only needed field for REMOVE_GOUP
-    uint64 group_id = 2;
-    bytes alias = 3;
-    .proto.TopicID topic_id = 4;
+    bytes group = 2;
 }
 
 message ManageGroupResponse {
@@ -114,7 +111,7 @@ message ManageGroupResponse {
 }
 
 message BlockRangeDescriptor {
-    uint64 group_id = 1;
+    bytes group = 1;
     uint64 first_record = 2;        
     uint64 record_count = 3;
 }

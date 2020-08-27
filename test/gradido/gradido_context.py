@@ -33,7 +33,7 @@ class GradidoContext(object):
             pass
         listening_groups = lgs.get_val(context.doc)
         for i in listening_groups:
-            fname = "%(alias)s.%(group_id)d.%(shardNum)d.%(realmNum)d.%(topicNum)d.bc" % i
+            fname = "%(alias)s.%(shardNum)d.%(realmNum)d.%(topicNum)d.bc" % i
             fname = os.path.join(instance_root, fname)
             os.mkdir(fname)
             fsnnz_marker = os.path.join(fname, ".is-first-seq-num-non-zero")
@@ -68,7 +68,6 @@ class GradidoContext(object):
             if os.path.isdir(pp):
                 bchain = subprocess.check_output(["../build/dump_blockchain", pp], stderr=subprocess.STDOUT)
                 if bchain:
-                    print "hahah-------------", bchain
                     bchains[i] = json.loads(bchain)
                 else:
                     bchains[i] = None

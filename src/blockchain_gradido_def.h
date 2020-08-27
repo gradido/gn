@@ -33,7 +33,7 @@ struct User {
     uint8_t user[PUB_KEY_LENGTH];
 };
 
-struct UserTransfer : public User {
+struct UserState {
     GradidoValue new_balance;
     uint64_t prev_transfer_rec_num;
 };
@@ -88,6 +88,8 @@ struct AbstractTransferOp {
     GradidoValue amount;
 };
 
+struct UserTransfer : public User, UserState {};
+
 struct LocalTransfer : public AbstractTransferOp {
     UserTransfer sender;
     UserTransfer receiver;
@@ -111,15 +113,9 @@ struct FriendUpdate {
     uint8_t group[GROUP_ALIAS_LENGTH];
 };
 
-// first transaction is ADD_USER with user_id of group's creator;
-// for this transaction update_author_user_id is set to 0,
-// member_status is OWNER
-struct AbstractUserOp {
-    uint8_t user[PUB_KEY_LENGTH];
-};
-
-struct AddUser : public AbstractUserOp {}; 
-struct MoveUser : public AbstractUserOp, PairedTransaction {};
+// first transaction is ADD_USER with user_id of group's creator
+struct AddUser : public User {}; 
+struct MoveUser : public User, PairedTransaction, UserState {};
 
 enum TransactionResult {
     SUCCESS=0,
@@ -137,17 +133,28 @@ enum TransactionResult {
     MISSING_SIGNATURE,
     
     // user has to be in local group
-    BAD_LOCAL_USER_ID,
+    UNKNOWN_LOCAL_USER,
 
     // user has to be in remote group
-    BAD_REMOTE_USER_ID,
+    UNKNOWN_REMOTE_USER,
 
     // group has to be in list of friends
-    UNKNOWN_GROUP_ID,
+    UNKNOWN_GROUP,
 
     // transaction is too large to be expressed by number of parts
     // less or equal to MAX_RECORD_PARTS
-    TOO_LARGE
+    TOO_LARGE,
+
+    // not possible to finish inbound transaction, as outbound 
+    // transaction failed
+    OUTBOUND_TRANSACTION_FAILED,
+
+    // for add_user and move_user_inbound
+    USER_ALREADY_EXISTS,
+
+    // for add/remove friend group
+    GROUP_IS_ALREADY_FRIEND,
+    GROUP_IS_NOT_FRIEND
 };
 
 struct GradidoCreation : public UserTransfer, AbstractTransferOp {};

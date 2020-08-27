@@ -107,16 +107,6 @@ namespace gradido {
         grpr::TransactionBody tb;
         tb.ParseFromString(gt.body_bytes());
 
-        std::cerr << "kukurznis1.2 " << t.message() << "; " << 
-            t.message().size() << std::endl;
-        std::cerr << "kukurznis1.3 " << gt.body_bytes() << "; " << 
-            gt.body_bytes().size() << std::endl;
-
-
-        std::cerr << "kukurznis1.5 " << tb.version_number() << "; " << 
-            tb.memo() << std::endl;
-
-
         tt->version_number = tb.version_number();
         tt->signature_count = gt.sig_map().sig_pair_size();
         // assert(tt->signature_count > 0)

@@ -12,6 +12,7 @@ namespace gradido {
             b(b), br(br) {}
         virtual void run() {
             // TODO: reordering, if necessary
+            // TODO: stop transmission if bad
             HashedMultipartTransaction hmt;
             TransactionUtils::translate_from_br(br, hmt);
             b->add_transaction(hmt);
@@ -110,7 +111,6 @@ namespace gradido {
             b(b), gf(gf), first_message(true) {
         }
         virtual void on_transaction(ConsensusTopicResponse& transaction) {
-            std::cerr << "kukurznis " << std::endl;
             if (first_message)
                 // GRPC sends empty message as first message, 
                 // apparently always
@@ -134,91 +134,367 @@ namespace gradido {
         }
     };
 
-    void GradidoGroupBlockchain::prepare_rec_and_indexes(
+    bool GradidoGroupBlockchain::prepare_rec(
                                  MultipartTransaction& tr0) {
-        Transaction* tr = &tr0.rec[0].transaction;
-        uint64_t seq_num = tr->hedera_transaction.sequenceNumber;
-        uint64_t rec_num = blockchain.get_rec_count();
-        switch ((TransactionType)tr->transaction_type) {
-        case GRADIDO_CREATION:
+        // TODO: put inside protobuf structures, verify signatures
 
-            break;
-        case ADD_GROUP_FRIEND:
-            break;
-        case REMOVE_GROUP_FRIEND:
-            break;
-        case ADD_USER:
-            // TODO
+        prepare_rec_cannot_proceed = false;
+        Transaction& tr = tr0.rec[0].transaction;
 
-            break;
-
-        case MOVE_USER_INBOUND:
-            // TODO
-            break;
-            
-        case MOVE_USER_OUTBOUND:
-            // TODO
-
-            break;
-        case LOCAL_TRANSFER: {
-            LocalTransfer& tr2 = tr->local_transfer;
-
-            uint8_t* u0 = tr2.sender.user;
-            uint8_t* u1 = tr2.receiver.user;
-            GradidoValue amount = tr2.amount;
-            auto user_from = user_index.find(std::string((char*)u0, 
-                                                  PUB_KEY_LENGTH));
-            if (user_from == user_index.end()) {
-                tr->result = BAD_LOCAL_USER_ID;
-                return;
-            } 
-            UserInfo ufr = user_from->second;
-            if (ufr.current_balance < amount) {
-                // TODO: amount with deduction?
-                tr->result = NOT_ENOUGH_GRADIDOS;
-                return;
+        switch ((TransactionType)tr.transaction_type) {
+        case GRADIDO_CREATION: {
+            std::string user = std::string(
+                               (char*)tr.gradido_creation.user, 
+                               PUB_KEY_LENGTH);
+            auto urec = user_index.find(user);
+            if (urec == user_index.end())
+                tr.result = UNKNOWN_LOCAL_USER;
+            else {
+                tr.gradido_creation.new_balance = 
+                    urec->second.current_balance + 
+                    tr.gradido_creation.amount;
+                tr.gradido_creation.prev_transfer_rec_num = 
+                    urec->second.last_record_with_balance;
+                tr.result = SUCCESS;
             }
-            auto user_to = user_index.find(std::string((char*)u1, 
-                                                       PUB_KEY_LENGTH));
-            if (user_to == user_index.end()) {
-                tr->result = BAD_LOCAL_USER_ID;
-                return;
-            } 
-            UserInfo uto = user_to->second;
-            ufr.current_balance -= amount;
-            uto.current_balance += amount;
-
-            tr2.sender.new_balance = ufr.current_balance;
-            tr2.sender.prev_transfer_rec_num = 
-                ufr.last_record_with_balance;
-            tr2.receiver.new_balance = uto.current_balance;
-            tr2.receiver.prev_transfer_rec_num = 
-                uto.last_record_with_balance;
-
-            ufr.last_record_with_balance = rec_num;
-            uto.last_record_with_balance = rec_num;
-            user_from->second = ufr;
-            user_to->second = uto;
-            break;
-        }            
-        case INBOUND_TRANSFER:
-            break;
-            
-        case OUTBOUND_TRANSFER:
-            break;
-        default:
-            // TODO
             break;
         }
-        tr->result = SUCCESS;
+        case ADD_GROUP_FRIEND: {
+            std::string group = std::string((char*)tr.add_group_friend.group);
+            auto grec = friend_group_index.find(group);;
+            if (grec != friend_group_index.end()) {
+                tr.result = GROUP_IS_ALREADY_FRIEND;
+            } else {
+                tr.result = SUCCESS;
+            }
+            break;
+        }
+        case REMOVE_GROUP_FRIEND: {
+            std::string group = std::string((char*)tr.remove_group_friend.group);
+            auto grec = friend_group_index.find(group);;
+            if (grec == friend_group_index.end()) {
+                tr.result = GROUP_IS_NOT_FRIEND;
+            } else {
+                tr.result = SUCCESS;
+            }
+            break;
+        }
+        case ADD_USER: {
+            std::string user = std::string(
+                               (char*)tr.add_user.user, 
+                               PUB_KEY_LENGTH);
+            auto urec = user_index.find(user);
+            if (urec != user_index.end()) {
+                tr.result = USER_ALREADY_EXISTS;
+            } else {
+                tr.result = SUCCESS;
+            }
+            break;
+        }
+        case MOVE_USER_INBOUND: {
+            std::string user = std::string(
+                               (char*)tr.move_user_inbound.user, 
+                               PUB_KEY_LENGTH);
+            auto urec = user_index.find(user);
+            if (urec != user_index.end()) {
+                tr.result = USER_ALREADY_EXISTS;
+            } else {
+                std::string sender_group((char*)tr.move_user_inbound.other_group);
+                IBlockchain* b = gf->get_group_blockchain(sender_group);
+                if (!b) {
+                    prepare_rec_cannot_proceed = true;
+                    other_group = sender_group;
+                    paired_transaction = tr.move_user_inbound.paired_transaction_id;
+                    return false;
+                } else {
+                    Transaction tt;
+                    bool zz = b->get_paired_transaction(
+                                 tr.move_user_inbound.paired_transaction_id, tt);
+                    if (!zz) {
+                        prepare_rec_cannot_proceed = true;
+                        other_group = sender_group;
+                        paired_transaction = tr.move_user_inbound.paired_transaction_id;
+                        return false;
+                    } else {
+                        if (tt.result != SUCCESS) {
+                            tr.result = OUTBOUND_TRANSACTION_FAILED;
+                        } else {
+                            tr.result = SUCCESS;
+                        }
+                    }
+                }                
+            }
+
+            break;
+        }
+        case MOVE_USER_OUTBOUND: {
+            std::string user = std::string(
+                               (char*)tr.move_user_outbound.user, 
+                               PUB_KEY_LENGTH);
+            auto urec = user_index.find(user);
+            if (urec == user_index.end()) {
+                tr.result = UNKNOWN_LOCAL_USER;
+            } else {
+                tr.result = SUCCESS;
+            }
+            break;
+        }
+        case LOCAL_TRANSFER: {
+            LocalTransfer& lt = tr.local_transfer;
+            std::string sender = std::string(
+                               (char*)lt.sender.user, 
+                               PUB_KEY_LENGTH);
+            auto r_sender = user_index.find(sender);
+
+            std::string receiver = std::string(
+                               (char*)lt.receiver.user, 
+                               PUB_KEY_LENGTH);
+            auto r_receiver = user_index.find(receiver);
+
+            if (r_sender == user_index.end() || 
+                r_receiver == user_index.end()) {
+                tr.result = UNKNOWN_LOCAL_USER;
+            } else if (r_sender->second.current_balance < 
+                       lt.amount) {
+                tr.result = NOT_ENOUGH_GRADIDOS;
+            } else {
+                lt.sender.new_balance = 
+                    r_sender->second.current_balance - 
+                    lt.amount;
+                lt.receiver.new_balance = 
+                    r_receiver->second.current_balance +
+                    lt.amount;
+                lt.sender.prev_transfer_rec_num = 
+                    r_sender->second.last_record_with_balance;
+                lt.receiver.prev_transfer_rec_num = 
+                    r_receiver->second.last_record_with_balance;
+                tr.result = SUCCESS;
+            }
+            break;
+        }            
+        case INBOUND_TRANSFER: {
+            InboundTransfer& lt = tr.inbound_transfer;
+            std::string sender = std::string(
+                                 (char*)lt.sender.user, 
+                                 PUB_KEY_LENGTH);
+            std::string sender_group((char*)lt.other_group);
+
+
+            std::string receiver = std::string(
+                               (char*)lt.receiver.user, 
+                               PUB_KEY_LENGTH);
+            auto r_receiver = user_index.find(receiver);
+
+            if (r_receiver == user_index.end()) {
+                tr.result = UNKNOWN_LOCAL_USER;
+            } else {
+
+                IBlockchain* b = gf->get_group_blockchain(sender_group);
+
+                if (!b) {
+                    prepare_rec_cannot_proceed = true;
+                    other_group = sender_group;
+                    paired_transaction = lt.paired_transaction_id;
+                    return false;
+                } else {
+                    Transaction tt;
+                    bool zz = b->get_paired_transaction(
+                                 lt.paired_transaction_id, tt);
+                    if (!zz) {
+                        prepare_rec_cannot_proceed = true;
+                        other_group = sender_group;
+                        paired_transaction = lt.paired_transaction_id;
+                        return false;
+                    } else {
+                        if (tt.result != SUCCESS) {
+                            tr.result = OUTBOUND_TRANSACTION_FAILED;
+                        } else {
+                            lt.receiver.new_balance = 
+                                r_receiver->second.current_balance +
+                                lt.amount;
+                            lt.receiver.prev_transfer_rec_num = 
+                                r_receiver->second.last_record_with_balance;
+                            tr.result = SUCCESS;
+                        }
+                    }
+                }
+            }
+            break;
+        }
+        case OUTBOUND_TRANSFER: {
+            OutboundTransfer& lt = tr.outbound_transfer;
+            std::string sender = std::string(
+                               (char*)lt.sender.user, 
+                               PUB_KEY_LENGTH);
+            auto r_sender = user_index.find(sender);
+
+            if (r_sender == user_index.end()) {
+                tr.result = UNKNOWN_LOCAL_USER;
+            } else if (r_sender->second.current_balance < 
+                       lt.amount) {
+                tr.result = NOT_ENOUGH_GRADIDOS;
+            } else {
+                lt.sender.new_balance = 
+                    r_sender->second.current_balance - 
+                    lt.amount;
+                lt.sender.prev_transfer_rec_num = 
+                    r_sender->second.last_record_with_balance;
+                tr.result = SUCCESS;
+            }
+            break;
+        }
+        }
+        return true;
     }
 
     GradidoGroupBlockchain::RVR GradidoGroupBlockchain::validate(const GradidoRecord& rec) {
-        return GradidoGroupBlockchain::RVR::VALID;
+        if ((validation_buff.rec_count == 0 && 
+             (GradidoRecordType)rec.record_type != GRADIDO_TRANSACTION) ||
+            (validation_buff.rec_count == MAX_RECORD_PARTS)) {
+            validation_buff.rec_count = 0;   
+            return GradidoGroupBlockchain::RVR::INVALID;
+        }
+        validation_buff.rec[validation_buff.rec_count++] = rec;
+
+        if (validation_buff.rec[0].transaction.parts == 
+            validation_buff.rec_count) {
+            GradidoGroupBlockchain::RVR res = 
+                validate_multipart(validation_buff);
+            validation_buff.rec_count = 0;   
+            return res;
+        } else
+            return GradidoGroupBlockchain::RVR::NEED_NEXT;
+    }
+
+    GradidoGroupBlockchain::RVR 
+    GradidoGroupBlockchain::validate_multipart(
+                            const MultipartTransaction& mtr) {
+
+        // checking if mtr is correctly split in parts
+        if (mtr.rec_count == 0)
+            return GradidoGroupBlockchain::RVR::NEED_NEXT;
+
+        if ((GradidoRecordType)mtr.rec[0].record_type != 
+            GRADIDO_TRANSACTION)
+            return GradidoGroupBlockchain::RVR::INVALID;
+
+        const Transaction& tr = mtr.rec[0].transaction;
+
+        if (tr.parts > MAX_RECORD_PARTS)
+            return GradidoGroupBlockchain::RVR::INVALID;
+
+        bool next_is_memo = tr.memo[MEMO_MAIN_SIZE - 1] != 0;
+        for (int i = 1; i < tr.parts; i++) {
+            if (next_is_memo) {
+                next_is_memo = false;
+                if ((GradidoRecordType)mtr.rec[i].record_type !=
+                    MEMO)
+                    return GradidoGroupBlockchain::RVR::INVALID;
+            } else {
+                if ((GradidoRecordType)mtr.rec[i].record_type !=
+                    SIGNATURES)
+                    return GradidoGroupBlockchain::RVR::INVALID;
+            }
+        }
+
+        // replaying preparation, comparing if it is the same
+        MultipartTransaction tmp = mtr;
+        bool prr = prepare_rec(tmp);
+        if (!prr || strncmp((char*)&tmp, (char*)&mtr, 
+                    sizeof(MultipartTransaction)))
+            return GradidoGroupBlockchain::RVR::INVALID;
     }
 
     void GradidoGroupBlockchain::added_successfuly(const GradidoRecord& rec) {
-        // TODO: build indexes, etc.
+        // at this point prepare_rec() is already successfuly called,
+        // which means necessary data from other blockchains is 
+        // available
+        if ((GradidoRecordType)rec.record_type != GRADIDO_TRANSACTION)
+            return;
+        const Transaction& tr = rec.transaction;
+        if ((TransactionResult)tr.result != SUCCESS)
+            return; // if not successful, no further processing needed
+        switch ((TransactionType)tr.transaction_type) {
+        case GRADIDO_CREATION: {
+            std::string user = std::string(
+                               (char*)tr.gradido_creation.user, 
+                               PUB_KEY_LENGTH);
+            auto urec = user_index.find(user);
+            urec->second.current_balance += tr.gradido_creation.amount;
+            break;
+        }
+        case ADD_GROUP_FRIEND: {
+            std::string group((char*)tr.remove_group_friend.group);
+            FriendGroupInfo gi;
+            friend_group_index.insert({group, gi});
+            break;
+        }
+        case REMOVE_GROUP_FRIEND: {
+            std::string group((char*)tr.remove_group_friend.group);
+            friend_group_index.erase(group);
+            break;
+        }
+        case ADD_USER: {
+            UserInfo ui = {0};
+            user_index.insert({std::string((char*)tr.add_user.user, 
+                                           PUB_KEY_LENGTH), ui});
+            break;
+        }
+        case MOVE_USER_INBOUND: {
+            UserInfo ui = {0};
+            ui.current_balance = tr.move_user_inbound.new_balance;
+            ui.last_record_with_balance = transaction_count;
+            user_index.insert(
+                       {std::string((char*)tr.move_user_inbound.user, 
+                                    PUB_KEY_LENGTH), ui});
+            break;
+        }
+        case MOVE_USER_OUTBOUND: {
+            std::string user = std::string(
+                               (char*)tr.move_user_outbound.user, 
+                               PUB_KEY_LENGTH);
+            user_index.erase(user);
+            break;
+        }
+        case LOCAL_TRANSFER: {
+            {
+                std::string user = std::string(
+                                   (char*)tr.local_transfer.sender.user, 
+                                   PUB_KEY_LENGTH);
+                auto urec = user_index.find(user);
+                urec->second.current_balance = tr.local_transfer.sender.new_balance;
+            }
+            {
+                std::string user = std::string(
+                                   (char*)tr.local_transfer.receiver.user, 
+                                   PUB_KEY_LENGTH);
+                auto urec = user_index.find(user);
+                urec->second.current_balance = tr.local_transfer.receiver.new_balance;
+            }
+            break;
+        }            
+        case INBOUND_TRANSFER: {
+            {
+                std::string user = std::string(
+                                   (char*)tr.local_transfer.receiver.user, 
+                                   PUB_KEY_LENGTH);
+                auto urec = user_index.find(user);
+                urec->second.current_balance = tr.local_transfer.receiver.new_balance;
+            }
+            break;
+        }
+        case OUTBOUND_TRANSFER: {
+            {
+                std::string user = std::string(
+                                   (char*)tr.local_transfer.sender.user, 
+                                   PUB_KEY_LENGTH);
+                auto urec = user_index.find(user);
+                urec->second.current_balance = tr.local_transfer.sender.new_balance;
+            }
+            break;
+        }
+        }
+        transaction_count++;
     }
     
 
@@ -248,6 +524,8 @@ namespace gradido {
         Poco::File pf(pp2);
         if (pf.isFile())
             omit_previous_transactions = true;
+
+        memset(&validation_buff, 0, sizeof(validation_buff));
     }
 
     GradidoGroupBlockchain::~GradidoGroupBlockchain() {
@@ -272,8 +550,6 @@ namespace gradido {
     void GradidoGroupBlockchain::add_transaction(const MultipartTransaction& tr) {
         {
             MLock lock(queue_lock); 
-            std::cerr << "kukurznis2 " << tr.rec_count << "; " << (int)tr.rec[0].record_type << "; " << (int)tr.rec[0].transaction.version_number << std::endl;
-
             inbound.push(tr);
         }
         continue_with_transactions();
@@ -327,19 +603,40 @@ namespace gradido {
                     continue; // just drop it
                 if (hsn > expected_seq_num) {
                     // no use to proceed further, as there is a hole
-                    MLock lock0(blockchain_lock);
-                    MLock lock(queue_lock); 
-                    last_known_rec_seq_num = hsn;
-                    inbound.push(tr); // putting back
-                    write_owner = 0; // disowning current write operation, 
-                    // giving it to event chain which updates
-                    // blockchain
+                    {
+                        MLock lock0(blockchain_lock);
+                        MLock lock(queue_lock); 
+                        last_known_rec_seq_num = hsn;
+                        inbound.push(tr); // putting back
+                        write_owner = 0; // disowning current write 
+                        // operation, giving it to event 
+                        // chain which updates blockchain
+                    }
                     require_transactions(gf->get_conf()->get_sibling_nodes());
                     return; 
                 }
             }
-            prepare_rec_and_indexes(tr);
-            append(tr);
+            // it is guaranteed that not more than one thread will get
+            // to this point at the same time
+            bool prr = false;
+            {                    
+                MLock lock0(blockchain_lock);
+                prr = prepare_rec(tr);
+            }
+            if (!prr) {
+                IBlockchain* b = gf->create_or_get_group_blockchain(
+                                     other_group);
+                ITask* task = new AttemptToContinueBlockchainTask(this);
+                {
+                    MLock lock0(blockchain_lock);
+                    MLock lock(queue_lock); 
+                    inbound.push(tr); // putting back
+                    write_owner = 0; // disowning current write;  
+                }
+                b->exec_once_paired_transaction_done(
+                   task, paired_transaction);
+            } else
+                append(tr);
         }        
     }
 
@@ -371,7 +668,13 @@ namespace gradido {
         int batch_size = gf->get_conf()->get_blockchain_init_batch_size();
         MLock lock(blockchain_lock); 
         int num = blockchain.validate_next_batch(batch_size);
-        if (num == batch_size) {
+        if (prepare_rec_cannot_proceed) {
+            IBlockchain* b = gf->create_or_get_group_blockchain(
+                             other_group);
+            ITask* task = new AttemptToContinueBlockchainTask(this);
+            b->exec_once_paired_transaction_done(
+               task, paired_transaction);
+        } else if (num == batch_size) {
             ITask* task = new BlockchainValidator(this);
             gf->push_task(task);
         } else {
@@ -427,6 +730,12 @@ namespace gradido {
         return res;
     }
 
+    bool GradidoGroupBlockchain::get_paired_transaction(
+                                 HederaTimestamp hti, 
+                                 Transaction tt) {
+        return false;
+    }
+
     void GradidoGroupBlockchain::exec_once_validated(ITask* task) {
         // TODO
     }
@@ -451,7 +760,7 @@ namespace gradido {
 
         if (count > 0) {
             grpr::BlockRangeDescriptor brd;
-            brd.set_group_id(gi.group_id);
+            brd.set_group(std::string(gi.alias));
             brd.set_first_record(from);
             brd.set_record_count(count);
             ITask* task = new TryGetRecords(this, gf, brd, endpoints);

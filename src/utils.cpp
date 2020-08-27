@@ -12,7 +12,7 @@ void dump_in_hex(const char* in, char* out, size_t in_len) {
 
 void dump_transaction_in_json(const GradidoRecord& t, std::ostream& out) {
     out << "{" << std::endl
-        << "  \"record_type\":" << t.record_type << ", " << std::endl;
+        << "  \"record_type\":" << (int)t.record_type << ", " << std::endl;
 
     switch ((GradidoRecordType)t.record_type) {
     case GRADIDO_TRANSACTION: {
@@ -32,12 +32,12 @@ void dump_transaction_in_json(const GradidoRecord& t, std::ostream& out) {
             std::string((char*)u.memo) : std::string((char*)u.memo, MEMO_MAIN_SIZE);
 
         out << "  \"transaction\": {" << std::endl;
-        out << "    \"version_number\": " << u.version_number << ", " << std::endl;
+        out << "    \"version_number\": " << (int)u.version_number << ", " << std::endl;
         out << "    \"signature\": {" << std::endl;
         out << "      \"pubkey\": \"" << sig_pubkey << "\", " << std::endl;
         out << "      \"signature\": \"" << sig_sig << "\"" << std::endl;
         out << "    }, " << std::endl;
-        out << "    \"signature_count\": " << u.signature_count << ", " << std::endl;
+        out << "    \"signature_count\": " << (int)u.signature_count << ", " << std::endl;
         out << "    \"hedera_transaction\": {" << std::endl
             << "      \"consensusTimestamp\": {" << std::endl
             << "        \"seconds\": " << u.hedera_transaction.consensusTimestamp.seconds << ", " << std::endl
@@ -47,7 +47,7 @@ void dump_transaction_in_json(const GradidoRecord& t, std::ostream& out) {
             << "      \"sequenceNumber\": " << u.hedera_transaction.sequenceNumber << ", " << std::endl
             << "      \"runningHashVersion\": " << u.hedera_transaction.runningHashVersion << std::endl;
         out << "    }," << std::endl;
-        out << "    \"transaction_type\": " << u.transaction_type << ", " << std::endl;
+        out << "    \"transaction_type\": " << (int)u.transaction_type << ", " << std::endl;
 
         switch ((TransactionType)u.transaction_type) {
         case GRADIDO_CREATION: {
@@ -186,8 +186,8 @@ void dump_transaction_in_json(const GradidoRecord& t, std::ostream& out) {
         }
         }
 
-        out << "    \"result\": " << u.result << ", " << std::endl;
-        out << "    \"parts\": " << u.parts << ", " << std::endl;
+        out << "    \"result\": " << (int)u.result << ", " << std::endl;
+        out << "    \"parts\": " << (int)u.parts << ", " << std::endl;
         out << "    \"memo\": \"" << memo << "\"" << std::endl;        
         out << "  }" << std::endl;
         break;

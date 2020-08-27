@@ -39,6 +39,7 @@ private:
     struct FriendGroupInfo {
     };
 
+    // both are guarded by blockchain_lock
     std::map<std::string, UserInfo> user_index;
     std::map<std::string, FriendGroupInfo> friend_group_index;
 
@@ -46,7 +47,12 @@ private:
     bool omit_previous_transactions;
 
     // takes into account indexes built by Validator
-    void prepare_rec_and_indexes(MultipartTransaction& tr);
+    bool prepare_rec(MultipartTransaction& tr);
+    // set by prepare_rec(); cannot return directly, as may be used
+    // by blockchain (via validate())
+    bool prepare_rec_cannot_proceed;
+    std::string other_group;
+    HederaTimestamp paired_transaction;
 
     class TransactionCompare {
     public:
@@ -102,6 +108,8 @@ private:
 
     uint64_t transaction_count;
 
+    MultipartTransaction validation_buff;
+    RVR validate_multipart(const MultipartTransaction& mtr);
 
 public:
     GradidoGroupBlockchain(GroupInfo gi, Poco::Path root_folder,
@@ -118,6 +126,8 @@ public:
     virtual void continue_validation();
 
     virtual grpr::BlockRecord get_block_record(uint64_t seq_num);
+    virtual bool get_paired_transaction(HederaTimestamp hti, 
+                                        Transaction tt);
     virtual void exec_once_validated(ITask* task);
     virtual void exec_once_paired_transaction_done(
                            ITask* task, 

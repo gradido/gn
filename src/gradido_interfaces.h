@@ -46,6 +46,8 @@ class IBlockchain {
     virtual void continue_validation() = 0;
 
     virtual grpr::BlockRecord get_block_record(uint64_t seq_num) = 0;
+    virtual bool get_paired_transaction(HederaTimestamp hti, 
+                                        Transaction tt) = 0;
     virtual void exec_once_validated(ITask* task) = 0;
     virtual void exec_once_paired_transaction_done(
                            ITask* task, 
@@ -55,13 +57,13 @@ class IBlockchain {
 };
 
 struct GroupInfo {
-    uint64_t group_id;
     HederaTopicID topic_id;
-    std::string alias;  // used to name blockchain folder
+    // used as id and to name blockchain folder
+    char alias[GROUP_ALIAS_LENGTH];
 
     std::string get_directory_name() {
         std::stringstream ss;
-        ss << alias << "." << group_id << "." << topic_id.shardNum << 
+        ss << alias << "." << topic_id.shardNum << 
             "." << topic_id.realmNum << "." << topic_id.topicNum << ".bc";
         return ss.str();
     }
@@ -161,12 +163,14 @@ class IGradidoFacade {
     virtual ~IGradidoFacade() {}
     virtual void init(const std::vector<std::string>& params) = 0;
     virtual void join() = 0;
-    virtual IBlockchain* get_group_blockchain(uint64_t group_id) = 0;
+    // TODO: add const
+    virtual IBlockchain* get_group_blockchain(std::string group) = 0;
     virtual IBlockchain* create_group_blockchain(GroupInfo gi) = 0;
+    virtual IBlockchain* create_or_get_group_blockchain(std::string group) = 0;
     virtual void push_task(ITask* task) = 0;
     virtual IGradidoConfig* get_conf() = 0;
     virtual bool add_group(GroupInfo gi) = 0;
-    virtual bool remove_group(uint64_t group_id) = 0;
+    virtual bool remove_group(std::string group) = 0;
     virtual ICommunicationLayer* get_communications() = 0;
     virtual void exit(int ret_val) = 0;
     
