@@ -23,9 +23,11 @@ namespace gradido {
                 } else {
                     GroupInfo gi;
                     HederaTopicID tid;
+                    /* TODO: acquire from group list
                     tid.shardNum = r.topic_id().shardnum();
                     tid.realmNum = r.topic_id().realmnum();
                     tid.topicNum = r.topic_id().topicnum();
+                    */
                     gi.topic_id = tid;
                     memcpy(gi.alias, r.group().c_str(), 
                            r.group().size());

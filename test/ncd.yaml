@@ -62,6 +62,44 @@ scraps:
       shardNum: [_fcall, do_getval, /test-config/hedera-topic-id/0]
       realmNum: [_fcall, do_getval, /test-config/hedera-topic-id/1]
       topicNum: [_fcall, do_getval, /test-config/hedera-topic-id/2]
+    gradido-add-user-message-body:
+      _type: GradidoTransaction
+      _use_with: SerializeToString
+      sig_map:
+        _type: gradido_SignatureMap
+        sig_pair:
+          - _type: gradido_SignaturePair
+            pub_key: "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"
+            ed25519: "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"
+      body_bytes:
+        _type: gradido_TransactionBody
+        _use_with: SerializeToString
+        memo: adding user
+        group_member_update:
+          _type: GroupMemberUpdate
+          user_pubkey: [_fcall, {priority: 100000}, do_getval, ../../../../user-id]    
+          member_update_type: 0
+        version_number: 1
+    gradido-creation-message-body:
+      _type: GradidoTransaction
+      _use_with: SerializeToString
+      sig_map:
+        _type: gradido_SignatureMap
+        sig_pair:
+          - _type: gradido_SignaturePair
+            pub_key: "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"
+            ed25519: "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"
+      body_bytes:
+        _type: gradido_TransactionBody
+        _use_with: SerializeToString
+        memo: creating
+        creation:
+          _type: GradidoCreation
+          receiver:
+            _type: Amount
+            pubkey: [_fcall, {priority: 100000}, do_getval, ../../../../../user-id]    
+            amount: [_fcall, {priority: 100000}, do_getval, ../../../../../amount]
+        version_number: 1
     gradido-transfer-message-body:
       _type: GradidoTransaction
       _use_with: SerializeToString
@@ -80,9 +118,9 @@ scraps:
           local:
             sender:
               _type: Amount
-              pubkey: "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"
-              amount: 11
-            receiver: "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"
+              pubkey: [_fcall, {priority: 100000}, do_getval, ../../../../../../sender]    
+              amount: [_fcall, {priority: 100000}, do_getval, ../../../../../../amount]
+            receiver: [_fcall, {priority: 100000}, do_getval, ../../../../../receiver]
         version_number: 1
     hedera-custom-message-body:
       _type: TransactionBody
@@ -455,7 +493,7 @@ scraps:
           message-body: [_fcall, {priority: 1080}, do_getval, /scraps/parts/hedera-custom-message-body]
         output: 
           - [_fcall, {priority: -10000}, do_getval, /scraps/steps/hedera-login-custom-message]
-    gradido-configured-transfer:
+    sydney:
       - instance: hedera-simulated
         state: [_fcall, {priority: -100}, start_simulated_hedera]
       - instance: gradido-node-0
@@ -495,6 +533,141 @@ scraps:
         state: [_fcall, {deps: /steps/4}, finish_gradido_node]
       - instance: hedera-simulated
         state: [_fcall, {deps: /steps/5}, finish_simulated_hedera]
+    melbourne:
+      - instance: hedera-simulated
+        state: [_fcall, {priority: -100}, start_simulated_hedera]
+      - instance: gradido-node-0
+        parts:
+          listening-groups:
+            - alias: t_blocks
+              group_id: 1
+              shardNum: [_fcall, do_getval, /test-config/hedera-topic-id/0]
+              realmNum: [_fcall, do_getval, /test-config/hedera-topic-id/1]
+              topicNum: [_fcall, do_getval, /test-config/hedera-topic-id/2]
+          instance-root: [_fcall, {priority: 1100}, get_instance_root]
+          conf:
+            worker_count: 10
+            io_worker_count: 1
+            data_root_folder: [_fcall, {priority: 1090}, do_getval, ../../instance-root]
+            # TODO: fix here; should get from config
+            hedera_mirror_endpoint: localhost:50051
+            blockchain_append_batch_size: 5
+            blochchain_init_batch_size: 1000
+            block_record_outbound_batch_size: 100
+            group_requests_endpoint: 0.0.0.0:13701
+            record_requests_endpoint: 0.0.0.0:13702
+            manage_network_requests_endpoint: 0.0.0.0:13703
+            sibling_node_file: [_fcall, {priority: 1090}, get_sibling_node_file]
+        state: [_fcall, {priority: -200}, start_gradido_node]
+      - instance: login-server
+        parts:
+          topic-id: [_fcall, {priority: 1110}, do_getval, /scraps/parts/gradido-topic-id]
+          transaction-id: [_fcall, {priority: 1100}, do_getval, /scraps/parts/hedera-transaction-id]
+          user-id: "1111111111111111111111111111111111111111111111111111111111111111"      
+          message: [_fcall, {priority: 1090}, do_getval, /scraps/parts/gradido-add-user-message-body]
+          message-body: [_fcall, {priority: 880}, do_getval, /scraps/parts/hedera-custom-message-body]
+        output: 
+          - [_fcall, {priority: -300}, do_getval, /scraps/steps/hedera-login-custom-message]
+      - [_fcall, {priority: -400}, do_getval, /scraps/steps/hedera-serve-transaction]
+      - instance: login-server
+        parts:
+          topic-id: [_fcall, {priority: 1110}, do_getval, /scraps/parts/gradido-topic-id]
+          transaction-id: [_fcall, {priority: 1100}, do_getval, /scraps/parts/hedera-transaction-id]
+          user-id: "2222222222222222222222222222222222222222222222222222222222222222"      
+          message: [_fcall, {priority: 1090}, do_getval, /scraps/parts/gradido-add-user-message-body]
+          message-body: [_fcall, {priority: 1080}, do_getval, /scraps/parts/hedera-custom-message-body]
+        output: 
+          - [_fcall, {priority: -500}, do_getval, /scraps/steps/hedera-login-custom-message]
+      - [_fcall, {priority: -600}, do_getval, /scraps/steps/hedera-serve-transaction]
+      - instance: login-server
+        parts:
+          topic-id: [_fcall, {priority: 1110}, do_getval, /scraps/parts/gradido-topic-id]
+          transaction-id: [_fcall, {priority: 1100}, do_getval, /scraps/parts/hedera-transaction-id]
+          user-id: "1111111111111111111111111111111111111111111111111111111111111111"      
+          amount: 500
+          message: [_fcall, {priority: 1090}, do_getval, /scraps/parts/gradido-creation-message-body]
+          message-body: [_fcall, {priority: 1080}, do_getval, /scraps/parts/hedera-custom-message-body]
+        output: 
+          - [_fcall, {priority: -700}, do_getval, /scraps/steps/hedera-login-custom-message]
+      - [_fcall, {priority: -800}, do_getval, /scraps/steps/hedera-serve-transaction]
+      - instance: login-server
+        parts:
+          topic-id: [_fcall, {priority: 1110}, do_getval, /scraps/parts/gradido-topic-id]
+          transaction-id: [_fcall, {priority: 1100}, do_getval, /scraps/parts/hedera-transaction-id]
+          sender: "1111111111111111111111111111111111111111111111111111111111111111"      
+          receiver: "2222222222222222222222222222222222222222222222222222222222222222"      
+          amount: 200
+          message: [_fcall, {priority: 1090}, do_getval, /scraps/parts/gradido-transfer-message-body]
+          message-body: [_fcall, {priority: 1080}, do_getval, /scraps/parts/hedera-custom-message-body]
+        output: 
+          - [_fcall, {priority: -830}, do_getval, /scraps/steps/hedera-login-custom-message]
+      - [_fcall, {priority: -860}, do_getval, /scraps/steps/hedera-serve-transaction]
+      - [_fcall, {priority: -900}, do_getval, /scraps/steps/sleep-3]
+      - instance: gradido-node-0
+        state: [_fcall, {priority: -1000}, finish_gradido_node]
+      - instance: hedera-simulated
+        state: [_fcall, {priority: -1100}, finish_simulated_hedera]
+    brisbane:
+      - instance: hedera-simulated
+        state: [_fcall, {priority: -100}, start_simulated_hedera]
+      - instance: gradido-node-0
+        parts:
+          listening-groups:
+            - alias: t_blocks
+              group_id: 1
+              shardNum: [_fcall, do_getval, /test-config/hedera-topic-id/0]
+              realmNum: [_fcall, do_getval, /test-config/hedera-topic-id/1]
+              topicNum: [_fcall, do_getval, /test-config/hedera-topic-id/2]
+          instance-root: [_fcall, {priority: 1100}, get_instance_root]
+          conf:
+            worker_count: 10
+            io_worker_count: 1
+            data_root_folder: [_fcall, {priority: 1090}, do_getval, ../../instance-root]
+            # TODO: fix here; should get from config
+            hedera_mirror_endpoint: localhost:50051
+            blockchain_append_batch_size: 5
+            blochchain_init_batch_size: 1000
+            block_record_outbound_batch_size: 100
+            group_requests_endpoint: 0.0.0.0:13701
+            record_requests_endpoint: 0.0.0.0:13702
+            manage_network_requests_endpoint: 0.0.0.0:13703
+            sibling_node_file: [_fcall, {priority: 1090}, get_sibling_node_file]
+        state: [_fcall, {priority: -200}, start_gradido_node]
+      - instance: webapp-demo
+        messages:
+          hedera-message:
+            _class: ConsensusServiceStub
+            _method: submitMessage
+            _arg:
+              request:
+                _type: Transaction
+                bodyBytes: <insert here>
+                sigMap:
+                  _type: SignatureMap
+                  _pass: 1
+                  sigPair:
+                    - _type: SignaturePair
+                      pubKeyPrefix:
+                        _type: PubKeyWrapper
+                        _use_with: str
+                        context:
+                          _type: HederaContext
+                        body_path: /-1/request/bodyBytes/_transformed_use_with
+                      ed25519:
+                        _type: ed25519Signature
+                        _use_with: str
+                        context:
+                          _type: HederaContext
+                        body_path: /-1/request/bodyBytes/_transformed_use_with
+          add-user:
+            parts:
+              topic-id: [_fcall, {priority: 1110}, do_getval, /scraps/parts/gradido-topic-id]
+              transaction-id: [_fcall, {priority: 1100}, do_getval, /scraps/parts/hedera-transaction-id]
+              user-id: "1111111111111111111111111111111111111111111111111111111111111111"      
+              message: [_fcall, {priority: 1090}, do_getval, /scraps/parts/gradido-add-user-message-body]
+              message-body: [_fcall, {priority: 880}, do_getval, /scraps/parts/hedera-custom-message-body]
+        # hangs forever
+        state: [_fcall, {priority: -400}, start, 36007]
     empty: empty
 steps: [_fcall, {priority: 1000}, do_getval, /scraps/cases/%s, [_fcall, do_getval, /test-config/case]]
 

@@ -179,8 +179,12 @@ class HederaContext(object):
 
     def do_hedera_calls(self, context):
         ii = context.path.as_arr()[1]
-        inst = context.doc["steps"][ii]
-        inp = copy.deepcopy(inst["input"]["val"])
+        if len(context.args) > 1:
+            inp = context.args[1]
+        else:
+            inst = context.doc["steps"][ii]
+            inp = copy.deepcopy(inst["input"]["val"])
+
         self.transaction_args = []
         res = []
 

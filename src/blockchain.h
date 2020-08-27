@@ -260,7 +260,7 @@ public:
             }
             ensure_tail_points_to_upcoming_rec();
             tail->write_rec(rec, total_rec_count++);
-            validator->added_successfuly(last_rec.payload);
+            validator->added_successfuly(rec.payload);
             last_rec = rec;
             pending_insertions.clear();
             return true;

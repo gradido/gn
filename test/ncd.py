@@ -3,7 +3,7 @@ from pukala import grow, ContextBase, PukalaGrowException, Path, PukalaPathExcep
 sys.path.append("./hedera/proto_gen")
 from hedera.hedera_context import HederaContext
 from gradido.gradido_context import GradidoContext
-
+from webapp_demo.webapp_demo_context import WebappDemo
 
 # avoiding unicode mentions in output yaml
 def represent_unicode(dumper, data):
@@ -109,7 +109,7 @@ class HederaServiceContext(object):
         return topic_ids + ["0.0.%d" % ti]
 
     
-class TestContext(LoginServerContext, HederaServiceContext, SimpleTalk, HederaContext, StepContext, GradidoContext, ContextBase):
+class TestContext(LoginServerContext, HederaServiceContext, SimpleTalk, HederaContext, StepContext, GradidoContext, WebappDemo, ContextBase):
     def __init__(self):
         LoginServerContext.__init__(self)
         HederaServiceContext.__init__(self)
@@ -117,6 +117,7 @@ class TestContext(LoginServerContext, HederaServiceContext, SimpleTalk, HederaCo
         HederaContext.__init__(self)
         StepContext.__init__(self)
         GradidoContext.__init__(self)
+        WebappDemo.__init__(self)
         ContextBase.__init__(self)
         self.managed_procs = []
 
