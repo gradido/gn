@@ -149,6 +149,8 @@ namespace gradido {
             auto urec = user_index.find(user);
             if (urec == user_index.end())
                 tr.result = UNKNOWN_LOCAL_USER;
+            else if (tr.gradido_creation.amount < 0) 
+                tr.result = NEGATIVE_AMOUNT;
             else {
                 tr.gradido_creation.new_balance = 
                     urec->second.current_balance + 
@@ -254,6 +256,8 @@ namespace gradido {
             if (r_sender == user_index.end() || 
                 r_receiver == user_index.end()) {
                 tr.result = UNKNOWN_LOCAL_USER;
+            } else if (lt.amount < 0) {
+                tr.result = NEGATIVE_AMOUNT;
             } else if (r_sender->second.current_balance < 
                        lt.amount) {
                 tr.result = NOT_ENOUGH_GRADIDOS;
@@ -330,6 +334,8 @@ namespace gradido {
 
             if (r_sender == user_index.end()) {
                 tr.result = UNKNOWN_LOCAL_USER;
+            } else if (lt.amount < 0) {
+                tr.result = NEGATIVE_AMOUNT;
             } else if (r_sender->second.current_balance < 
                        lt.amount) {
                 tr.result = NOT_ENOUGH_GRADIDOS;
@@ -348,9 +354,6 @@ namespace gradido {
     }
 
     GradidoGroupBlockchain::RVR GradidoGroupBlockchain::validate(const GradidoRecord& rec) {
-        std::cerr << "kaka100 " << std::endl;
-
-
         if ((validation_buff.rec_count == 0 && 
              (GradidoRecordType)rec.record_type != GRADIDO_TRANSACTION) ||
             (validation_buff.rec_count == MAX_RECORD_PARTS)) {
@@ -359,13 +362,8 @@ namespace gradido {
         }
         validation_buff.rec[validation_buff.rec_count++] = rec;
 
-        std::cerr << "kaka120 " << std::endl;
-
-
         if (validation_buff.rec[0].transaction.parts == 
             validation_buff.rec_count) {
-        std::cerr << "kaka130 " << std::endl;
-
             GradidoGroupBlockchain::RVR res = 
                 validate_multipart(validation_buff);
             validation_buff.rec_count = 0;   
@@ -377,8 +375,6 @@ namespace gradido {
     GradidoGroupBlockchain::RVR 
     GradidoGroupBlockchain::validate_multipart(
                             const MultipartTransaction& mtr) {
-        std::cerr << "kaka200 " << std::endl;
-
         // checking if mtr is correctly split in parts
         if (mtr.rec_count == 0)
             return GradidoGroupBlockchain::RVR::NEED_NEXT;
@@ -413,8 +409,6 @@ namespace gradido {
                     sizeof(MultipartTransaction)))
             return GradidoGroupBlockchain::RVR::INVALID;
 
-        std::cerr << "kaka250 " << std::endl;
-
         return GradidoGroupBlockchain::RVR::VALID;
     }
 
@@ -422,13 +416,10 @@ namespace gradido {
         // at this point prepare_rec() is already successfuly called,
         // which means necessary data from other blockchains is 
         // available
-        std::cerr << "kaka300 " << std::endl;
         dump_transaction_in_json(rec, std::cerr);
 
         if ((GradidoRecordType)rec.record_type != GRADIDO_TRANSACTION)
             return;
-        std::cerr << "kaka300-1 " << std::endl;
-
         transaction_count++;
         const Transaction& tr = rec.transaction;
         if ((TransactionResult)tr.result != SUCCESS)
@@ -566,7 +557,6 @@ namespace gradido {
     }
 
     void GradidoGroupBlockchain::add_transaction(const MultipartTransaction& tr) {
-        std::cerr << "kaka0 " << std::endl;
         {
             MLock lock(queue_lock); 
             inbound.push(tr);
@@ -579,16 +569,11 @@ namespace gradido {
     }
 
     void GradidoGroupBlockchain::continue_with_transactions() {
-        std::cerr << "kaka1 " << std::endl;
-
         int batch_size = gf->get_conf()->get_blockchain_append_batch_size();
         BusyGuard bd(*this);
         while (1) {
             MultipartTransaction tr;
             {
-
-        std::cerr << "kaka1-1 " << std::endl;
-
                 MLock lock(queue_lock); 
                 if (inbound.size() == 0) {
                     // TODO: add tasks waiting in task queues
@@ -601,8 +586,6 @@ namespace gradido {
                         bd.start();
                     }
                 }
-        std::cerr << "kaka1-10 " << std::endl;
-
                 if (batch_size <= 0) {
                     ITask* task = new AttemptToContinueBlockchainTask(this);
                     gf->push_task(task);
@@ -612,11 +595,7 @@ namespace gradido {
                 inbound.pop();
             }
             batch_size--;
-        std::cerr << "kaka1-20 " << std::endl;
-
             if (omit_previous_transactions && !first_rec_came) {
-        std::cerr << "kaka1-30 " << std::endl;
-
                 first_rec_came = true;
                 seq_num_offset = tr.rec[0].transaction.hedera_transaction.sequenceNumber;
             } else {
@@ -626,22 +605,14 @@ namespace gradido {
                     expected_seq_num = transaction_count + 
                         seq_num_offset;
                 }
-        std::cerr << "kaka1-40 " << std::endl;
-
                 uint64_t hsn = tr.rec[0].transaction.hedera_transaction.
                     sequenceNumber;
-
-                        std::cerr << "kaka1-45 " << hsn << "; " << 
-                            expected_seq_num << "; " << transaction_count << std::endl;
 
                 if (hsn < expected_seq_num)
                     continue; // just drop it
                 if (hsn > expected_seq_num) {
                     // no use to proceed further, as there is a hole
                     {
-                        std::cerr << "kaka1-50 " << hsn << "; " << 
-                            expected_seq_num << "; " << transaction_count << std::endl;
-
                         MLock lock0(blockchain_lock);
                         MLock lock(queue_lock); 
                         last_known_rec_seq_num = hsn;
@@ -659,12 +630,8 @@ namespace gradido {
             bool prr = false;
             {                    
                 MLock lock0(blockchain_lock);
-        std::cerr << "kaka2 " << std::endl;
-
                 prr = prepare_rec(tr);
             }
-        std::cerr << "kaka3 " << std::endl;
-
             if (!prr) {
                 IBlockchain* b = gf->create_or_get_group_blockchain(
                                      other_group);
@@ -678,8 +645,6 @@ namespace gradido {
                 b->exec_once_paired_transaction_done(
                    task, paired_transaction);
             } else {
-        std::cerr << "kaka4 " << std::endl;
-
                 append(tr);
             }
         }        

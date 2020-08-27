@@ -154,7 +154,10 @@ enum TransactionResult {
 
     // for add/remove friend group
     GROUP_IS_ALREADY_FRIEND,
-    GROUP_IS_NOT_FRIEND
+    GROUP_IS_NOT_FRIEND,
+
+    // if amount is negative
+    NEGATIVE_AMOUNT
 };
 
 struct GradidoCreation : public UserTransfer, AbstractTransferOp {};

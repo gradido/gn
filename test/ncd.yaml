@@ -663,9 +663,26 @@ scraps:
             parts:
               topic-id: [_fcall, {priority: 1110}, do_getval, /scraps/parts/gradido-topic-id]
               transaction-id: [_fcall, {priority: 1100}, do_getval, /scraps/parts/hedera-transaction-id]
-              user-id: "1111111111111111111111111111111111111111111111111111111111111111"      
+              user-id: ""      
               message: [_fcall, {priority: 1090}, do_getval, /scraps/parts/gradido-add-user-message-body]
               message-body: [_fcall, {priority: 880}, do_getval, /scraps/parts/hedera-custom-message-body]
+          create-gradidos:
+            parts:
+              topic-id: [_fcall, {priority: 1110}, do_getval, /scraps/parts/gradido-topic-id]
+              transaction-id: [_fcall, {priority: 1100}, do_getval, /scraps/parts/hedera-transaction-id]
+              user-id: ""      
+              amount: 0
+              message: [_fcall, {priority: 1090}, do_getval, /scraps/parts/gradido-creation-message-body]
+              message-body: [_fcall, {priority: 880}, do_getval, /scraps/parts/hedera-custom-message-body]
+          transfer:
+            parts:
+              topic-id: [_fcall, {priority: 1110}, do_getval, /scraps/parts/gradido-topic-id]
+              transaction-id: [_fcall, {priority: 1100}, do_getval, /scraps/parts/hedera-transaction-id]
+              sender: ""      
+              receiver: ""      
+              amount: 0
+              message: [_fcall, {priority: 1090}, do_getval, /scraps/parts/gradido-transfer-message-body]
+              message-body: [_fcall, {priority: 1080}, do_getval, /scraps/parts/hedera-custom-message-body]
         # hangs forever
         state: [_fcall, {priority: -400}, start, 36007]
     empty: empty

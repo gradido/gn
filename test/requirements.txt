@@ -7,3 +7,5 @@ requests
 http
 httpserver
 future
+simplejson
+
