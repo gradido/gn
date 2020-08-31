@@ -78,6 +78,8 @@ class ed25519Signature(Signer):
     
 
 class HederaContext(object):
+    def __init__(self):
+        self.simulated_hedera_started = False
     def get_transaction_part(self, body_path):
         rp = Path(body_path, self.transaction_args, [])
         return rp.get_val(self.transaction_args)
@@ -179,8 +181,8 @@ class HederaContext(object):
 
     def do_hedera_calls(self, context):
         ii = context.path.as_arr()[1]
-        if len(context.args) > 1:
-            inp = context.args[1]
+        if len(context.args) > 0:
+            inp = context.args[0]
         else:
             inst = context.doc["steps"][ii]
             inp = copy.deepcopy(inst["input"]["val"])
@@ -189,9 +191,7 @@ class HederaContext(object):
         res = []
 
         endpoint = context.doc["test-config"]["hedera-node-endpoint"]
-        # TODO: fix here
-        if len(context.args) > 0 and context.args[0] == True:
-            # simulated; TODO: consider enabling globaly
+        if self.is_simulated_hedera_started(context):
             endpoint = "localhost:%d" % context.doc["test-config"]["hedera-simulated-port"]
 
         with grpc.insecure_channel(endpoint) as channel:
@@ -212,6 +212,9 @@ class HederaContext(object):
         # should extract data explicitly with _output: field_name: method_to_call
         return [self.extract_response(i) for i in res]
 
+    def is_simulated_hedera_started(self, context):
+        return self.simulated_hedera_started
+
     def start_simulated_hedera(self, context):
         err_file = "/tmp/hedsim-err.txt"
         cmd = "python hedera/simulated_hedera.py 2> %s" % err_file
@@ -221,6 +224,7 @@ class HederaContext(object):
                                        shell=True, 
                                        preexec_fn=os.setsid))
         self.add_proc(self.hedsim[1].pid)
+        self.simulated_hedera_started = True
         time.sleep(1)
         return "launched"
     def finish_simulated_hedera(self, context):

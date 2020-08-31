@@ -34,7 +34,6 @@ int main(int argc, char** argv) {
         Poco::File block_root = Poco::File(block_root_name_path.absolute());
 
         std::vector<std::string> blocks;
-
         for (Poco::DirectoryIterator it(block_root);
              it != Poco::DirectoryIterator{}; ++it) {
             std::string ps = it.path().toString();
@@ -48,13 +47,12 @@ int main(int argc, char** argv) {
                 blocks.push_back(ps);
             }
         }
-
         std::sort(blocks.begin(), blocks.end());
-    
+
+        std::cout << "[";
+
         for (std::string i : blocks) {
             std::ifstream fs(i, std::ios::binary);
-
-            std::cout << "[";
             bool is_first = true;
 
             for (int i = 0; i < GRADIDO_BLOCK_SIZE; i++) {
@@ -69,15 +67,15 @@ int main(int argc, char** argv) {
                 } else 
                     break;
             }
-            std::cout << "]";
             fs.close();
         }
+        std::cout << "]";
     } catch (Poco::Exception& e) {
         std::cerr << e.what() << std::endl;
-        return -2;
+        return 1;
     } catch (std::runtime_error& e) {
         std::cerr << e.what() << std::endl;
-        return -3;
+        return 2;
     }
     return 0;
 }    

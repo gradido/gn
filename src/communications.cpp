@@ -52,7 +52,6 @@ namespace gradido {
         tl->on_transaction(ctr);
     }
     void CommunicationLayer::TopicSubscriber::init(grpc::CompletionQueue& cq) {
-            
         channel = grpc::CreateChannel(endpoint,
                                       grpc::InsecureChannelCredentials());
         stub = std::unique_ptr<ConsensusService::Stub>(ConsensusService::NewStub(channel));

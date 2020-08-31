@@ -416,8 +416,6 @@ namespace gradido {
         // at this point prepare_rec() is already successfuly called,
         // which means necessary data from other blockchains is 
         // available
-        dump_transaction_in_json(rec, std::cerr);
-
         if ((GradidoRecordType)rec.record_type != GRADIDO_TRANSACTION)
             return;
         transaction_count++;
@@ -743,6 +741,7 @@ namespace gradido {
     bool GradidoGroupBlockchain::get_paired_transaction(
                                  HederaTimestamp hti, 
                                  Transaction tt) {
+        // TODO: should remove, relying only on async thing
         return false;
     }
 

@@ -8,7 +8,9 @@ default-config:
   output-step-file-name: ncd-output-steps.yaml
   case: simple-talk
   hedera-credentials-file: hedera-credentials.cfg
-  hedera-node-endpoint: 1.testnet.hedera.com:50211
+  # if simulated hedera is started, localhost:<hedera-simulated-port>
+  # is overriding this value
+  hedera-node-endpoint: 0.testnet.hedera.com:50211
   hedera-node-id: [0, 0, 3]
   hedera-mirror-endpoint: hcs.testnet.mirrornode.hedera.com:5600
   hedera-create-topic-settle-time: 10
@@ -259,7 +261,7 @@ scraps:
     hedera-serve-transaction:
       instance: hedera-node-service
       input: [_fcall, {priority: 1700}, get_input_from]
-      output: [_fcall, {priority: 1600}, do_hedera_calls, 1]
+      output: [_fcall, {priority: 1600}, do_hedera_calls]
     hedera-login-submit-message:
       instance: login-server
       output:
@@ -625,6 +627,81 @@ scraps:
             data_root_folder: [_fcall, {priority: 1090}, do_getval, ../../instance-root]
             # TODO: fix here; should get from config
             hedera_mirror_endpoint: localhost:50051
+            blockchain_append_batch_size: 5
+            blochchain_init_batch_size: 1000
+            block_record_outbound_batch_size: 100
+            group_requests_endpoint: 0.0.0.0:13701
+            record_requests_endpoint: 0.0.0.0:13702
+            manage_network_requests_endpoint: 0.0.0.0:13703
+            sibling_node_file: [_fcall, {priority: 1090}, get_sibling_node_file]
+        state: [_fcall, {priority: -200}, start_gradido_node]
+      - instance: webapp-demo
+        messages:
+          hedera-message:
+            _class: ConsensusServiceStub
+            _method: submitMessage
+            _arg:
+              request:
+                _type: Transaction
+                bodyBytes: <insert here>
+                sigMap:
+                  _type: SignatureMap
+                  _pass: 1
+                  sigPair:
+                    - _type: SignaturePair
+                      pubKeyPrefix:
+                        _type: PubKeyWrapper
+                        _use_with: str
+                        context:
+                          _type: HederaContext
+                        body_path: /-1/request/bodyBytes/_transformed_use_with
+                      ed25519:
+                        _type: ed25519Signature
+                        _use_with: str
+                        context:
+                          _type: HederaContext
+                        body_path: /-1/request/bodyBytes/_transformed_use_with
+          add-user:
+            parts:
+              topic-id: [_fcall, {priority: 1110}, do_getval, /scraps/parts/gradido-topic-id]
+              transaction-id: [_fcall, {priority: 1100}, do_getval, /scraps/parts/hedera-transaction-id]
+              user-id: ""      
+              message: [_fcall, {priority: 1090}, do_getval, /scraps/parts/gradido-add-user-message-body]
+              message-body: [_fcall, {priority: 880}, do_getval, /scraps/parts/hedera-custom-message-body]
+          create-gradidos:
+            parts:
+              topic-id: [_fcall, {priority: 1110}, do_getval, /scraps/parts/gradido-topic-id]
+              transaction-id: [_fcall, {priority: 1100}, do_getval, /scraps/parts/hedera-transaction-id]
+              user-id: ""      
+              amount: 0
+              message: [_fcall, {priority: 1090}, do_getval, /scraps/parts/gradido-creation-message-body]
+              message-body: [_fcall, {priority: 880}, do_getval, /scraps/parts/hedera-custom-message-body]
+          transfer:
+            parts:
+              topic-id: [_fcall, {priority: 1110}, do_getval, /scraps/parts/gradido-topic-id]
+              transaction-id: [_fcall, {priority: 1100}, do_getval, /scraps/parts/hedera-transaction-id]
+              sender: ""      
+              receiver: ""      
+              amount: 0
+              message: [_fcall, {priority: 1090}, do_getval, /scraps/parts/gradido-transfer-message-body]
+              message-body: [_fcall, {priority: 1080}, do_getval, /scraps/parts/hedera-custom-message-body]
+        # hangs forever
+        state: [_fcall, {priority: -400}, start, 36006]
+    perth:
+      - instance: gradido-node-0
+        parts:
+          listening-groups:
+            - alias: t_blocks
+              group_id: 1
+              shardNum: [_fcall, do_getval, /test-config/hedera-topic-id/0]
+              realmNum: [_fcall, do_getval, /test-config/hedera-topic-id/1]
+              topicNum: [_fcall, do_getval, /test-config/hedera-topic-id/2]
+          instance-root: [_fcall, {priority: 1100}, get_instance_root]
+          conf:
+            worker_count: 10
+            io_worker_count: 1
+            data_root_folder: [_fcall, {priority: 1090}, do_getval, ../../instance-root]
+            hedera_mirror_endpoint: [_fcall, {priority: 1090}, do_getval, /test-config/hedera-mirror-endpoint]
             blockchain_append_batch_size: 5
             blochchain_init_batch_size: 1000
             block_record_outbound_batch_size: 100

@@ -36,10 +36,9 @@ class GradidoContext(object):
             fname = "%(alias)s.%(shardNum)d.%(realmNum)d.%(topicNum)d.bc" % i
             fname = os.path.join(instance_root, fname)
             os.mkdir(fname)
-            # TODO: reconsider
-            #fsnnz_marker = os.path.join(fname, ".is-first-seq-num-non-zero")
-            #with open(fsnnz_marker, "w") as f:
-            #    f.write("1")
+            fsnnz_marker = os.path.join(fname, ".is-first-seq-num-non-zero")
+            with open(fsnnz_marker, "w") as f:
+                f.write("1")
 
         err_file = os.path.join(instance_root, "err-output.txt")
         cmd = "../build/gradido_node %s 2> %s" % (conf_file, err_file)

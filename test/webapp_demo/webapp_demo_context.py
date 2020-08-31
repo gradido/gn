@@ -42,9 +42,7 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
 """ % contents
 
     def show_page(self):
-        bchain = subprocess.check_output(["../build/dump_blockchain", "test-stage/gradido-node-0/t_blocks.0.0.113344.bc"], stderr=subprocess.STDOUT)
-
-        zz = json.loads(bchain)
+        zz = self.backend.get_bchain()
         # converting hex representation to text for better readability
         for i in zz:
             if "transaction" in i:
@@ -98,6 +96,7 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
 class WebappDemo(object):
     def start(self, context):
         self.context = context
+        self.topic_id = ".".join([str(i) for i in context.doc["test-config"]["hedera-topic-id"]])
         sys.stderr.write("starting eternal web demo\n")
         port = context.args[0]
         def create_handler(*arg, **kw):
@@ -105,6 +104,10 @@ class WebappDemo(object):
             return SimpleHTTPRequestHandler(*arg, **kw)
         httpd = HTTPServer(('0.0.0.0', port), create_handler)
         httpd.serve_forever()
+    def get_bchain(self):
+        bchain = subprocess.check_output(["../build/dump_blockchain", "test-stage/gradido-node-0/t_blocks.%s.bc" % self.topic_id], stderr=subprocess.STDOUT)
+        return json.loads(bchain)
+
     def add_user(self, user):
         ii = self.context.path.as_arr()[1]
         sr = self.context.doc["steps"][ii]
@@ -115,9 +118,9 @@ class WebappDemo(object):
         req["_arg"]["request"]["bodyBytes"]["consensusSubmitMessage"][
             "message"]["body_bytes"]["group_member_update"][
                 "user_pubkey"] = user_pubkey
-        self.context.args = [True, [req]]
+        self.context.args = [[req]]
         self.do_hedera_calls(self.context)
-        time.sleep(1)
+        time.sleep(20)
     def create_gradidos(self, user, amount):
         ii = self.context.path.as_arr()[1]
         sr = self.context.doc["steps"][ii]
@@ -131,9 +134,9 @@ class WebappDemo(object):
         req["_arg"]["request"]["bodyBytes"]["consensusSubmitMessage"][
             "message"]["body_bytes"]["creation"]["receiver"][
                 "amount"] = amount
-        self.context.args = [True, [req]]
+        self.context.args = [[req]]
         self.do_hedera_calls(self.context)
-        time.sleep(1)
+        time.sleep(10)
     def transfer(self, sender, receiver, amount):
         ii = self.context.path.as_arr()[1]
         sr = self.context.doc["steps"][ii]
@@ -152,9 +155,9 @@ class WebappDemo(object):
         req["_arg"]["request"]["bodyBytes"]["consensusSubmitMessage"][
             "message"]["body_bytes"]["transfer"]["local"][
                 "receiver"] = receiver_pubkey
-        self.context.args = [True, [req]]
+        self.context.args = [[req]]
         self.do_hedera_calls(self.context)
-        time.sleep(1)
+        time.sleep(10)
     def stop(self):
         self.cleanup()
         os.system('kill %d' % os.getpid())
