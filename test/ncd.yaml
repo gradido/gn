@@ -684,7 +684,7 @@ scraps:
               message: [_fcall, {priority: 1090}, do_getval, /scraps/parts/gradido-transfer-message-body]
               message-body: [_fcall, {priority: 1080}, do_getval, /scraps/parts/hedera-custom-message-body]
         # hangs forever
-        state: [_fcall, {priority: -400}, start, 36007]
+        state: [_fcall, {priority: -400}, start, 36006]
     empty: empty
 steps: [_fcall, {priority: 1000}, do_getval, /scraps/cases/%s, [_fcall, do_getval, /test-config/case]]
 

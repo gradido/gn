@@ -71,6 +71,7 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         self.send_response(200)
+        self.send_header("Content-type", "text/html")
         self.end_headers()
         self.show_page()
 
@@ -78,6 +79,7 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
         length = int(self.headers.getheader('content-length'))
         postvars = cgi.parse_qs(self.rfile.read(length), keep_blank_values=1)
         self.send_response(200)
+        self.send_header("Content-type", "text/html")
         self.end_headers()
         if postvars["type"][0] == "restart":
             self.backend.stop();
