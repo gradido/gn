@@ -17,13 +17,12 @@ inline bool ends_with(std::string const & value, std::string const & ending)
     return std::equal(ending.rbegin(), ending.rend(), value.rbegin());
 }
 
+// TODO: maybe should merge with dump_blockchain
 int main(int argc, char** argv) {
 
-    if (argc < 2) {
-        std::cerr << "Utility for dumping Gradido blockchains" << 
-            std::endl << "Usage: " << std::endl << "dump_blockchain <blockchain_folder> <options>" << 
-            std::endl << "options:" << 
-            std::endl << "  -c: returns number of records" << std::endl;
+    if (argc != 2) {
+        std::cerr << "Utility for counting records in a Gradido blockchain" << 
+            std::endl << "Usage: " << std::endl << "dump_blockchain <blockchain_folder>" << std::endl;
         return -1;
     }
 
@@ -34,13 +33,6 @@ int main(int argc, char** argv) {
         std::string bf(argv[1]);
         Poco::Path block_root_name_path(bf);
         Poco::File block_root = Poco::File(block_root_name_path.absolute());
-
-        bool just_count = false;
-        for (int i = 2; i < argc; i++) {
-            std::string opt(argv[i]);
-            if (opt.compare("-c") == 0)
-                just_count = true;
-        }
 
         std::vector<std::string> blocks;
         for (Poco::DirectoryIterator it(block_root);
@@ -57,37 +49,21 @@ int main(int argc, char** argv) {
             }
         }
         std::sort(blocks.begin(), blocks.end());
-
         uint64_t rec_count = 0;
-
-        if (!just_count)
-            std::cout << "[";
 
         for (std::string i : blocks) {
             std::ifstream fs(i, std::ios::binary);
-            bool is_first = true;
-
             for (int i = 0; i < GRADIDO_BLOCK_SIZE; i++) {
                 grec r;
                 fs.read((char*)&r, sizeof(grec));
                 if (r.hash_version > 0) {
                     rec_count++;
-                    if (!just_count) {
-                        if (is_first)
-                            is_first = false;
-                        else 
-                            std::cout << ",\n";
-                        dump_transaction_in_json(r.payload, std::cout);
-                    }
                 } else 
                     break;
             }
             fs.close();
         }
-        if (just_count)
-            std::cout << rec_count << std::endl;
-        else
-            std::cout << "]";
+        std::cout << rec_count << std::endl;
     } catch (Poco::Exception& e) {
         std::cerr << e.what() << std::endl;
         return 1;

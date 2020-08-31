@@ -25,3 +25,4 @@ target_link_libraries(gradido_node -led25519 -lPocoNet -lPocoUtil -lPocoJSON -lP
 add_executable(dump_blockchain "src/blockchain_gradido_def.h" "src/utils.h" "src/utils.cpp" "src/dump_blockchain/dump_blockchain.cpp")
 target_link_libraries(dump_blockchain -lPocoNet -lPocoUtil -lPocoJSON -lPocoFoundation -lPocoData -lPocoNetSSL -lpthread)
 
+

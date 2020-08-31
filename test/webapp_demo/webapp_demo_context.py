@@ -121,8 +121,9 @@ class WebappDemo(object):
         req["_arg"]["request"]["bodyBytes"]["transactionID"][
             "transactionValidStart"]["seconds"] = self.get_seconds_from_epoch(self.context)
         self.context.args = [[req]]
+        initial = self.get_record_number()
         self.do_hedera_calls(self.context)
-        time.sleep(12)
+        self.wait_for_update(initial)
     def create_gradidos(self, user, amount):
         ii = self.context.path.as_arr()[1]
         sr = self.context.doc["steps"][ii]
@@ -139,8 +140,10 @@ class WebappDemo(object):
         req["_arg"]["request"]["bodyBytes"]["transactionID"][
             "transactionValidStart"]["seconds"] = self.get_seconds_from_epoch(self.context)
         self.context.args = [[req]]
+        initial = self.get_record_number()
         self.do_hedera_calls(self.context)
-        time.sleep(12)
+        self.wait_for_update(initial)
+
     def transfer(self, sender, receiver, amount):
         ii = self.context.path.as_arr()[1]
         sr = self.context.doc["steps"][ii]
@@ -162,11 +165,21 @@ class WebappDemo(object):
         req["_arg"]["request"]["bodyBytes"]["transactionID"][
             "transactionValidStart"]["seconds"] = self.get_seconds_from_epoch(self.context)
         self.context.args = [[req]]
+        initial = self.get_record_number()
         self.do_hedera_calls(self.context)
-        time.sleep(12)
+        self.wait_for_update(initial)
     def stop(self):
         self.cleanup()
         os.system('kill %d' % os.getpid())
+    def get_record_number(self):
+        res = subprocess.check_output(["../build/dump_blockchain", "test-stage/gradido-node-0/t_blocks.%s.bc" % self.topic_id, "-c"], stderr=subprocess.STDOUT)
+        return int(res)
+    def wait_for_update(self, initial):
+        while (True):
+            time.sleep(1)
+            curr = self.get_record_number()
+            if curr > initial:
+                break
 
 
 
