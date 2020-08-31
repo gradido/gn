@@ -234,6 +234,7 @@ class HederaContext(object):
         time.sleep(1)
         with open(err_file) as f:
             lines = f.read().split("\n")
+        self.simulated_hedera_started = False
         return {
             "stderr": lines
         }

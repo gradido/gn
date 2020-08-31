@@ -118,9 +118,11 @@ class WebappDemo(object):
         req["_arg"]["request"]["bodyBytes"]["consensusSubmitMessage"][
             "message"]["body_bytes"]["group_member_update"][
                 "user_pubkey"] = user_pubkey
+        req["_arg"]["request"]["bodyBytes"]["transactionID"][
+            "transactionValidStart"]["seconds"] = self.get_seconds_from_epoch(self.context)
         self.context.args = [[req]]
         self.do_hedera_calls(self.context)
-        time.sleep(20)
+        time.sleep(12)
     def create_gradidos(self, user, amount):
         ii = self.context.path.as_arr()[1]
         sr = self.context.doc["steps"][ii]
@@ -134,9 +136,11 @@ class WebappDemo(object):
         req["_arg"]["request"]["bodyBytes"]["consensusSubmitMessage"][
             "message"]["body_bytes"]["creation"]["receiver"][
                 "amount"] = amount
+        req["_arg"]["request"]["bodyBytes"]["transactionID"][
+            "transactionValidStart"]["seconds"] = self.get_seconds_from_epoch(self.context)
         self.context.args = [[req]]
         self.do_hedera_calls(self.context)
-        time.sleep(10)
+        time.sleep(12)
     def transfer(self, sender, receiver, amount):
         ii = self.context.path.as_arr()[1]
         sr = self.context.doc["steps"][ii]
@@ -155,9 +159,11 @@ class WebappDemo(object):
         req["_arg"]["request"]["bodyBytes"]["consensusSubmitMessage"][
             "message"]["body_bytes"]["transfer"]["local"][
                 "receiver"] = receiver_pubkey
+        req["_arg"]["request"]["bodyBytes"]["transactionID"][
+            "transactionValidStart"]["seconds"] = self.get_seconds_from_epoch(self.context)
         self.context.args = [[req]]
         self.do_hedera_calls(self.context)
-        time.sleep(10)
+        time.sleep(12)
     def stop(self):
         self.cleanup()
         os.system('kill %d' % os.getpid())
