@@ -88,12 +88,9 @@ int main(int argc, char** argv) {
             std::cout << rec_count << std::endl;
         else
             std::cout << "]";
-    } catch (Poco::Exception& e) {
+    } catch (std::exception& e) {
         std::cerr << e.what() << std::endl;
         return 1;
-    } catch (std::runtime_error& e) {
-        std::cerr << e.what() << std::endl;
-        return 2;
     }
     return 0;
 }    

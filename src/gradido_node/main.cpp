@@ -18,9 +18,9 @@ int main(int argc, char** argv) {
         gf.join();
     } catch (Poco::Exception& e) {
         std::cerr << e.what() << std::endl;
-        return -1;
+        return 1;
     } catch (std::runtime_error& e) {
         std::cerr << e.what() << std::endl;
-        return -2;
+        return 2;
     }
 }    

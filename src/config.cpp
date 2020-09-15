@@ -48,9 +48,7 @@ namespace gradido {
                     siblings.push_back(str);
             }            
             in.close();
-        } catch (std::runtime_error& e) {
-            throw std::runtime_error("Couldn't open sibling file: " + std::string(e.what()));
-        } catch (Poco::Exception& e) {
+        } catch (std::exception& e) {
             throw std::runtime_error("Couldn't open sibling file: " + std::string(e.what()));
         }
         
@@ -75,9 +73,7 @@ namespace gradido {
                     }
                 }
             }
-        } catch (std::runtime_error& e) {
-            throw std::runtime_error("Couldn't init blockchain groups: " + std::string(e.what()));
-        } catch (Poco::Exception& e) {
+        } catch (std::exception& e) {
             throw std::runtime_error("Couldn't init blockchain groups: " + std::string(e.what()));
         }
     }
@@ -150,9 +146,7 @@ namespace gradido {
             out.close();
             std::string sibling_file = pfc->getString("sibling_node_file");
             tmp.moveTo(sibling_file);
-        } catch (std::runtime_error& e) {
-            throw std::runtime_error("Couldn't save sibling file: " + std::string(e.what()));
-        } catch (Poco::Exception& e) {
+        } catch (std::exception& e) {
             throw std::runtime_error("Couldn't save sibling file: " + std::string(e.what()));
         }
     }

@@ -40,18 +40,12 @@ std::string get_as_str(TransactionResult r) {
         return "UNKNOWN";
     case NOT_ENOUGH_GRADIDOS:
         return "NOT_ENOUGH_GRADIDOS";
-    case INVALID_SIGNATURE:
-        return "INVALID_SIGNATURE";
-    case MISSING_SIGNATURE:
-        return "MISSING_SIGNATURE";
     case UNKNOWN_LOCAL_USER:
         return "UNKNOWN_LOCAL_USER";
     case UNKNOWN_REMOTE_USER:
         return "UNKNOWN_REMOTE_USER";
     case UNKNOWN_GROUP:
         return "UNKNOWN_GROUP";
-    case TOO_LARGE:
-        return "TOO_LARGE";
     case OUTBOUND_TRANSACTION_FAILED:
         return "OUTBOUND_TRANSACTION_FAILED";
     case USER_ALREADY_EXISTS:
@@ -60,6 +54,27 @@ std::string get_as_str(TransactionResult r) {
         return "GROUP_IS_ALREADY_FRIEND";
     case GROUP_IS_NOT_FRIEND:
         return "GROUP_IS_NOT_FRIEND";
+    }
+}
+
+std::string get_as_str(StructurallyBadMessageResult r) {
+    switch (r) {
+    case UNDESERIALIZABLE:
+        return "UNDESERIALIZABLE";
+    case INVALID_SIGNATURE:
+        return "INVALID_SIGNATURE";
+    case MISSING_SIGNATURE:
+        return "MISSING_SIGNATURE";
+    case TOO_LARGE:
+        return "TOO_LARGE";
+    case NEGATIVE_AMOUNT:
+        return "NEGATIVE_AMOUNT";
+    case BAD_MEMO_CHARACTER:
+        return "BAD_MEMO_CHARACTER";
+    case BAD_ALIAS_CHARACTER:
+        return "BAD_ALIAS_CHARACTER";
+    case KEY_SIZE_NOT_CORRECT:
+        return "KEY_SIZE_NOT_CORRECT";
     }
 }
 
@@ -283,6 +298,28 @@ void dump_transaction_in_json(const GradidoRecord& t, std::ostream& out) {
             out << "    }" << std::endl;
             out << "  ]" << std::endl;
         }
+        break;
+    }
+    case STRUCTURALLY_BAD_MESSAGE: {
+        // TODO: refactor
+        const StructurallyBadMessage& u = t.structurally_bad_message;
+        char buff[1024];
+        dump_in_hex((char*)u.hedera_transaction.runningHash, buff, 48);
+        std::string running_hash(buff);
+        std::string result_str = get_as_str((TransactionResult)u.result);
+        out << "    \"result\": \"" << result_str << "\", " << std::endl;
+        out << "    \"parts\": " << (int)u.parts << ", " << std::endl;
+        out << "    \"length\": " << u.length << ", " << std::endl;
+        out << "    \"hedera_transaction\": {" << std::endl
+            << "      \"consensusTimestamp\": {" << std::endl
+            << "        \"seconds\": " << u.hedera_transaction.consensusTimestamp.seconds << ", " << std::endl
+            << "        \"nanos\": " << u.hedera_transaction.consensusTimestamp.nanos  << std::endl
+            << "      }," << std::endl
+            << "      \"runningHash\": \"" << running_hash << "\", " << std::endl
+            << "      \"sequenceNumber\": " << u.hedera_transaction.sequenceNumber << ", " << std::endl
+            << "      \"runningHashVersion\": " << u.hedera_transaction.runningHashVersion << std::endl;
+        out << "    }" << std::endl;
+        
         break;
     }
     }

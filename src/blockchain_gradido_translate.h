@@ -5,7 +5,54 @@
 #include "gradido_interfaces.h"
 
 namespace gradido {
-    
+
+class TranslationException : public std::exception
+{
+public:
+    explicit TranslationException(const char* message) : msg_(message) {}
+    explicit TranslationException(const std::string& message) : msg_(message) {}
+    virtual ~TranslationException() throw () {}
+    virtual const char* what() const throw () {return msg_.c_str();}
+protected:
+    std::string msg_;
+};
+
+class StructuralException : public TranslationException {
+public:
+   StructuralException(std::string message) : 
+    TranslationException(message) {}
+};
+
+#define TRANSLATION_EXCEPTION(name, message)               \
+class name : public TranslationException {                 \
+public:                                                    \
+   name() : TranslationException(message) {}               \
+};
+
+#define STRUCTURAL_EXCEPTION(name, message)                \
+class name : public StructuralException {                  \
+public:                                                    \
+   name() : StructuralException(message) {}                \
+};
+
+STRUCTURAL_EXCEPTION(NotEnoughSignatures, "need at least one signature for any transaction");
+STRUCTURAL_EXCEPTION(TooManySignatures, "too many signatures");
+STRUCTURAL_EXCEPTION(RecCountZero, "rec_count == 0");
+STRUCTURAL_EXCEPTION(RecCountTooLarge, "rec_count > MAX_RECORD_PARTS");
+STRUCTURAL_EXCEPTION(BadFirstRecType, "first rec is not of type GRADIDO_TRANSACTION");
+
+class BadRecType : public StructuralException {
+public:                                                    
+ BadRecType(int i) : StructuralException("bad rec type at " + 
+                                          std::to_string(i)) {}
+};                                                      
+
+STRUCTURAL_EXCEPTION(ExpectedLongMemo, "expected long memo");
+STRUCTURAL_EXCEPTION(OmittedSignatureInRecord, "omitted signature in record")
+
+STRUCTURAL_EXCEPTION(EmptySignature, "empty signature")
+STRUCTURAL_EXCEPTION(SignatureCountNotCorrect, "signature count not correct")
+
 class TransactionUtils {
 
 public:
@@ -27,6 +74,9 @@ public:
 
     static Signature translate_Signature_from_pb(grpr::SignaturePair sig_pair);
 
+    static void translate_Signature_to_pb(grpr::SignatureMap* map,
+                                          const Signature& signature);
+
 public:
 
     static void translate_from_ctr(const ConsensusTopicResponse& t, 
@@ -34,8 +84,18 @@ public:
     static void translate_from_br(const grpr::BlockRecord& br, 
                                   HashedMultipartTransaction& hmt);
     static void translate_to_ctr(const MultipartTransaction& mt,
-                                 ConsensusTopicResponse& t);
+                                 ConsensusTopicResponse& ctr);
     
+    static void check_structure(const MultipartTransaction& mt);
+    static void check_structure(const ConsensusTopicResponse& t);
+
+    static bool is_empty(uint8_t* str, size_t size);
+    static bool is_empty(const Signature& signature);
+
+    // TODO: protected
+    static void check_alias(const uint8_t* str);
+    static void check_memo(const uint8_t* str, const uint8_t* str2);
+
 };
  
 }

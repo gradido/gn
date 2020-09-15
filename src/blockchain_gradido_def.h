@@ -17,11 +17,20 @@ namespace gradido {
 
 #define MAX_RECORD_PARTS 5
 
+// not flexible; would take some more adjustments when changing this
+#define SIGNATURES_IN_MAIN_PART 1
+    
+#define NON_SIGNATURE_PARTS 2
+#define SIGNATURE_PARTS (MAX_RECORD_PARTS - NON_SIGNATURE_PARTS)
+#define MINIMUM_SIGNATURE_COUNT 1
+#define MAXIMUM_SIGNATURE_COUNT (SIGNATURES_PER_RECORD * (MAX_RECORD_PARTS - NON_SIGNATURE_PARTS) + SIGNATURES_IN_MAIN_PART)
+
 #define PUB_KEY_LENGTH 32
 #define SIGNATURE_LENGTH 32
 
 #define MEMO_MAIN_SIZE 16
 #define MEMO_FULL_SIZE 150
+
 
 // group alias field ends with null characters to have exact length and
 // have null-terminated string as well
@@ -125,12 +134,6 @@ enum TransactionResult {
 
     // transfer not possible, sender doesn't have enough funds
     NOT_ENOUGH_GRADIDOS,
-
-    // any of needed signatures is invalid
-    INVALID_SIGNATURE,
-
-    // any of needed signatures is missing
-    MISSING_SIGNATURE,
     
     // user has to be in local group
     UNKNOWN_LOCAL_USER,
@@ -141,10 +144,6 @@ enum TransactionResult {
     // group has to be in list of friends
     UNKNOWN_GROUP,
 
-    // transaction is too large to be expressed by number of parts
-    // less or equal to MAX_RECORD_PARTS
-    TOO_LARGE,
-
     // not possible to finish inbound transaction, as outbound 
     // transaction failed
     OUTBOUND_TRANSACTION_FAILED,
@@ -154,25 +153,33 @@ enum TransactionResult {
 
     // for add/remove friend group
     GROUP_IS_ALREADY_FRIEND,
-    GROUP_IS_NOT_FRIEND,
-
-    // if amount is negative
-    NEGATIVE_AMOUNT
+    GROUP_IS_NOT_FRIEND
 };
 
 struct GradidoCreation : public UserTransfer, AbstractTransferOp {};
 
-struct Transaction {
+struct TransactionCommonHeader {
     // starts with 1; it may affect the way how transaction is parsed and
     // validated; version_number is the same for all parts of single 
-    // transaction
+    // transaction; for structurally_bad_message it may be 0, if 
+    // version number cannot be obtained from data
     uint8_t version_number;
+
+    // other parts may follow this record; if not, then parts == 1;
+    // cannot be larger than MAX_RECORD_PARTS for structurally validated
+    // transaction (one which is therefore translated); for 
+    // structurally_bad_message it is unlimited
+    uint8_t parts;
+
+    HederaTransaction hedera_transaction;
+};
+
+struct Transaction : public TransactionCommonHeader {
 
     // additional signatures can be stored in more parts
     Signature signature;
     uint8_t signature_count;
 
-    HederaTransaction hedera_transaction;
     uint8_t transaction_type; // enum TransactionType
     union {
         GradidoCreation gradido_creation;
@@ -188,9 +195,6 @@ struct Transaction {
 
     uint8_t result; // enum TransactionResult
     
-    // other parts may follow this record; if not, then parts == 1;
-    // cannot be larger than MAX_RECORD_PARTS
-    uint8_t parts;
 
     // first part of memo, to avoid multi-parts, if possible (assuming,
     // usually memos are small); has to be null-terminated string;
@@ -201,20 +205,65 @@ struct Transaction {
 
 #define MEMO_PART_SIZE (int)fmax(sizeof(Transaction), MEMO_FULL_SIZE - MEMO_MAIN_SIZE)
 #define SIGNATURES_PER_RECORD (int)(sizeof(Transaction) / sizeof(Signature))
+#define RAW_MESSAGE_PART_SIZE MEMO_PART_SIZE
 
 enum GradidoRecordType {
     BLANK=0,
     GRADIDO_TRANSACTION,
     MEMO,
-    SIGNATURES
+    SIGNATURES,
+    STRUCTURALLY_BAD_MESSAGE,
+    RAW_MESSAGE
 };
 
+enum StructurallyBadMessageResult {
+    // couldn't be deserialized
+    UNDESERIALIZABLE=1,
+
+    // any of needed signatures is invalid
+    INVALID_SIGNATURE,
+
+    // any of needed signatures is missing
+    MISSING_SIGNATURE,
+
+    // transaction is too large to be expressed by number of parts
+    // less or equal to MAX_RECORD_PARTS; other way to get this is to
+    // provide too large byte buffer in message (such as alias, memo, 
+    // etc.) - reason is that such message cannot be saved in blockchain
+    // and later validated; this shoud not happen, transaction sender
+    // has to validate data before sending
+    TOO_LARGE,
+
+    // if amount is negative
+    NEGATIVE_AMOUNT,
+
+    // memo cannot contain null character
+    BAD_MEMO_CHARACTER,
+
+    // group alias has to consist of letters, numbers, minus, underscore
+    BAD_ALIAS_CHARACTER,
+
+    // key / signature size is not correct
+    KEY_SIZE_NOT_CORRECT
+};
+
+struct StructurallyBadMessage : public TransactionCommonHeader {
+    uint8_t result; // enum StructurallyBadMessageResult
+    uint64_t length; // total length of message in bytes; contents is
+                     // provided in following parts
+};
+
+// idea is that most transactions are supposed to be transfers; those
+// will consist of single part (if memo is short enough); size of other
+// types of transactions is less relevant
 struct GradidoRecord {
     uint8_t record_type; // enum GradidoRecordType
     union {
         Transaction transaction;
         uint8_t memo[MEMO_PART_SIZE];
         Signature signature[SIGNATURES_PER_RECORD];
+        StructurallyBadMessage structurally_bad_message;
+        uint8_t raw_message[RAW_MESSAGE_PART_SIZE];
     };
 };
 

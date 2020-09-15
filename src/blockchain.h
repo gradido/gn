@@ -107,7 +107,6 @@ private:
     std::string name;
     Poco::Path storage_root;
     uint64_t rec_per_block;
-    Poco::File block_root;
     uint64_t block_size;
     uint64_t total_rec_count;
     ActiveBlock* tail;
@@ -122,7 +121,7 @@ private:
     }
     
     void ensure_tail_points_to_upcoming_rec() {
-        uint64_t bnum = (uint64_t)(total_rec_count / block_size);
+        uint64_t bnum = (uint64_t)(total_rec_count / rec_per_block);
         if (!tail || tail->get_block_num() != bnum) {
             free_tail();
             std::string bname = create_block_file_name(bnum);
@@ -138,6 +137,9 @@ private:
 
     Record get_full_rec(uint64_t rec_num) {
         // TODO: ofc, caching
+        if (rec_num >= total_rec_count)
+            throw std::runtime_error("rec_num out of bounds: " + 
+                                     std::to_string(rec_num));
         uint64_t block_num = rec_num / rec_per_block;
         uint64_t rec_pos = rec_num - block_num * rec_per_block;
         if (tail && tail->get_block_num() == block_num) {
@@ -191,7 +193,15 @@ public:
         last_rec{0} {
             if (!validator)
                 throw std::runtime_error("provide validator to Blockchain");
-            block_root = Poco::File(storage_root);
+            Poco::File tmp(storage_root);
+            if (!tmp.exists())
+                throw std::runtime_error("storage root doesn't exist");
+            if (!tmp.isDirectory())
+                throw std::runtime_error("storage root is not a folder");
+            if (!tmp.canRead())
+                throw std::runtime_error("storage root cannot be read");
+            if (!tmp.canWrite())
+                throw std::runtime_error("storage root cannot be written");
         }
     
     
@@ -206,7 +216,8 @@ public:
             Record tmp = last_rec;
             while (true) {
                 ensure_tail_points_to_upcoming_rec();            
-                Record rec = tail->get_rec(total_rec_count);
+                Record rec = tail->get_rec(total_rec_count % 
+                                           rec_per_block);
                 RecordValidationResult zz = validate(&rec, &tmp);
                 if (zz == VALID) {
                     total_rec_count += cnt + 1;
@@ -255,11 +266,11 @@ public:
         } else {
             for (auto i : pending_insertions) {
                 ensure_tail_points_to_upcoming_rec();
-                tail->write_rec(i, total_rec_count++);
+                tail->write_rec(i, total_rec_count++ % rec_per_block);
                 validator->added_successfuly(i.payload);
             }
             ensure_tail_points_to_upcoming_rec();
-            tail->write_rec(rec, total_rec_count++);
+            tail->write_rec(rec, total_rec_count++ % rec_per_block);
             validator->added_successfuly(rec.payload);
             last_rec = rec;
             pending_insertions.clear();

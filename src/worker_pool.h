@@ -10,6 +10,24 @@
 
 namespace gradido {
 
+/*
+  only acceptable call sequence is as follows:
+  - constructor()
+  - init(), single time
+  - ...
+  - join(), single time; this may be omitted
+  - ...
+  - destructor()
+  
+  any other scenario leads to undefined behaviour
+  - calling join() while init() is not finished
+  - calling join() multiple times
+  - etc.
+
+  this is to have things simple in implementation; also, expecting a
+  "parent" thread doing initialization, which would allow things to
+  happen in a certain sequence
+*/
 
 class WorkerPool final {
 private:
@@ -20,15 +38,25 @@ private:
 
     static void* run_entry(void* arg);
     bool shutdown;
-    
+    size_t busy_workers;
 public:
     WorkerPool();
     void init(int worker_count);
     virtual ~WorkerPool();
+
+    // takes ownership of task
     void push(ITask* task);
     size_t get_worker_count();
-    void join();
 
+    // only way for this method to exit once called is by calling
+    // init_shutdown()
+    void join();
+    size_t get_task_queue_size();
+    size_t get_busy_worker_count();
+
+    // after this is called (more precisely, exited), push() won't have 
+    // an effect
+    void init_shutdown();
 };
     
     

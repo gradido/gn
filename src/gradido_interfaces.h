@@ -9,6 +9,33 @@
 #include <sstream>
 #include "gradido_messages.h"
 
+/*
+  some important invariances:
+  - single facade, single comm layer, two pools of workers (io, events),
+    many blockchains
+  - hedera message is ultimate authority; if it sends different hash than
+    expected, blockchain data is considered wrong and has to be obtained
+    from (correct data yielding) nodes
+  - each hedera message is validated in several steps, namely:
+    - line checksum: for locally stored messages
+    - structurally: for local, hedera or other node originating messages
+      - signature verification, buffer sizes, correct byte character
+        check is here
+    - calculated-fields-wise: for local, hedera or other node 
+      originating messages
+      - this also includes checks against current local state, such as if
+        user has enough gradidos to perform transaction
+    - for hedera checksum correctness in the past
+    - for hedera checksum correctness with latest message, originating
+      from hedera server directly
+  - only those messages inside local blockchain which are validated
+    against message received from hedera are considered completely
+    valid; single such received message may validate entire blockchain,
+    if hash its hash is correct
+    - if not, then either local blockchain (or its tail) or hedera
+      is wrong; we choose to believe in hedera
+*/
+
 // TODO: thread id, process id, timestamp
 #define LOG(msg) \
     std::cerr << __FILE__ << ":" << __LINE__ << ": " << msg << std::endl
@@ -29,6 +56,8 @@ struct MultipartTransaction {
     MultipartTransaction() : rec_count(0), rec{0} {}
     GradidoRecord rec[MAX_RECORD_PARTS];
     int rec_count;
+    // is set only if there is a structural problem with the message
+    std::shared_ptr<std::string> raw_message;
 };
 
 struct HashedMultipartTransaction : public MultipartTransaction {
