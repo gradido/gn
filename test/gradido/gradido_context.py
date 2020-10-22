@@ -15,11 +15,43 @@ class GradidoContext(object):
         instance_root = ir.get_val(context.doc)
         instance_name = ina.get_val(context.doc)
         conf = cnf.get_val(context.doc)
+        listening_groups = lgs.get_val(context.doc)
 
         if instance_name in self.procs:
             raise PukalaPathException("gradido node instance already initialized", context.path)
+        self.start_gradido_node_with_args(instance_root, instance_name, conf, listening_groups)
 
-        os.mkdir(instance_root)
+    def get_pid(self, instance_name):
+        (instance_root, pro, err_file) = self.procs[instance_name]
+        return pro.pid
+
+    def stop_gradido_node(self, instance_name):
+        (instance_root, pro, err_file) = self.procs[instance_name]
+        os.killpg(os.getpgid(pro.pid), signal.SIGTERM) 
+        del self.procs[instance_name]
+        self.remove_proc(pro.pid)
+
+    def restart_gradido_node(self, instance_root, instance_name):
+        conf_file = os.path.join(instance_root, "gradido.conf")
+        err_file = os.path.join(instance_root, "err-output.txt")
+        cmd = "../build/gradido_node %s 2> %s" % (conf_file, err_file)
+        pro = subprocess.Popen(cmd, stdout=subprocess.PIPE, 
+                               shell=True, preexec_fn=os.setsid) 
+        self.add_proc(pro.pid)
+        self.procs[instance_name] = (instance_root, pro, err_file)
+        return pro.pid
+
+    def start_gradido_node_with_args(self, instance_root, instance_name, conf, listening_groups):
+        if instance_name in self.procs:
+            raise Exception("gradido node instance already initialized " + instance_name)
+
+        try:
+            os.mkdir(instance_root)
+        except OSError, e:
+            if e.errno == 17:
+                pass # exists
+            else:
+                raise e
         conf_file = os.path.join(instance_root, "gradido.conf")
         sibling_file = "/tmp/zzz"
         with open(conf_file, "w") as f:
@@ -28,10 +60,6 @@ class GradidoContext(object):
                 f.write(line)
                 if i == "sibling_node_file":
                     sibling_file = os.path.join(instance_root, conf[i])
-        # TODO: generate
-        with open(sibling_file, "w") as f:
-            pass
-        listening_groups = lgs.get_val(context.doc)
         for i in listening_groups:
             fname = "%(alias)s.%(shardNum)d.%(realmNum)d.%(topicNum)d.bc" % i
             fname = os.path.join(instance_root, fname)
@@ -78,7 +106,11 @@ class GradidoContext(object):
             "blockchains": bchains
         }
     def get_instance_root(self, context):
-        return "%s/gradido-node-0" % context.doc["test-config"]["test-stage-absolute"]
+        inst_base = context.path.as_arr()[:-2]
+        ina = Path(inst_base + ["instance"], context.doc)
+        instance_name = ina.get_val(context.doc)
+        return "%s/%s" % (context.doc["test-config"][
+            "test-stage-absolute"], instance_name)
     def get_sibling_node_file(self, context):
         inst_base = context.path.as_arr()[:-2]
         ina = Path(inst_base + ["instance-root"], context.doc)

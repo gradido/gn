@@ -74,6 +74,10 @@ message GradidoCreation {
     Amount receiver = 1; 
 }
 
+message DebugResetBlockchainMark {
+    bool do_reset = 1;
+}
+
 message TransactionBody {
 	string memo = 1; // max 150 chars
 
@@ -82,9 +86,10 @@ message TransactionBody {
 		GradidoCreation creation = 3;
         GroupFriendsUpdate group_friends_update = 4;
         GroupMemberUpdate group_member_update = 5;
+        DebugResetBlockchainMark debug_reset_blockchain_mark = 6;
 	}
 
-    uint64 version_number = 6;
+    uint64 version_number = 7;
 }
 
 message GradidoTransaction {
@@ -95,6 +100,11 @@ message GradidoTransaction {
     // blockchain it doesn't matter, as it has to be serialized again
     // when validating
 	bytes body_bytes = 2; // TransactionBody
+}
+
+message AddGroupToRegister {
+    bytes alias = 1;
+    bool reset_group_register = 2;
 }
 
 message ManageGroupRequest {

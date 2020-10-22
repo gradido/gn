@@ -88,9 +88,29 @@ std::string get_as_str(GradidoRecordType r) {
         return "MEMO";
     case SIGNATURES:
         return "SIGNATURES";
+    case STRUCTURALLY_BAD_MESSAGE:
+        return "STRUCTURALLY_BAD_MESSAGE";
+    case RAW_MESSAGE:
+        return "RAW_MESSAGE";
     }
 }
 
+void dump_transaction_in_json(const GradidoBlockRec& r, std::ostream& out) {
+    GradidoBlockchainType::RecordType rt = (GradidoBlockchainType::RecordType)r.type;
+    switch (rt) {
+    case GradidoBlockchainType::RecordType::EMPTY:
+        break;
+    case GradidoBlockchainType::RecordType::PAYLOAD:
+        dump_transaction_in_json(r.payload, out);
+        break;
+    case GradidoBlockchainType::RecordType::CHECKSUM: {
+        char buff[BLOCKCHAIN_CHECKSUM_SIZE * 2 + 1];
+        dump_in_hex((char*)r.checksum, buff, BLOCKCHAIN_CHECKSUM_SIZE);
+        out << "\"" << std::string(buff) << "\"";
+        break;
+    }
+    }
+}
 
 void dump_transaction_in_json(const GradidoRecord& t, std::ostream& out) {
 

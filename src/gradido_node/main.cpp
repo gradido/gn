@@ -2,13 +2,16 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include "gradido_signals.h"
 
 using namespace gradido;
 
 int main(int argc, char** argv) {
-    GradidoFacade gf;
 
+    GradidoFacade gf;
+    GradidoSignals::init(&gf);
     std::vector<std::string> params;
+
     for (int i = 0; i < argc; i++)
         params.push_back(std::string(argv[i]));
 

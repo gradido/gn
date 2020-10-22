@@ -31,7 +31,7 @@
   - only those messages inside local blockchain which are validated
     against message received from hedera are considered completely
     valid; single such received message may validate entire blockchain,
-    if hash its hash is correct
+    if its hash is correct
     - if not, then either local blockchain (or its tail) or hedera
       is wrong; we choose to believe in hedera
 */
@@ -52,6 +52,14 @@ public:
     virtual void run() = 0;
 };
 
+template<typename T>
+struct Multipart {
+    Multipart() : records(0), rec_count(0) {}
+    T* records;
+    int rec_count;
+    
+};
+
 struct MultipartTransaction {
     MultipartTransaction() : rec_count(0), rec{0} {}
     GradidoRecord rec[MAX_RECORD_PARTS];
@@ -64,25 +72,38 @@ struct HashedMultipartTransaction : public MultipartTransaction {
     char hashes[MAX_RECORD_PARTS * BLOCKCHAIN_HASH_SIZE];
 };
 
-class IBlockchain {
- public:
-    virtual ~IBlockchain() {}
+class IAbstractBlockchain {
+public:
+    virtual ~IAbstractBlockchain() {}
     virtual void init() = 0;
-    virtual void add_transaction(const MultipartTransaction& tr) = 0;
-    virtual void add_transaction(const HashedMultipartTransaction& tr) = 0;
 
     virtual void continue_with_transactions() = 0;
     virtual void continue_validation() = 0;
 
-    virtual grpr::BlockRecord get_block_record(uint64_t seq_num) = 0;
+    virtual void exec_once_validated(ITask* task) = 0;
+    virtual uint64_t get_transaction_count() = 0;
+    virtual void require_blocks(std::vector<std::string> endpoints) = 0;
+};
+
+class IBlockchain : public IAbstractBlockchain {
+public:
     virtual bool get_paired_transaction(HederaTimestamp hti, 
                                         Transaction tt) = 0;
-    virtual void exec_once_validated(ITask* task) = 0;
+    virtual void add_transaction(const MultipartTransaction& tr) = 0;
+    virtual void add_transaction(const HashedMultipartTransaction& tr) = 0;
+    virtual grpr::BlockRecord get_block_record(uint64_t seq_num) = 0;
     virtual void exec_once_paired_transaction_done(
                            ITask* task, 
                            HederaTimestamp hti) = 0;
-    virtual uint64_t get_transaction_count() = 0;
-    virtual void require_transactions(std::vector<std::string> endpoints) = 0;
+};
+
+class IGroupRegisterBlockchain : public IAbstractBlockchain {
+public:
+
+    virtual void add_transaction(const GroupRecord& rec) = 0;
+    virtual void add_multipart_transaction(
+                 const GroupRegisterRecord* rec, 
+                 size_t rec_count) = 0;
 };
 
 struct GroupInfo {
@@ -95,6 +116,10 @@ struct GroupInfo {
         ss << alias << "." << topic_id.shardNum << 
             "." << topic_id.realmNum << "." << topic_id.topicNum << ".bc";
         return ss.str();
+    }
+
+    bool operator<(const GroupInfo& gi) const {
+        return strncmp(alias, gi.alias, GROUP_ALIAS_LENGTH);
     }
 };
 
@@ -117,6 +142,9 @@ class IGradidoConfig {
     virtual std::string get_group_requests_endpoint() = 0;
     virtual std::string get_record_requests_endpoint() = 0;
     virtual std::string get_manage_network_requests_endpoint() = 0;
+    virtual void reload_sibling_file() = 0;
+    virtual void reload_group_infos() = 0;
+    virtual HederaTopicID get_group_register_topic_id() = 0;
 };
 
 // communication layer threads should not be delayed much; use tasks
@@ -161,9 +189,9 @@ public:
  public:
     virtual void init(int worker_count) = 0;
     
-    virtual void receive_gradido_transactions(std::string endpoint,
-                                              HederaTopicID topic_id,
-                                              std::shared_ptr<TransactionListener> tl) = 0;
+    virtual void receive_hedera_transactions(std::string endpoint,
+                                             HederaTopicID topic_id,
+                                             std::shared_ptr<TransactionListener> tl) = 0;
     virtual void stop_receiving_gradido_transactions(
                          HederaTopicID topic_id) = 0;
 
@@ -196,13 +224,17 @@ class IGradidoFacade {
     virtual IBlockchain* get_group_blockchain(std::string group) = 0;
     virtual IBlockchain* create_group_blockchain(GroupInfo gi) = 0;
     virtual IBlockchain* create_or_get_group_blockchain(std::string group) = 0;
+
+    virtual IGroupRegisterBlockchain* get_group_register() = 0;
+
     virtual void push_task(ITask* task) = 0;
     virtual IGradidoConfig* get_conf() = 0;
     virtual bool add_group(GroupInfo gi) = 0;
     virtual bool remove_group(std::string group) = 0;
     virtual ICommunicationLayer* get_communications() = 0;
     virtual void exit(int ret_val) = 0;
-    
+
+    virtual void reload_config() = 0;
 };
 
 }

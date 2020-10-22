@@ -42,6 +42,8 @@ from proto_gen.gradido.gradido_pb2 import BlockRecord
 from proto_gen.gradido.gradido_pb2 import ManageNodeNetwork
 from proto_gen.gradido.gradido_pb2 import ManageNodeNetworkResponse
 from proto_gen.gradido.gradido_pb2 import GradidoTransaction
+from proto_gen.gradido.gradido_pb2 import DebugResetBlockchainMark
+from proto_gen.gradido.gradido_pb2 import AddGroupToRegister
 
 
 # TODO: remove

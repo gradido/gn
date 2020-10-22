@@ -1,8 +1,10 @@
 #include "gradido_facade.h"
-#include "utils.h"
-#include "blockchain_gradido.h"
 #include <Poco/Path.h>
 #include <math.h>
+#include <set>
+#include "utils.h"
+#include "blockchain_gradido.h"
+#include "group_register.h"
 
 namespace gradido {
 
@@ -132,12 +134,40 @@ namespace gradido {
         }
     };
 
-    GradidoFacade::GradidoFacade() : communication_layer(this) {
+    class ContinueFacadeInit : public ITask {
+    private:
+        GradidoFacade* gf;
+    public:
+        ContinueFacadeInit(GradidoFacade* gf) : gf(gf) {}
+        virtual void run() {
+            gf->continue_init_after_group_register_done();
+        }
+    };
+
+    class StartGroupRegisterTask : public ITask {
+    private:
+        GradidoFacade* gf;
+        HederaTopicID topic_id;
+    public:
+        StartGroupRegisterTask(GradidoFacade* gf, 
+                               HederaTopicID topic_id) : 
+            gf(gf), topic_id(topic_id) {
+        }
+        virtual void run() {
+            IGroupRegisterBlockchain* gr = gf->get_group_register();
+            gr->init();
+        }
+    };
+
+    GradidoFacade::GradidoFacade() : communication_layer(this), 
+                                     group_register(0) {
         SAFE_PT(pthread_mutex_init(&main_lock, 0));
     }
     GradidoFacade::~GradidoFacade() {
         pthread_mutex_destroy(&main_lock);
+
         // TODO: delete blockchains
+        // TODO: delete group_register
     }
 
     void GradidoFacade::init(const std::vector<std::string>& params) {
@@ -145,10 +175,11 @@ namespace gradido {
         worker_pool.init(config.get_worker_count());
         communication_layer.init(config.get_io_worker_count());
 
-        for (auto i : config.get_group_info_list()) {
-            ITask* task = new StartBlockchainTask(this, i);
-            worker_pool.push(task);
-        }
+        group_register = new GroupRegister(
+                         config.get_data_root_folder(),
+                         this,
+                         config.get_group_register_topic_id());
+        group_register->exec_once_validated(new ContinueFacadeInit(this));
 
         communication_layer.receive_manage_group_requests(
                             config.get_group_requests_endpoint(),
@@ -180,7 +211,7 @@ namespace gradido {
         auto ii = blockchains.find(alias);
         if (ii != blockchains.end()) {
             LOG("group already exists");
-            exit(1);
+            exit(1); // should not happen
         }
         Poco::Path data_root(config.get_data_root_folder());
         Poco::Path bp = data_root.append(gi.get_directory_name());
@@ -235,6 +266,38 @@ namespace gradido {
     void GradidoFacade::exit(int ret_val) {
         exit(ret_val);
     }
+
+    void GradidoFacade::reload_config() {
+        // following things are possible to alter for dynamic reload:
+        // - adding new blockchain folder (removing not supported)
+        // - updating sibling endpoint file (adding, removing lines)
+        config.reload_sibling_file();
+        std::vector<GroupInfo> gi = config.get_group_info_list();
+        std::set<GroupInfo> gi_set;
+        std::copy(gi_set.begin(), gi_set.end(), std::back_inserter(gi));
+
+        config.reload_group_infos();
+        std::vector<GroupInfo> gi2 = config.get_group_info_list();
+
+        for (auto i : gi2) {
+            if (gi_set.find(i) != gi_set.end()) {
+                ITask* task = new StartBlockchainTask(this, i);
+                worker_pool.push(task);
+            }
+        }
+    }
+
+    IGroupRegisterBlockchain* GradidoFacade::get_group_register() {
+        return group_register;
+    }
+
+    void GradidoFacade::continue_init_after_group_register_done() {
+        for (auto i : config.get_group_info_list()) {
+            ITask* task = new StartBlockchainTask(this, i);
+            worker_pool.push(task);
+        }
+    }
+
 
     
 }

@@ -2,7 +2,6 @@
 #define BLOCKCHAIN_GRADIDO_H
 
 #include "gradido_interfaces.h"
-#include "blockchain.h"
 #include "blockchain_gradido_def.h"
 #include "blockchain_gradido_translate.h"
 #include "gradido_messages.h"
@@ -13,22 +12,28 @@
 
 namespace gradido {
 
-class GradidoGroupBlockchain : public IBlockchain, Blockchain<GradidoRecord>::BlockchainRecordValidator {
+class GradidoGroupBlockchain : public IBlockchain {
 public:
 
-    typedef Blockchain<GradidoRecord>::RecordValidationResult RVR;
+    class GroupRegisterValidator {
+    };
 
-    // TODO: different levels of validation; when validating existing
-    // chain it would be enough to just check hashes
-    virtual RVR validate(const GradidoRecord& rec);
+    class GradidoRecordValidator {
+        bool is_valid(const GradidoRecord* rec, uint32_t count) {
+            return true;
+        }
 
-    // builds data indexes while traversing blockchain
-    virtual void added_successfuly(const GradidoRecord& rec);
+    };
+
+private:
+    GroupRegisterValidator group_validator;
+    GradidoRecordValidator gradido_validator;
 
 private:
     GroupInfo gi;
     IGradidoFacade* gf;
     HederaTopicID topic_id;    
+
     Blockchain<GradidoRecord> blockchain;
 
     struct UserInfo {
@@ -118,7 +123,6 @@ public:
     HederaTopicID get_topic_id();
     virtual void init();
 
-
     virtual void add_transaction(const MultipartTransaction& tr);
     virtual void add_transaction(const HashedMultipartTransaction& tr);
 
@@ -135,7 +139,6 @@ public:
     virtual uint64_t get_transaction_count();
 
     virtual void require_transactions(std::vector<std::string> endpoints);
-
 };
 
 }

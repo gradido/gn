@@ -1,8 +1,7 @@
 cmake_minimum_required(VERSION 3.0)
 project(Gradido_Node C CXX)
-
-add_definitions("-std=c++11" "-pthread")
-set(CMAKE_CXX_STANDARD 11)
+add_definitions("-std=c++17" "-pthread" "-g")
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 include_directories(

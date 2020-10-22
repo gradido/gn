@@ -86,9 +86,9 @@ namespace gradido {
         poll_services.clear();
     }
     
-    void CommunicationLayer::receive_gradido_transactions(std::string endpoint,
-                                                          HederaTopicID topic_id,
-                                                          std::shared_ptr<TransactionListener> tl) {
+    void CommunicationLayer::receive_hedera_transactions(std::string endpoint,
+                                                         HederaTopicID topic_id,
+                                                         std::shared_ptr<TransactionListener> tl) {
         // TODO: synchronize for multi-thread access
         PollService* ps = get_poll_service();
         TopicSubscriber* ts = new TopicSubscriber(endpoint, topic_id, tl);

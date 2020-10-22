@@ -18,6 +18,8 @@ class GradidoFacade : public IGradidoFacade {
     WorkerPool worker_pool;
     CommunicationLayer communication_layer;
     std::map<std::string, IBlockchain*> blockchains;
+
+    IGroupRegisterBlockchain* group_register;
  public:
     GradidoFacade();
     virtual ~GradidoFacade();
@@ -27,12 +29,17 @@ class GradidoFacade : public IGradidoFacade {
     virtual IBlockchain* create_group_blockchain(GroupInfo gi);
     virtual IBlockchain* create_or_get_group_blockchain(std::string group);
 
+    virtual IGroupRegisterBlockchain* get_group_register();
+
     virtual void push_task(ITask* task);
     virtual IGradidoConfig* get_conf();
     virtual bool add_group(GroupInfo gi);
     virtual bool remove_group(std::string group);
     virtual ICommunicationLayer* get_communications();
     virtual void exit(int ret_val);
+    virtual void reload_config();
+
+    void continue_init_after_group_register_done();
 };
  
 }

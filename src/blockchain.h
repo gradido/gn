@@ -11,188 +11,100 @@
 #include <fstream>
 #include <string.h>
 #include "gradido_interfaces.h"
-
+#include "file_tile.h"
 
 namespace gradido {
 
+#define BLOCKCHAIN_CHECKSUM_SIZE SHA_512_SIZE
+
 // - thread agnostic
 // - validates in batches
-// - currently doesn't cache anything
-// - if records first byte is \0, then it is considered blank
-// - multi-part record validation is supported
-template<typename T>
+// - last record is always checksum
+// - last record in each block is always checksum
+// - checksum is calculated from string prev_checksum + curr_record, for
+//   each record; only last checksum is stored in block
+// - block size cannot be less than 2
+template<typename T, int RecCount>
 class Blockchain final {
 public:
-
-    enum RecordValidationResult {
-        INVALID=0,
-        VALID,
-        NEED_NEXT
+    enum RecordType {
+        EMPTY=0,
+        PAYLOAD,
+        CHECKSUM
     };
 
-    class BlockchainRecordValidator {
+    class Record {
     public:
-        virtual RecordValidationResult validate(const T& rec) = 0;
-        virtual void added_successfuly(const T& rec) = 0;
+        uint8_t type; // RecordType
+        union {
+            T payload;
+            uint8_t checksum[BLOCKCHAIN_CHECKSUM_SIZE];
+        };
+        void operator=(const Record& from) {
+            memcpy(this, &from, sizeof(Record));
+        }
+
+        Record() {
+            memset(this, 0, sizeof(Record));
+        }
+        ~Record() {}
     };
 
-    struct Record {
-        // if \0, will be considered blank
-        uint8_t hash_version; // starts with 1
-        T payload;        
-        uint8_t hash[SHA_512_SIZE];
+    enum ExitCode {
+        OK=0,
+        NON_EMPTY_RECORD_AFTER_CHECKSUM,
+        EMPTY_RECORD_BEFORE_CHECKSUM,
+        NO_PAYLOAD,
+        NO_CHECKSUM,
+        EXPECTED_FULL_BLOCK,
+        ONLY_LAST_BLOCK_MAY_NOT_BE_FULL,
+        BAD_CHECKSUM,
+        WRITE_ERROR,
+        READ_ERROR,
+        LAST_BLOCK_NOT_FULL,
+        INDEX_TOO_LARGE,
+        BAD_BLOCK_LENGTH
     };
+
 private:
-    std::vector<Record> pending_insertions;
+    const uint16_t optimal_cache_size;
+    const uint16_t cache_auto_flush_min_interval_sec;
 
-    
-private:
-
-    class ActiveBlock final {
-    private:
-        uint64_t block_num;
-        std::fstream file;
-    public:
-        ActiveBlock(uint64_t block_num, std::string fname) :
-        block_num(block_num) {
-            Poco::File bf(fname);
-            if (!bf.isFile()) 
-                throw std::runtime_error("non-existent block file " + fname);
-
-            file.open(fname, std::ios::binary | 
-                      std::ios::in | std::ios::out);
+    struct Timestamp {
+        Timestamp() : seconds(0) {}
+        uint64_t seconds;
+        bool operator<(const Timestamp& ts) {
+            return ts.seconds > seconds;
         }
+        Timestamp operator+(int sec_value) {
+            Timestamp res;
+            res.seconds = seconds + sec_value;
+            return res;
+        }
+        std::string to_string() {
+            return std::to_string(seconds);
+        }
+    };
 
-    ActiveBlock(uint64_t block_num, std::string fname, uint64_t rec_per_block) :
-        block_num(block_num) {
-            Poco::File bf(fname);
-            if (!bf.exists() || bf.getSize() == 0) {
-                std::ofstream ff(fname, std::ios::binary | std::ios::out);
-                Record empty = {0};
-                for (int i = 0; i < rec_per_block; i++)
-                    ff.write((char*)&empty, sizeof(Record));
-                ff.close();
-            }
-            file.open(fname, std::ios::binary | 
-                      std::ios::in | std::ios::out);
-        }
-        ~ActiveBlock() {
-            file.close();
-        }
+    struct TileSup {
+        uint8_t checksum[BLOCKCHAIN_CHECKSUM_SIZE];
+        Timestamp last_use;
         
-        uint64_t get_block_num() {
-            return block_num;
-        }
-
-        Record get_rec(uint64_t rec_pos) {
-            uint64_t pos = rec_pos * sizeof(Record);
-
-            file.seekg(pos, std::ios::beg);
-            char buff[sizeof(Record)];
-            if (!file.read(buff, sizeof(Record)))
-                throw std::runtime_error("couldn't read block:rec_pos " +
-                                         std::to_string(block_num) + ":" +
-                                         std::to_string(rec_pos));
-            Record res = *((Record*)buff);
-            return res;
-        }
-        void write_rec(const Record& rec, uint64_t rec_pos) {
-            uint64_t pos = rec_pos * sizeof(Record);
-            file.seekp(pos, std::ios::beg);
-            file.write((char*)&rec, sizeof(Record));
-            file.flush();
+        void reset() {
+            memset(checksum, 0, BLOCKCHAIN_CHECKSUM_SIZE);
         }
     };
 
-    std::string name;
-    Poco::Path storage_root;
-    uint64_t rec_per_block;
-    uint64_t block_size;
-    uint64_t total_rec_count;
-    ActiveBlock* tail;
-    BlockchainRecordValidator* validator;
-    Record last_rec;
+    class Fnr {
+    private:
+        const Poco::Path storage_path;
+    public:
+        const std::string name;
+        const std::string storage_root;
+        Fnr(std::string name, std::string storage_root) : 
+            name(name), storage_root(storage_root),
+            storage_path(storage_root)  {
 
-    void free_tail() {
-        if (tail) {
-            delete tail;
-            tail = 0;
-        }
-    }
-    
-    void ensure_tail_points_to_upcoming_rec() {
-        uint64_t bnum = (uint64_t)(total_rec_count / rec_per_block);
-        if (!tail || tail->get_block_num() != bnum) {
-            free_tail();
-            std::string bname = create_block_file_name(bnum);
-            tail = new ActiveBlock(bnum, bname, rec_per_block);
-        }
-    }
-
-    std::string create_block_file_name(uint64_t num) {
-        Poco::Path tmp = storage_root;
-        tmp.append(name + "." + std::to_string(num) + ".block");
-        return tmp.absolute().toString();
-    }
-
-    Record get_full_rec(uint64_t rec_num) {
-        // TODO: ofc, caching
-        if (rec_num >= total_rec_count)
-            throw std::runtime_error("rec_num out of bounds: " + 
-                                     std::to_string(rec_num));
-        uint64_t block_num = rec_num / rec_per_block;
-        uint64_t rec_pos = rec_num - block_num * rec_per_block;
-        if (tail && tail->get_block_num() == block_num) {
-            Record res = tail->get_rec(rec_pos);
-            return res;
-        } else {
-            std::string fname = create_block_file_name(block_num);
-            ActiveBlock ab(block_num, fname);
-            return ab.get_rec(rec_pos);
-        }
-    }
-
-    RecordValidationResult validate(const Record* curr_rec, 
-                                    const Record* last_rec) {
-        sha_context_t sc;
-        sha512_init(&sc);
-        sha512_update(&sc, (unsigned char*)last_rec,
-                      sizeof(Record));
-        sha512_update(&sc, (unsigned char*)&curr_rec->payload,
-                      sizeof(T));
-
-        unsigned char ch[SHA_512_SIZE];
-        sha512_final(&sc, ch);
-
-        if (strncmp((char*)curr_rec->hash, (char*)ch, SHA_512_SIZE))
-            return INVALID;
-        return validator->validate(curr_rec->payload);
-    }
-
-    void prepare_rec(Record* rec, Record* last_rec) {
-        rec->hash_version = 1;
-        sha_context_t sc;
-        sha512_init(&sc);
-        sha512_update(&sc, (unsigned char*)last_rec, sizeof(Record));
-        sha512_update(&sc, (unsigned char*)&rec->payload, sizeof(T));
-        sha512_final(&sc, rec->hash);
-    }
-
-public:
-
-    Blockchain(std::string name, Poco::Path storage_root,
-               uint64_t rec_per_block,
-               BlockchainRecordValidator* validator) :
-        name(name),
-        storage_root(storage_root),
-        rec_per_block(rec_per_block),
-        block_size(sizeof(Record) * rec_per_block),
-        total_rec_count(0),
-        tail(0),
-        validator(validator),
-        last_rec{0} {
-            if (!validator)
-                throw std::runtime_error("provide validator to Blockchain");
             Poco::File tmp(storage_root);
             if (!tmp.exists())
                 throw std::runtime_error("storage root doesn't exist");
@@ -202,98 +114,494 @@ public:
                 throw std::runtime_error("storage root cannot be read");
             if (!tmp.canWrite())
                 throw std::runtime_error("storage root cannot be written");
+
         }
-    
-    
-    ~Blockchain() {
-        free_tail();
+        uint32_t get_file_count() const {
+            uint32_t res = 0;
+            Poco::RegularExpression re("^" + name + "\\.(\\d+)\\.block$");
+            for (Poco::DirectoryIterator it(storage_root);
+                 it != Poco::DirectoryIterator{}; ++it) {
+
+                Poco::File curr(it.path());
+                if (curr.isFile()) {
+                    std::string fname = it.path().getFileName();
+                    std::vector<std::string> ss;
+
+                    if (re.split(fname, ss)) {
+                        uint64_t block_num = 
+                            static_cast<uint64_t>(std::stoul(ss[1]));
+
+                        // TODO: after cast it may overlap
+                        if (std::to_string(block_num).compare(ss[1]) != 0)
+                            throw std::runtime_error("bad block number for " + fname);
+                        if (res <= block_num)
+                            res = block_num + 1;
+                    }
+                }
+                if (res == UINT32_MAX)
+                    throw std::runtime_error("too many blocks");
+            }
+            return res;
+        }
+
+        std::string get_file_name(uint32_t index) const {
+            Poco::Path tmp = storage_path;
+            tmp.append(name + "." + std::to_string(index) + ".block");
+            return tmp.absolute().toString();
+        }
+
+        std::string get_bad_file_name(Timestamp ts, 
+                                      uint32_t index) const {
+            Poco::Path tmp = storage_path;
+            tmp.append(name + "." + std::to_string(index) + "." + 
+                       ts.to_string() + ".bad");
+            return tmp.absolute().toString();
+        }
+    };
+    const Fnr fnr;
+    typedef FileTile<Record, Fnr, RecCount, TileSup> FtType;
+    using Tile = typename FtType::Tile;
+    using TileState = typename FtType::TileState;
+    FtType tiles;
+    uint32_t checksum_valid_block_count;
+
+    static Timestamp get_current_ts() {
+        Timestamp res;
+        res.seconds = time(0);
+        return res;
     }
 
-    int validate_next_batch(int amount) {
-        int i = 0;
-        for (i = 0; i < amount; i++) {
-            int cnt = 0;
-            Record tmp = last_rec;
-            while (true) {
-                ensure_tail_points_to_upcoming_rec();            
-                Record rec = tail->get_rec(total_rec_count % 
-                                           rec_per_block);
-                RecordValidationResult zz = validate(&rec, &tmp);
-                if (zz == VALID) {
-                    total_rec_count += cnt + 1;
-                    last_rec = rec;
-                    validator->added_successfuly(last_rec.payload);
-                    break;
-                } else if (zz == NEED_NEXT) {
-                    tmp = rec;
-                    total_rec_count++;
-                    cnt++;
-                } else {
-                    total_rec_count -= cnt;
-                    ensure_tail_points_to_upcoming_rec();            
-                    return i;
+    Timestamp next_cache_flush_timestamp;
+    void maybe_flush_cache() {
+        Timestamp ct = get_current_ts();
+        if (next_cache_flush_timestamp < ct)
+            flush_cache();
+    }
+
+    uint64_t rec_count;
+
+    struct SortableTileIndex {
+        SortableTileIndex(uint32_t index, Timestamp& ts) : 
+            index(index), ts(ts) {}
+        uint32_t index;
+        Timestamp ts;
+        bool operator<(const SortableTileIndex& sti) {
+            return ts < sti.ts;
+        }
+    };
+
+    void get_prev_checksum(uint32_t block_index, uint8_t* out) {
+        if (block_index == 0) {
+            memset(out, 0, BLOCKCHAIN_CHECKSUM_SIZE);
+        } else {
+            Tile t = tiles.get_tile(block_index - 1);
+            if (t.get_state() == TileState::OK) {
+                memcpy(out, t.get_sup()->checksum, 
+                       BLOCKCHAIN_CHECKSUM_SIZE);
+            } else 
+                throw std::runtime_error("no checksum for block_index " + std::to_string(block_index));
+        }
+    }
+
+    void move_to_bad(uint32_t block_index) {
+        Timestamp ct = get_current_ts();
+        std::string bfn = fnr.get_bad_file_name(ct, block_index);
+        std::string fn = fnr.get_file_name(block_index);
+        Poco::File pf(fn);
+        pf.moveTo(bfn);
+    }
+
+    void calc_checksum(uint8_t* prev_checksum, Record* r, uint8_t* out) {
+        sha_context_t sc;
+        sha512_init(&sc);
+        sha512_update(&sc, (unsigned char*)prev_checksum,
+                      BLOCKCHAIN_CHECKSUM_SIZE);
+        sha512_update(&sc, (unsigned char*)r, sizeof(Record));
+        sha512_final(&sc, out);
+    }
+
+    bool validate_block(uint32_t block_index, Record* r, 
+                        bool must_be_full, ExitCode& ec) {
+        bool finished = false;
+        bool has_empty = false;
+        bool has_payload = false;
+        for (int i = 0; i < RecCount; i++) {
+            if (finished) {
+                if (r[i].type != (uint8_t)EMPTY) {
+                    ec = NON_EMPTY_RECORD_AFTER_CHECKSUM;
+                    return false;
+                } else
+                    has_empty = true;
+            } else {
+                if (r[i].type == (uint8_t)PAYLOAD) 
+                    has_payload = true;
+                else if (r[i].type == (uint8_t)EMPTY) {
+                    ec = EMPTY_RECORD_BEFORE_CHECKSUM;
+                    return false;
+                }
+                else if (r[i].type == (uint8_t)CHECKSUM) {
+                    if (!has_payload) {
+                        ec = NO_PAYLOAD;
+                        return false;
+                    }
+                    finished = true;
                 }
             }
         }
-        return i;
-    }
-
-    bool append(const T& payload) {
-        append(payload, 0);
-    }
-
-    bool append(const T& payload, char* hash_to_verify) {
-
-        RecordValidationResult zz = validator->validate(payload);
-        if (zz == INVALID) {
-            pending_insertions.clear();
+        // TODO: check if empty record consists of 0
+        if (!finished) {
+            ec = NO_CHECKSUM;
             return false;
         }
-        
-        Record rec;
-        rec.payload = payload;
-        Record* lr = pending_insertions.size() > 0 ? &pending_insertions.back() : &last_rec;
-        prepare_rec(&rec, lr);
-        if (hash_to_verify && strncmp((char*)rec.hash, hash_to_verify, 
-                                      SHA_512_SIZE)) {
-            pending_insertions.clear();
+        if (must_be_full && has_empty) {
+            return EXPECTED_FULL_BLOCK;
+            return false;
+        }
+        if (has_empty && block_index != tiles.get_tile_count() - 1) {
+            return ONLY_LAST_BLOCK_MAY_NOT_BE_FULL;
             return false;
         }
 
-        if (zz == NEED_NEXT) {
-            pending_insertions.push_back(rec);
-            return true;
-        } else {
-            for (auto i : pending_insertions) {
-                ensure_tail_points_to_upcoming_rec();
-                tail->write_rec(i, total_rec_count++ % rec_per_block);
-                validator->added_successfuly(i.payload);
+        uint8_t checksum[BLOCKCHAIN_CHECKSUM_SIZE];
+        get_prev_checksum(block_index, checksum);
+
+        for (int i = 0; i < RecCount; i++) {
+            if (r[i].type == (uint8_t)CHECKSUM) {
+                if (strncmp((char*)r[i].checksum,
+                            (char*)checksum, 
+                            BLOCKCHAIN_CHECKSUM_SIZE)) {
+                    ec = BAD_CHECKSUM;
+                    return false;
+                }
+                break;
+            } else {
+                calc_checksum(checksum, r + i, checksum);
             }
-            ensure_tail_points_to_upcoming_rec();
-            tail->write_rec(rec, total_rec_count++ % rec_per_block);
-            validator->added_successfuly(rec.payload);
-            last_rec = rec;
-            pending_insertions.clear();
-            return true;
+        }
+        ec = OK;
+        return true;
+    }
+
+    uint32_t get_rec_count(Record* r) {
+        uint32_t res = 0;
+        for (int i = 0; i < RecCount; i++)
+            if (r[i].type == (uint8_t)EMPTY)
+                break;
+            else res++;
+        return res;
+    }
+
+
+public:
+
+    Blockchain(std::string name, std::string storage_root,
+               uint16_t optimal_cache_size,
+               uint16_t cache_auto_flush_min_interval_sec) : 
+        optimal_cache_size(optimal_cache_size),
+        cache_auto_flush_min_interval_sec(cache_auto_flush_min_interval_sec),
+        fnr(name, storage_root), tiles(fnr), 
+        checksum_valid_block_count(0),
+        rec_count(0) {
+        if constexpr (RecCount < 2)
+            throw std::runtime_error("Blockchain: RecCount < 2");
+    }
+
+    // TODO: rec_count and validation
+
+    bool append(const T& rec_payload, ExitCode& ec) {
+
+        // TODO: transactional manner; should handle situations when
+        // data is not written on hdd because of error, and roll back
+
+        maybe_flush_cache();
+        ec = OK;
+
+        int block_pos = rec_count % RecCount;
+        uint8_t prev_checksum[BLOCKCHAIN_CHECKSUM_SIZE];
+
+        Record rec;
+        rec.type = PAYLOAD;
+        rec.payload = rec_payload;
+
+        Record cr;
+        cr.type = CHECKSUM;
+        if (block_pos == 0) {
+            if (tiles.get_tile_count() > 0) {
+                Tile t0 = tiles.get_tile(tiles.get_tile_count() - 1);
+                // flush_cache() would do it anyway; speeding things up
+                t0.close_file();
+            }
+            get_prev_checksum(tiles.get_tile_count(), 
+                              prev_checksum);
+            calc_checksum(prev_checksum, &rec, cr.checksum);
+            // checksum_valid_block_count advances with new block
+            if (tiles.get_tile_count() == checksum_valid_block_count)
+                checksum_valid_block_count++;
+            Tile t = tiles.append_tile();
+            t.alloc_tile_data();
+            Record* r = t.get_tile_data();
+            r[0] = rec;
+            r[1] = cr;
+            rec_count++;
+            rec_count++;
+            if (!t.sync_to_file(false)) {
+                ec = WRITE_ERROR;
+                return false;
+            }
+        } else {
+            Tile t = tiles.get_tile(tiles.get_tile_count() - 1);
+            memcpy(prev_checksum, 
+                   t.get_tile_data()[block_pos - 1].checksum, 
+                   BLOCKCHAIN_CHECKSUM_SIZE);
+            calc_checksum(prev_checksum, &rec, cr.checksum);
+            if (!t.write(&rec, block_pos - 1, false)) {
+                ec = WRITE_ERROR;
+                return false;
+            } else {
+                rec_count++;
+                if (!t.write(&cr, block_pos, false)) {
+                    ec = WRITE_ERROR;
+                    return false;
+                } else
+                    rec_count++;
+            }
+        }
+        return true;
+    }
+
+    // only works if last block is exactly full (or there are no blocks)
+    bool append_block(Record* data, ExitCode& ec) {
+        ec = OK;
+        maybe_flush_cache();
+        uint32_t tc = tiles.get_tile_count();
+
+        if (tc == 0) {
+            if (!validate_block(tc, data, false, ec))
+                return false;
+            Tile t = tiles.append_tile();
+            t.set_tile_data(data);
+            if (t.sync_to_file(true))
+                return true;
+            else {
+                ec = WRITE_ERROR;
+                return false;
+            }
+        } else {
+            Tile t = tiles.get_tile(tc - 1);
+            if (!t.sync_from_file()) {
+                ec = READ_ERROR;
+                return false;
+            }
+            Record* r = t.get_tile_data();
+            if (r[RecCount - 1].type !=
+                (uint8_t)CHECKSUM) {
+                ec = LAST_BLOCK_NOT_FULL;
+                return false; 
+            }
+            if (!validate_block(tc, data, false, ec))
+                return false;
+            t = tiles.append_tile();
+            t.set_tile_data(data);
+            if (t.sync_to_file(true))
+                return true;
+            else {
+                ec = WRITE_ERROR;
+                return false;
+            }
+        }
+        return false;
+    }
+
+    bool replace_block(uint32_t index, Record* data, ExitCode& ec) {
+        maybe_flush_cache();
+        ec = OK;
+
+        if (index < tiles.get_tile_count()) {
+            if (!validate_block(index, data, true, ec))
+                return false;
+            Tile t = tiles.get_tile(index);
+            t.set_tile_data(data);
+            if (!t.sync_to_file(true)) {
+                ec = WRITE_ERROR;
+                return false;
+            }
+        } else {
+            ec = INDEX_TOO_LARGE;
+            return false;
+        }
+        return true;
+    }
+
+    // attempts to fix where it is possible (moving corrupted blocks to
+    // .bad files, etc.); throws exception when not possible to fix
+    bool validate_next_checksum(ExitCode& ec) {
+        ec = OK;
+        bool res = false;
+        maybe_flush_cache();
+
+        if (checksum_valid_block_count < tiles.get_tile_count()) {
+            Tile t = tiles.get_tile(checksum_valid_block_count);
+            if (t.sync_from_file(true)) {
+                Record* r = t.get_tile_data();
+                if (validate_block(checksum_valid_block_count, r, 
+                                   false, ec)) {
+                    checksum_valid_block_count++;
+                    rec_count += get_rec_count(r);
+                    res = true;
+                } else {
+                    move_to_bad(checksum_valid_block_count);
+                    res = false;
+                }
+            } else {
+                if (t.get_state() == TileState::MISSING_FILE) {
+                    // do nothing
+                } else if (t.get_state() == TileState::BAD_LENGTH) {
+                    ec = BAD_BLOCK_LENGTH;
+                    move_to_bad(checksum_valid_block_count);
+                    res = false;
+                } else
+                    throw std::runtime_error(
+                               "bad block file, cannot recover, " + 
+                               fnr.get_file_name(checksum_valid_block_count));
+            }
+        }
+        return res;
+    }
+    uint32_t get_block_count() {
+        return tiles.get_tile_count();
+    }
+    uint32_t get_checksum_valid_block_count() {
+        return checksum_valid_block_count;
+    }
+
+    Record* get_block(uint32_t index, ExitCode& ec) {
+        maybe_flush_cache();
+
+        ec = OK;
+
+        Record* res = 0;
+        Tile t = tiles.get_tile(index);
+
+        res = t.get_tile_data();
+
+        if (!res) {
+            if (t.sync_from_file(true)) {
+                res = t.get_tile_data();
+                // TODO: elaborate here; what if block cannot be 
+                // open? need some type of errno
+                if (!validate_block(index, res, false, ec))
+                    res = 0;
+            }
+        }
+        return res;
+    }
+
+    // returns true if block is locally valid (all previous blocks
+    // have been validated, and checksum is good)
+    bool is_block_valid(uint32_t index) {
+        return index < checksum_valid_block_count;
+    }
+
+    void flush_cache() {
+        std::vector<SortableTileIndex> sti;
+        // i < .. - 1: reason is that tail is never uncached
+        
+        if (tiles.get_tile_count() > 0) {
+            for (uint32_t i = 0; i < tiles.get_tile_count() - 1; i++) {
+                Tile t = tiles.get_tile(i);
+                if (t.get_tile_data()) {
+                    TileSup* ts = t.get_sup();
+                    sti.push_back(SortableTileIndex(i, ts->last_use));
+                }
+                t.close_file();
+            }
+
+            if (sti.size() > optimal_cache_size) {
+                std::sort(sti.begin(), sti.end());
+                for (int i = 0; i < sti.size() - optimal_cache_size; 
+                     i++) {
+                    Tile t = tiles.get_tile(sti[i].index);
+                    t.release_fetched_data();
+                }
+            }
+
+            next_cache_flush_timestamp = get_current_ts() + 
+                cache_auto_flush_min_interval_sec;
         }
     }
-
     uint64_t get_rec_count() {
-        return total_rec_count;
+        return rec_count;
+    }
+    void truncate(uint32_t first) {
+        tiles.truncate_tail(first);
+    }
+};    
+
+// - allows additional validation to happen
+// - includes multipart record related logics: counting, validating
+template<typename T, typename Validator, int RecCount>
+class ValidatedMultipartBlockchain {
+private:
+    Blockchain<T, RecCount> blockchain;
+    Validator& validator;
+public:
+    using BType = Blockchain<T, RecCount>;
+    using RecordType = typename BType::RecordType;
+    using Record = typename BType::Record;
+    using ExitCode = typename BType::ExitCode;
+    
+    ValidatedMultipartBlockchain(
+               std::string name, std::string storage_root,
+               uint16_t optimal_cache_size,
+               uint16_t cache_auto_flush_min_interval_sec,
+               Validator& validator) :
+        blockchain(name, storage_root, optimal_cache_size, 
+                   cache_auto_flush_min_interval_sec),
+        validator(validator) {
     }
 
-    T get_rec(uint64_t rec_num) {
-        Record rec = get_full_rec(rec_num);
-        return rec.payload;
-    }    
+    bool append(const T* rec_payload, uint32_t rec_count, ExitCode& ec) {
+        if (validator.is_valid(rec_payload, rec_count)) {
+            for (uint32_t i = 0; i < rec_count; i ++)
+                if (!blockchain.append(rec_payload + i, ec))
+                    return false;
+            return true;
+        } else
+            return false;
+    }
 
-    T get_rec(uint64_t rec_num, std::string& hash) {
-        Record rec = get_full_rec(rec_num);
-        hash = std::string((char*)rec.hash, SHA_512_SIZE);
-        return rec.payload;
-    }    
+    bool replace_block(uint32_t index, Record* data, ExitCode& ec) {
+        return blockchain.replace_block(index, data, ec);
+    }
+
+    bool validate_next_checksum(ExitCode& ec) {
+        return blockchain.validate_next_checksum(ec);
+    }
+
+    uint32_t get_block_count() {
+        return blockchain.get_block_count();
+    }
+    uint32_t get_checksum_valid_block_count() {
+        return blockchain.get_checksum_valid_block_count();
+    }
+
+    Record* get_block(uint32_t index, ExitCode& ec) {
+        return blockchain.get_block(index, ec);
+    }
+
+    bool is_block_valid(uint32_t index) {
+        return blockchain.is_block_valid(index);
+    }
+    void flush_cache() {
+        return blockchain.flush_cache();
+    }
+    uint64_t get_rec_count() {
+        return blockchain.get_rec_count();
+    }
+    void truncate(uint32_t first) {
+        return blockchain.truncate(first);
+    }
 };
-    
  
 }
 

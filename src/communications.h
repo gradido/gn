@@ -82,10 +82,10 @@ public:
     ~CommunicationLayer();
 
     virtual void init(int worker_count);
-    
-    virtual void receive_gradido_transactions(std::string endpoint,
-                                      HederaTopicID topic_id,
-                                      std::shared_ptr<TransactionListener> tl);
+
+    virtual void receive_hedera_transactions(std::string endpoint,
+                                             HederaTopicID topic_id,
+                                             std::shared_ptr<TransactionListener> tl);
     virtual void stop_receiving_gradido_transactions(HederaTopicID topic_id);
 
     virtual void receive_manage_group_requests(

@@ -18,7 +18,6 @@ inline bool ends_with(std::string const & value, std::string const & ending)
 }
 
 int main(int argc, char** argv) {
-
     if (argc < 2) {
         std::cerr << "Utility for dumping Gradido blockchains" << 
             std::endl << "Usage: " << std::endl << "dump_blockchain <blockchain_folder> <options>" << 
@@ -26,8 +25,6 @@ int main(int argc, char** argv) {
             std::endl << "  -c: returns number of records" << std::endl;
         return -1;
     }
-
-    typedef Blockchain<GradidoRecord>::Record grec;
 
     try {
 
@@ -49,7 +46,7 @@ int main(int argc, char** argv) {
             if (ends_with(ps, ".block")) {
                 Poco::File f(ps);
                 if (f.getSize() == 0 || 
-                    f.getSize() != GRADIDO_BLOCK_SIZE * sizeof(grec))
+                    f.getSize() != GRADIDO_BLOCK_SIZE * sizeof(GradidoBlockRec))
                     throw std::runtime_error(
                           "not a block file (bad size): " + ps);
 
@@ -68,9 +65,9 @@ int main(int argc, char** argv) {
             bool is_first = true;
 
             for (int i = 0; i < GRADIDO_BLOCK_SIZE; i++) {
-                grec r;
-                fs.read((char*)&r, sizeof(grec));
-                if (r.hash_version > 0) {
+                GradidoBlockRec r;
+                fs.read((char*)&r, sizeof(GradidoBlockRec));
+                if (r.type > 0) {
                     rec_count++;
                     if (!just_count) {
                         if (is_first)

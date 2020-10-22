@@ -14,7 +14,9 @@ default-config:
   hedera-node-id: [0, 0, 3]
   hedera-mirror-endpoint: hcs.testnet.mirrornode.hedera.com:5600
   hedera-create-topic-settle-time: 10
-  hedera-topic-id: null
+  hedera-topic-id: [0, 0, 0]
+  hedera-group-topic-id: [0, 0, 0]
+  hedera-topic-id-pool: []  
   hedera-simulated-port: 50051
 test-config:
   test-stage: [_fcall, {priority: 2000}, get_opt]
@@ -30,6 +32,8 @@ test-config:
   hedera-mirror-endpoint: [_fcall, {priority: 2000}, get_opt]
   hedera-create-topic-settle-time: [_fcall, {priority: 2000}, get_opt, int]
   hedera-topic-id: [_fcall, {priority: 2000}, get_opt, int_arr]
+  hedera-group-topic-id: [_fcall, {priority: 2000}, get_opt, int_arr]
+  hedera-topic-id-pool: [_fcall, {priority: 2000}, get_opt, int_arr]
   hedera-simulated-port: [_fcall, {priority: 2000}, get_opt, int_arr]
   git-commit-hash: [_fcall, {priority: 1900}, get_git_commit_hash]
 _fcall_conf:
@@ -102,6 +106,9 @@ scraps:
             pubkey: [_fcall, {priority: 100000}, do_getval, ../../../../../user-id]    
             amount: [_fcall, {priority: 100000}, do_getval, ../../../../../amount]
         version_number: 1
+    gradido-create-group-message-body:
+      _type: AddGroupToRegister
+      _use_with: SerializeToString
     gradido-transfer-message-body:
       _type: GradidoTransaction
       _use_with: SerializeToString
@@ -118,11 +125,82 @@ scraps:
         transfer:
           _type: GradidoTransfer
           local:
+            _type: LocalTransfer
             sender:
               _type: Amount
               pubkey: [_fcall, {priority: 100000}, do_getval, ../../../../../../sender]    
               amount: [_fcall, {priority: 100000}, do_getval, ../../../../../../amount]
             receiver: [_fcall, {priority: 100000}, do_getval, ../../../../../receiver]
+        version_number: 1
+    gradido-outbound-transfer-message-body:
+      _type: GradidoTransaction
+      _use_with: SerializeToString
+      sig_map:
+        _type: gradido_SignatureMap
+        sig_pair:
+          - _type: gradido_SignaturePair
+            pub_key: "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"
+            ed25519: "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"
+      body_bytes:
+        _type: gradido_TransactionBody
+        _use_with: SerializeToString
+        memo: hello!
+        transfer:
+          _type: GradidoTransfer
+          outbound:
+            _type: CrossGroupTransfer
+            sender:
+              _type: Amount
+              pubkey: [_fcall, {priority: 100000}, do_getval, ../../../../../../sender]    
+              amount: [_fcall, {priority: 100000}, do_getval, ../../../../../../amount]
+            receiver: [_fcall, {priority: 100000}, do_getval, ../../../../../receiver]
+            other_group: null
+            paired_transaction_id:
+              _type: Timestamp
+              seconds: null
+              nanos: null
+        version_number: 1
+    gradido-inbound-transfer-message-body:
+      _type: GradidoTransaction
+      _use_with: SerializeToString
+      sig_map:
+        _type: gradido_SignatureMap
+        sig_pair:
+          - _type: gradido_SignaturePair
+            pub_key: "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"
+            ed25519: "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"
+      body_bytes:
+        _type: gradido_TransactionBody
+        _use_with: SerializeToString
+        memo: hello!
+        transfer:
+          _type: GradidoTransfer
+          inbound:
+            _type: CrossGroupTransfer
+            sender:
+              _type: Amount
+              pubkey: [_fcall, {priority: 100000}, do_getval, ../../../../../../sender]    
+              amount: [_fcall, {priority: 100000}, do_getval, ../../../../../../amount]
+            receiver: [_fcall, {priority: 100000}, do_getval, ../../../../../receiver]
+            other_group: null
+            paired_transaction_id:
+              _type: Timestamp
+              seconds: null
+              nanos: null
+        version_number: 1
+    gradido-reset-message-body:
+      _type: GradidoTransaction
+      _use_with: SerializeToString
+      sig_map:
+        _type: gradido_SignatureMap
+        sig_pair: []
+      body_bytes:
+        _type: gradido_TransactionBody
+        _use_with: SerializeToString
+        memo: blockchain reset
+        debug_reset_blockchain_mark:
+          _type: DebugResetBlockchainMark
+          do_reset: true
         version_number: 1
     hedera-custom-message-body:
       _type: TransactionBody
@@ -761,7 +839,91 @@ scraps:
               message: [_fcall, {priority: 1090}, do_getval, /scraps/parts/gradido-transfer-message-body]
               message-body: [_fcall, {priority: 1080}, do_getval, /scraps/parts/hedera-custom-message-body]
         # hangs forever
-        state: [_fcall, {priority: -400}, start, 36006]
+        state: [_fcall, {priority: -400}, webapp_demo.start, 36006]
+    canberra:
+      - instance: webapp-demo-full
+        messages:
+          hedera-message:
+            _class: ConsensusServiceStub
+            _method: submitMessage
+            _arg:
+              request:
+                _type: Transaction
+                bodyBytes: <insert here>
+                sigMap:
+                  _type: SignatureMap
+                  _pass: 1
+                  sigPair:
+                    - _type: SignaturePair
+                      pubKeyPrefix:
+                        _type: PubKeyWrapper
+                        _use_with: str
+                        context:
+                          _type: HederaContext
+                        body_path: /-1/request/bodyBytes/_transformed_use_with
+                      ed25519:
+                        _type: ed25519Signature
+                        _use_with: str
+                        context:
+                          _type: HederaContext
+                        body_path: /-1/request/bodyBytes/_transformed_use_with
+          add-user:
+            parts:
+              topic-id: [_fcall, {priority: 1110}, do_getval, /scraps/parts/gradido-topic-id]
+              transaction-id: [_fcall, {priority: 1100}, do_getval, /scraps/parts/hedera-transaction-id]
+              user-id: ""      
+              message: [_fcall, {priority: 1090}, do_getval, /scraps/parts/gradido-add-user-message-body]
+              message-body: [_fcall, {priority: 880}, do_getval, /scraps/parts/hedera-custom-message-body]
+          create-gradidos:
+            parts:
+              topic-id: [_fcall, {priority: 1110}, do_getval, /scraps/parts/gradido-topic-id]
+              transaction-id: [_fcall, {priority: 1100}, do_getval, /scraps/parts/hedera-transaction-id]
+              user-id: ""      
+              amount: 0
+              message: [_fcall, {priority: 1090}, do_getval, /scraps/parts/gradido-creation-message-body]
+              message-body: [_fcall, {priority: 880}, do_getval, /scraps/parts/hedera-custom-message-body]
+          transfer:
+            parts:
+              topic-id: [_fcall, {priority: 1110}, do_getval, /scraps/parts/gradido-topic-id]
+              transaction-id: [_fcall, {priority: 1100}, do_getval, /scraps/parts/hedera-transaction-id]
+              sender: ""      
+              receiver: ""      
+              amount: 0
+              message: [_fcall, {priority: 1090}, do_getval, /scraps/parts/gradido-transfer-message-body]
+              message-body: [_fcall, {priority: 1080}, do_getval, /scraps/parts/hedera-custom-message-body]
+          outbound-transfer:
+            parts:
+              topic-id: [_fcall, {priority: 1110}, do_getval, /scraps/parts/gradido-topic-id]
+              transaction-id: [_fcall, {priority: 1100}, do_getval, /scraps/parts/hedera-transaction-id]
+              sender: ""      
+              receiver: ""      
+              amount: 0
+              message: [_fcall, {priority: 1090}, do_getval, /scraps/parts/gradido-outbound-transfer-message-body]
+              message-body: [_fcall, {priority: 1080}, do_getval, /scraps/parts/hedera-custom-message-body]
+          inbound-transfer:
+            parts:
+              topic-id: [_fcall, {priority: 1110}, do_getval, /scraps/parts/gradido-topic-id]
+              transaction-id: [_fcall, {priority: 1100}, do_getval, /scraps/parts/hedera-transaction-id]
+              sender: ""      
+              receiver: ""      
+              amount: 0
+              message: [_fcall, {priority: 1090}, do_getval, /scraps/parts/gradido-inbound-transfer-message-body]
+              message-body: [_fcall, {priority: 1080}, do_getval, /scraps/parts/hedera-custom-message-body]
+          add-group-to-register:
+            parts:
+              topic-id: [_fcall, {priority: 1110}, do_getval, /scraps/parts/gradido-topic-id]
+              transaction-id: [_fcall, {priority: 1100}, do_getval, /scraps/parts/hedera-transaction-id]
+              message: [_fcall, {priority: 1090}, do_getval, /scraps/parts/gradido-create-group-message-body]
+              message-body: [_fcall, {priority: 1080}, do_getval, /scraps/parts/hedera-custom-message-body]
+          reset-blockchain:
+            parts:
+              topic-id: [_fcall, {priority: 1110}, do_getval, /scraps/parts/gradido-topic-id]
+              transaction-id: [_fcall, {priority: 1100}, do_getval, /scraps/parts/hedera-transaction-id]
+              message: [_fcall, {priority: 1090}, do_getval, /scraps/parts/gradido-reset-message-body]
+              message-body: [_fcall, {priority: 880}, do_getval, /scraps/parts/hedera-custom-message-body]
+              
+        # hangs forever
+        state: [_fcall, {priority: -400}, webapp_demo_full.start, 36007]
     empty: empty
 steps: [_fcall, {priority: 1000}, do_getval, /scraps/cases/%s, [_fcall, do_getval, /test-config/case]]
 

@@ -15,6 +15,7 @@ namespace gradido {
         
         void write_siblings();
         pthread_mutex_t main_lock;
+        HederaTopicID group_register_topic_id;
     public:
         Config();
         virtual ~Config();
@@ -34,6 +35,10 @@ namespace gradido {
         virtual std::string get_group_requests_endpoint();
         virtual std::string get_record_requests_endpoint();
         virtual std::string get_manage_network_requests_endpoint();
+        virtual void reload_sibling_file();
+        virtual void reload_group_infos();
+        virtual HederaTopicID get_group_register_topic_id();
+
     };
 
 }

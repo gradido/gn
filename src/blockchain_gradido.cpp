@@ -1,7 +1,12 @@
 #include "blockchain_gradido.h"
 #include <Poco/File.h>
 
+
 namespace gradido {
+
+    GradidoGroupBlockchain::GradidoGroupBlockchain(GroupInfo gi, Poco::Path root_folder,
+                           IGradidoFacade* gf) {
+    }
 
     class PushRecordsTask : public ITask {
     private:
@@ -353,158 +358,6 @@ namespace gradido {
         return true;
     }
 
-    GradidoGroupBlockchain::RVR GradidoGroupBlockchain::validate(const GradidoRecord& rec) {
-        if ((validation_buff.rec_count == 0 && 
-             (GradidoRecordType)rec.record_type != GRADIDO_TRANSACTION) ||
-            (validation_buff.rec_count == MAX_RECORD_PARTS)) {
-            validation_buff.rec_count = 0;   
-            return GradidoGroupBlockchain::RVR::INVALID;
-        }
-        validation_buff.rec[validation_buff.rec_count++] = rec;
-
-        if (validation_buff.rec[0].transaction.parts == 
-            validation_buff.rec_count) {
-            GradidoGroupBlockchain::RVR res = 
-                validate_multipart(validation_buff);
-            validation_buff.rec_count = 0;   
-            return res;
-        } else
-            return GradidoGroupBlockchain::RVR::NEED_NEXT;
-    }
-
-    GradidoGroupBlockchain::RVR 
-    GradidoGroupBlockchain::validate_multipart(
-                            const MultipartTransaction& mtr) {
-        // checking if mtr is correctly split in parts
-        if (mtr.rec_count == 0)
-            return GradidoGroupBlockchain::RVR::NEED_NEXT;
-
-        if ((GradidoRecordType)mtr.rec[0].record_type != 
-            GRADIDO_TRANSACTION)
-            return GradidoGroupBlockchain::RVR::INVALID;
-
-        const Transaction& tr = mtr.rec[0].transaction;
-
-        if (tr.parts > MAX_RECORD_PARTS)
-            return GradidoGroupBlockchain::RVR::INVALID;
-
-        bool next_is_memo = tr.memo[MEMO_MAIN_SIZE - 1] != 0;
-        for (int i = 1; i < tr.parts; i++) {
-            if (next_is_memo) {
-                next_is_memo = false;
-                if ((GradidoRecordType)mtr.rec[i].record_type !=
-                    MEMO)
-                    return GradidoGroupBlockchain::RVR::INVALID;
-            } else {
-                if ((GradidoRecordType)mtr.rec[i].record_type !=
-                    SIGNATURES)
-                    return GradidoGroupBlockchain::RVR::INVALID;
-            }
-        }
-
-        // replaying preparation, comparing if it is the same
-        MultipartTransaction tmp = mtr;
-        bool prr = prepare_rec(tmp);
-        if (!prr || strncmp((char*)&tmp, (char*)&mtr, 
-                    sizeof(MultipartTransaction)))
-            return GradidoGroupBlockchain::RVR::INVALID;
-
-        return GradidoGroupBlockchain::RVR::VALID;
-    }
-
-    void GradidoGroupBlockchain::added_successfuly(const GradidoRecord& rec) {
-        // at this point prepare_rec() is already successfuly called,
-        // which means necessary data from other blockchains is 
-        // available
-        if ((GradidoRecordType)rec.record_type != GRADIDO_TRANSACTION)
-            return;
-        transaction_count++;
-        const Transaction& tr = rec.transaction;
-        if ((TransactionResult)tr.result != SUCCESS)
-            return; // if not successful, no further processing needed
-        switch ((TransactionType)tr.transaction_type) {
-        case GRADIDO_CREATION: {
-            std::string user = std::string(
-                               (char*)tr.gradido_creation.user, 
-                               PUB_KEY_LENGTH);
-            auto urec = user_index.find(user);
-            urec->second.current_balance += tr.gradido_creation.amount;
-            break;
-        }
-        case ADD_GROUP_FRIEND: {
-            std::string group((char*)tr.remove_group_friend.group);
-            FriendGroupInfo gi;
-            friend_group_index.insert({group, gi});
-            break;
-        }
-        case REMOVE_GROUP_FRIEND: {
-            std::string group((char*)tr.remove_group_friend.group);
-            friend_group_index.erase(group);
-            break;
-        }
-        case ADD_USER: {
-            UserInfo ui = {0};
-            user_index.insert({std::string((char*)tr.add_user.user, 
-                                           PUB_KEY_LENGTH), ui});
-            break;
-        }
-        case MOVE_USER_INBOUND: {
-            UserInfo ui = {0};
-            ui.current_balance = tr.move_user_inbound.new_balance;
-            ui.last_record_with_balance = transaction_count;
-            user_index.insert(
-                       {std::string((char*)tr.move_user_inbound.user, 
-                                    PUB_KEY_LENGTH), ui});
-            break;
-        }
-        case MOVE_USER_OUTBOUND: {
-            std::string user = std::string(
-                               (char*)tr.move_user_outbound.user, 
-                               PUB_KEY_LENGTH);
-            user_index.erase(user);
-            break;
-        }
-        case LOCAL_TRANSFER: {
-            {
-                std::string user = std::string(
-                                   (char*)tr.local_transfer.sender.user, 
-                                   PUB_KEY_LENGTH);
-                auto urec = user_index.find(user);
-                urec->second.current_balance = tr.local_transfer.sender.new_balance;
-            }
-            {
-                std::string user = std::string(
-                                   (char*)tr.local_transfer.receiver.user, 
-                                   PUB_KEY_LENGTH);
-                auto urec = user_index.find(user);
-                urec->second.current_balance = tr.local_transfer.receiver.new_balance;
-            }
-            break;
-        }            
-        case INBOUND_TRANSFER: {
-            {
-                std::string user = std::string(
-                                   (char*)tr.local_transfer.receiver.user, 
-                                   PUB_KEY_LENGTH);
-                auto urec = user_index.find(user);
-                urec->second.current_balance = tr.local_transfer.receiver.new_balance;
-            }
-            break;
-        }
-        case OUTBOUND_TRANSFER: {
-            {
-                std::string user = std::string(
-                                   (char*)tr.local_transfer.sender.user, 
-                                   PUB_KEY_LENGTH);
-                auto urec = user_index.find(user);
-                urec->second.current_balance = tr.local_transfer.sender.new_balance;
-            }
-            break;
-        }
-        }
-    }
-    
-
     GradidoGroupBlockchain::GradidoGroupBlockchain(GroupInfo gi,
                                                    Poco::Path root_folder,
                                                    IGradidoFacade* gf) :
@@ -547,7 +400,7 @@ namespace gradido {
     void GradidoGroupBlockchain::init() {
         LOG(("initializing blockchain " + gi.get_directory_name()));
         std::string endpoint = gf->get_conf()->get_hedera_mirror_endpoint();
-        gf->get_communications()->receive_gradido_transactions(
+        gf->get_communications()->receive_hedera_transactions(
                                   endpoint,
                                   topic_id,
                                   std::make_shared<GradidoTransactionListener>(this, gf));

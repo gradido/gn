@@ -1,9 +1,9 @@
-import yaml, requests, json, sys, random, time, copy, datetime, traceback, re, os, shutil, subprocess, atexit, signal
+import yaml, requests, json, sys, random, time, copy, datetime, traceback, re, os, shutil, subprocess, atexit, signal, math
 from pukala import grow, ContextBase, PukalaGrowException, Path, PukalaPathException, FCall
 sys.path.append("./hedera/proto_gen")
 from hedera.hedera_context import HederaContext
 from gradido.gradido_context import GradidoContext
-from webapp_demo.webapp_demo_context import WebappDemo
+from webapp_demo.webapp_demo_context import WebappDemo, WebappDemoFull
 
 # avoiding unicode mentions in output yaml
 def represent_unicode(dumper, data):
@@ -109,7 +109,7 @@ class HederaServiceContext(object):
         return topic_ids + ["0.0.%d" % ti]
 
     
-class TestContext(LoginServerContext, HederaServiceContext, SimpleTalk, HederaContext, StepContext, GradidoContext, WebappDemo, ContextBase):
+class TestContext(LoginServerContext, HederaServiceContext, SimpleTalk, HederaContext, StepContext, GradidoContext, ContextBase):
     def __init__(self):
         LoginServerContext.__init__(self)
         HederaServiceContext.__init__(self)
@@ -120,6 +120,8 @@ class TestContext(LoginServerContext, HederaServiceContext, SimpleTalk, HederaCo
         WebappDemo.__init__(self)
         ContextBase.__init__(self)
         self.managed_procs = []
+        self.webapp_demo = WebappDemo()
+        self.webapp_demo_full = WebappDemoFull(self)
 
     def add_proc(self, proc):
         self.managed_procs.append(proc)
@@ -165,6 +167,10 @@ class TestContext(LoginServerContext, HederaServiceContext, SimpleTalk, HederaCo
             return context.doc["default-config"][opt_name]
     def get_seconds_from_epoch(self, context):
         return long(time.time())
+    def get_timestamp_from_epoch(self, context):
+        z = math.modf(time.time())
+        return (long(z[1]), long(z[0] * 1000000000))
+
     def ensure_test_folder(self, context):
         print "ensuring test folder exists"
         dir_path = os.path.dirname(os.path.realpath(__file__))

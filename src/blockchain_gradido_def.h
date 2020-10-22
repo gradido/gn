@@ -31,6 +31,8 @@ namespace gradido {
 #define MEMO_MAIN_SIZE 16
 #define MEMO_FULL_SIZE 150
 
+#define GROUP_REGISTER_NAME "group-register"
+
 
 // group alias field ends with null characters to have exact length and
 // have null-terminated string as well
@@ -271,6 +273,21 @@ struct GroupRecord {
     uint8_t alias[GROUP_ALIAS_LENGTH];
     HederaTransaction hedera_transaction;
     Signature signature;
+};
+
+enum GroupRegisterRecordType {
+    GROUP_RECORD,
+    GR_STRUCTURALLY_BAD_MESSAGE,
+    GR_RAW_MESSAGE
+};
+
+struct GroupRegisterRecord {
+    uint8_t record_type; // enum GroupRegisterRecordType
+    union {
+        GroupRecord group_record;
+        StructurallyBadMessage structurally_bad_message;
+        uint8_t raw_message[RAW_MESSAGE_PART_SIZE];
+    };
 };
 
 }

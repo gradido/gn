@@ -39,43 +39,17 @@ namespace gradido {
             throw std::runtime_error("Couldn't open configuration file: " + std::string(e.what()));
         }
 
-        try {
-            std::string sibling_file = pfc->getString("sibling_node_file");
-            std::ifstream in(sibling_file);
-            std::string str;
-            while (std::getline(in, str)) {
-                if (str.size() > 0)
-                    siblings.push_back(str);
-            }            
-            in.close();
-        } catch (std::exception& e) {
-            throw std::runtime_error("Couldn't open sibling file: " + std::string(e.what()));
-        }
-        
-        try {
-            Poco::File block_root(get_data_root_folder());
-            Poco::RegularExpression re("^([a-zA-Z0-9_]+)\\.(\\d+)\\.(\\d+)\\.(\\d+)\\.bc$");
-            for (Poco::DirectoryIterator it(block_root);
-                 it != Poco::DirectoryIterator{}; ++it) {
-                Poco::File curr(it.path());
-                if (curr.isDirectory()) {
-                    std::string fname = it.path().getFileName();
-                    std::vector<std::string> ss;
-                    if (re.split(fname, ss)) {
-                        GroupInfo gi = {0};
-                        if (ss[1].size() >= GROUP_ALIAS_LENGTH - 1)
-                            throw std::runtime_error("blockchain name too long: " + ss[1]);
-                        memcpy(gi.alias, ss[1].c_str(), ss[1].size());
-                        gi.topic_id.shardNum = static_cast<uint64_t>(std::stoul(ss[2]));
-                        gi.topic_id.realmNum = static_cast<uint64_t>(std::stoul(ss[3]));
-                        gi.topic_id.topicNum = static_cast<uint64_t>(std::stoul(ss[4]));
-                        gis.push_back(gi);
-                    }
-                }
-            }
-        } catch (std::exception& e) {
-            throw std::runtime_error("Couldn't init blockchain groups: " + std::string(e.what()));
-        }
+        std::string grti = pfc->getString("group_register_topic_id");
+
+        int res = sscanf(grti, "%d.%d.%d", 
+                         &group_register_topic_id.shardNum,
+                         &group_register_topic_id.realmNum,
+                         &group_register_topic_id.accountNum);
+        if (res == EOF)
+            throw std::runtime_error("config: bad group register topic id");
+            
+        reload_sibling_file();
+        reload_group_infos();
     }
 
     int Config::get_blockchain_init_batch_size() {
@@ -159,5 +133,53 @@ namespace gradido {
     std::string Config::get_manage_network_requests_endpoint() {
         return pfc->getString("manage_network_requests_endpoint");
     }
+
+    void Config::reload_sibling_file() {
+        siblings.clear();
+        try {
+            std::string sibling_file = pfc->getString("sibling_node_file");
+            std::ifstream in(sibling_file);
+            std::string str;
+            while (std::getline(in, str)) {
+                if (str.size() > 0)
+                    siblings.push_back(str);
+            }            
+            in.close();
+        } catch (std::exception& e) {
+            throw std::runtime_error("Couldn't open sibling file: " + std::string(e.what()));
+        }
+    }
+
+    void Config::reload_group_infos() {
+        try {
+            Poco::File block_root(get_data_root_folder());
+            Poco::RegularExpression re("^([a-zA-Z0-9_]+)\\.(\\d+)\\.(\\d+)\\.(\\d+)\\.bc$");
+            for (Poco::DirectoryIterator it(block_root);
+                 it != Poco::DirectoryIterator{}; ++it) {
+                Poco::File curr(it.path());
+                if (curr.isDirectory()) {
+                    std::string fname = it.path().getFileName();
+                    std::vector<std::string> ss;
+                    if (re.split(fname, ss)) {
+                        GroupInfo gi = {0};
+                        if (ss[1].size() >= GROUP_ALIAS_LENGTH - 1)
+                            throw std::runtime_error("blockchain name too long: " + ss[1]);
+                        memcpy(gi.alias, ss[1].c_str(), ss[1].size());
+                        gi.topic_id.shardNum = static_cast<uint64_t>(std::stoul(ss[2]));
+                        gi.topic_id.realmNum = static_cast<uint64_t>(std::stoul(ss[3]));
+                        gi.topic_id.topicNum = static_cast<uint64_t>(std::stoul(ss[4]));
+                        gis.push_back(gi);
+                    }
+                }
+            }
+        } catch (std::exception& e) {
+            throw std::runtime_error("Couldn't init blockchain groups: " + std::string(e.what()));
+        }
+    }
+
+    HederaTopicID Config::get_group_register_topic_id() {
+        return group_register_topic_id;
+    }
+
     
 }

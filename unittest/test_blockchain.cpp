@@ -1,5 +1,177 @@
 #include "test_common.h"
-#include "blockchain.h"
+
+#define BLOCKCHAIN_NAME "test-bc"
+#define BLOCKCHAIN_FOLDER "/tmp/test-bc"
+#define GROUP_REGISTER_FOLDER "/tmp/test-greg"
+
+///////////////////////////
+#include <time.h>
+#include <algorithm>
+#include <Poco/File.h>
+#include <Poco/Path.h>
+#include <Poco/DirectoryIterator.h>
+#include <Poco/RegularExpression.h>
+#include "ed25519/ed25519.h"
+#include "file_tile.h"
+
+class SimpleValidator {
+public:
+    bool is_valid(const SimpleRec* rec, uint32_t count) {
+        return true;
+    }
+
+};
+
+
+template<typename T, typename Child>
+class AbstractGradidoBlockchain {
+private:
+    ValidatedMultipartBlockchain<T, Child, 1000> blockchain;
+    IGradidoFacade* gf;
+    HederaTopicID topic_id;    
+
+public:
+    AbstractGradidoBlockchain(
+               std::string name, std::string storage_root,
+               uint16_t optimal_cache_size,
+               uint16_t cache_auto_flush_min_interval_sec) : 
+        blockchain(name, storage_root, optimal_cache_size,
+                   cache_auto_flush_min_interval_sec, 
+                   *((Child*)this)) {}
+
+};
+
+class GroupRegisterBlockchain : public AbstractGradidoBlockchain<
+    GroupRegisterRecord, GroupRegisterBlockchain> {
+public:
+    GroupRegisterBlockchain(std::string storage_root) : 
+        AbstractGradidoBlockchain<GroupRegisterRecord, 
+                                  GroupRegisterBlockchain>
+        ("group-register", storage_root, 10, 5*60) {}
+    bool is_valid(const SimpleRec* rec, uint32_t count) {
+        return true;
+    }
+
+    
+
+};
+
+///////////////////////////
+
+void prepare_folders(std::string folder) {
+    erase_tmp_folder(folder);
+    Poco::File bf(folder);
+    bf.createDirectories();
+}
+
+TEST(GradidoBlockchain, smoke) {
+    prepare_folders(BLOCKCHAIN_FOLDER);
+
+}
+
+
+TEST(ValidatedMultipartBlockchain, validated) {
+    prepare_folders(BLOCKCHAIN_FOLDER);
+
+    typedef ValidatedMultipartBlockchain<SimpleRec, SimpleValidator,
+                                         1000> SB;
+    SimpleValidator sv;
+
+    SB bc(BLOCKCHAIN_NAME, 
+          BLOCKCHAIN_FOLDER,
+          100, 60 * 1, sv);
+}
+
+TEST(GroupRegisterBlockchain, append_record) {
+    prepare_folders(GROUP_REGISTER_FOLDER);
+
+    typedef Blockchain<SimpleRec, 5> SB;
+
+    SB bc(BLOCKCHAIN_NAME, 
+          BLOCKCHAIN_FOLDER,
+          100, 60 * 1);
+    SimpleRec payload;
+    payload.index = 13;
+    SB::ExitCode ec;
+    bc.append(payload, ec);
+
+    SB::Record* rec = bc.get_block(0, ec);
+
+    ASSERT_EQ(rec->type == (uint8_t)SB::RecordType::PAYLOAD, true);
+    ASSERT_EQ(rec->payload.index, payload.index);
+    ASSERT_EQ(bc.get_rec_count(), 2);
+
+}
+
+
+TEST(Blockchain, empty_bc) {
+    prepare_folders(BLOCKCHAIN_FOLDER);
+
+    typedef Blockchain<SimpleRec, 1000> SB;
+
+    SB bc(BLOCKCHAIN_NAME, 
+          BLOCKCHAIN_FOLDER,
+          100, 60 * 1);
+}
+
+
+TEST(Blockchain, single_record_is_appended) {
+    prepare_folders(BLOCKCHAIN_FOLDER);
+
+    typedef Blockchain<SimpleRec, 5> SB;
+
+    SB bc(BLOCKCHAIN_NAME, 
+          BLOCKCHAIN_FOLDER,
+          100, 60 * 1);
+    SimpleRec payload;
+    payload.index = 13;
+    SB::ExitCode ec;
+    bc.append(payload, ec);
+
+    SB::Record* rec = bc.get_block(0, ec);
+
+    ASSERT_EQ(rec->type == (uint8_t)SB::RecordType::PAYLOAD, true);
+    ASSERT_EQ(rec->payload.index, payload.index);
+    ASSERT_EQ(bc.get_rec_count(), 2);
+}
+
+TEST(Blockchain, append_and_reopen) {
+    prepare_folders(BLOCKCHAIN_FOLDER);
+    typedef Blockchain<SimpleRec, 1000> SB;
+    int the_index = 13;
+    SB::ExitCode ec;
+
+    {
+        SB bc(BLOCKCHAIN_NAME, 
+              BLOCKCHAIN_FOLDER,
+              100, 60 * 1);
+        SimpleRec payload;
+        payload.index = the_index;
+        bc.append(payload, ec);
+
+        SB::Record* rec = bc.get_block(0, ec);
+        ASSERT_EQ(rec->type == (uint8_t)SB::RecordType::PAYLOAD, true);
+        ASSERT_EQ(rec->payload.index, payload.index);
+        ASSERT_EQ(bc.get_rec_count(), 2);
+    }
+    {
+        SB bc(BLOCKCHAIN_NAME, 
+              BLOCKCHAIN_FOLDER,
+              100, 60 * 1);
+        ASSERT_EQ(bc.validate_next_checksum(ec), true);
+
+        SB::Record* rec = bc.get_block(0, ec);
+
+        ASSERT_EQ(rec->type == (uint8_t)SB::RecordType::PAYLOAD, true);
+        ASSERT_EQ(rec->payload.index, the_index);
+        ASSERT_EQ(bc.get_rec_count(), 2);
+    }
+}
+
+///////////////////////////
+
+
+/*
 
 #define BLOCKCHAIN_NAME "test-bc"
 #define BLOCKCHAIN_FOLDER "/tmp/test-bc"
@@ -11,6 +183,7 @@ struct SimpleRec {
 
 void erase_folders() {
     ASSERT_EQ(std::string(BLOCKCHAIN_FOLDER).rfind("/tmp", 0) == 0, true);
+    ASSERT_EQ(std::string(BLOCKCHAIN_FOLDER).size() > 4, true);
     Poco::File bf(BLOCKCHAIN_FOLDER);
     bf.remove(true);
 }
@@ -342,5 +515,5 @@ TEST(Blockchain, get_rec_index_out_of_bounds)
         throw std::runtime_error("index was considered ok");
 }
 
-
+*/
 

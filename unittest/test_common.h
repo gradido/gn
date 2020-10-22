@@ -70,12 +70,18 @@ ACTION(SleepSecond)
 void task_settle();
 void task_settle(int more_seconds);
 
-template<typename T>
-class MockBlockchainValidator : public Blockchain<T>::BlockchainRecordValidator {
-public:
-    MOCK_METHOD(typename Blockchain<T>::RecordValidationResult, validate, (const T& rec), (override));
-    MOCK_METHOD(void, added_successfuly, (const T& rec), (override));
+struct SimpleRec {
+    SimpleRec() : index(0) {}
+    virtual ~SimpleRec() {}
+    int index;
+    virtual void empty() {}
 };
 
+class MockSimpleRec : public SimpleRec {
+ public:
+    MOCK_METHOD(void, empty, (), (override));
+};
+
+void erase_tmp_folder(std::string folder);
 
 #endif
