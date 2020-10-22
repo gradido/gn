@@ -80,17 +80,17 @@ message DebugResetBlockchainMark {
 
 message TransactionBody {
 	string memo = 1; // max 150 chars
+	uint64 version_number = 2;
 
 	oneof data {
-        GradidoTransfer transfer = 2;
-		GradidoCreation creation = 3;
-        GroupFriendsUpdate group_friends_update = 4;
-        GroupMemberUpdate group_member_update = 5;
-        DebugResetBlockchainMark debug_reset_blockchain_mark = 6;
+        GradidoTransfer transfer = 3;
+		GradidoCreation creation = 4;
+        GroupFriendsUpdate group_friends_update = 5;
+        GroupMemberUpdate group_member_update = 6;
+        DebugResetBlockchainMark debug_reset_blockchain_mark = 7;
 	}
-
-    uint64 version_number = 7;
 }
+
 
 message GradidoTransaction {
 	SignatureMap sig_map = 1;
@@ -99,14 +99,59 @@ message GradidoTransaction {
     // having bytes would better show what is signed, still for 
     // blockchain it doesn't matter, as it has to be serialized again
     // when validating
+	// UNICORN ANSWER:
+	// Maybe but hedera has at first concrete type and has depracted that now, so is must 
+	// be reason for that
 	bytes body_bytes = 2; // TransactionBody
 }
+
 
 message AddGroupToRegister {
     bytes alias = 1;
     bool reset_group_register = 2;
 }
 
+/*
+// copyed from hedera topic id
+message HederaID {
+    int64 shardNum = 1; // The shard number (nonnegative)
+    int64 realmNum = 2; // The realm number (nonnegative)
+    int64 topicNum = 3; // Unique topic identifier within a realm (nonnegative).
+}
+
+message ManageNodeGroupAdd {
+    string   group_name = 1;
+	string   group_alias = 2;
+	HederaID hedera_topic_id = 3;
+	//string parent_group_alias = 4; 
+}
+
+message ManageNodeBody {
+    uint64 version_number = 1;
+	
+	oneof data {
+        ManageNodeGroupAdd group_add = 3;
+	}
+}
+
+//	used for controlling node server by login-server
+//	same signature strategy like transactions
+message ManageNodeRequest {
+    SignatureMap sig_map = 1;
+	bytes body_bytes = 2; // ManageNodeBody
+}
+
+message ManageNodeResponse {
+	bool success = 1;
+	enum ErrorCode {
+		INVALID_BODY = 0;
+		INVALID_SIGNATURE = 1;
+		SIGNER_NOT_KNOWN = 2;
+		GROUP_ALIAS_ALREADY_EXIST = 3;
+	}
+	ErrorCode error = 2;
+}
+*/
 message ManageGroupRequest {
     enum Action {
          ADD_GROUP = 0;
