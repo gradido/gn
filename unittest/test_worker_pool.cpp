@@ -3,7 +3,7 @@
 
 TEST(WorkerPool, single_task_gets_executed)
 {
-    WorkerPool wp;
+    WorkerPool wp(0);
     wp.init(1);
     NiceMock<MockSampleTask>* t = new NiceMock<MockSampleTask>();
     EXPECT_CALL(*t, run()).Times(1);
@@ -13,7 +13,7 @@ TEST(WorkerPool, single_task_gets_executed)
 
 TEST(WorkerPool, exception_doesnt_stop_worker)
 {
-    WorkerPool wp;
+    WorkerPool wp(0);
     wp.init(1);
     {
         NiceMock<MockSampleTask>* t = new NiceMock<MockSampleTask>();
@@ -35,7 +35,7 @@ TEST(WorkerPool, exception_doesnt_stop_worker)
 TEST(WorkerPool, tasks_are_done_in_parallel)
 {
     int worker_count = 10;
-    WorkerPool wp;
+    WorkerPool wp(0);
     wp.init(worker_count);
     for (int i = 0; i < worker_count; i++) {
         NiceMock<MockSampleTask>* t = new NiceMock<MockSampleTask>();
@@ -53,7 +53,7 @@ TEST(WorkerPool, tasks_are_done_in_parallel)
 
 TEST(WorkerPool, tasks_are_done_in_serial)
 {
-    WorkerPool wp;
+    WorkerPool wp(0);
     wp.init(1);
     {
         NiceMock<MockSampleTask>* t = new NiceMock<MockSampleTask>();
@@ -93,7 +93,7 @@ public:
 TEST(WorkerPool, shutdown_done_from_task)
 {
     int worker_count = 10;
-    WorkerPool wp;
+    WorkerPool wp(0);
     wp.init(worker_count);
     for (int i = 0; i < worker_count - 1; i++) {
         NiceMock<MockSampleTask>* t = new NiceMock<MockSampleTask>();
@@ -113,7 +113,7 @@ TEST(WorkerPool, shutdown_done_from_task)
 
 TEST(WorkerPool, push_after_shutdown)
 {
-    WorkerPool wp;
+    WorkerPool wp(0);
     wp.init(1);
     wp.init_shutdown();
     NiceMock<MockSampleTask>* t = new NiceMock<MockSampleTask>();

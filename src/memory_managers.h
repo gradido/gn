@@ -4,6 +4,15 @@
 #include <cstddef>
 #include <forward_list>
 
+// TODO: remove
+#include <vector>
+#include <cstdint>
+#include <string>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+
+
 namespace gradido {
 
     // assumes allocated blocks won't need to be released during lifetime
@@ -31,6 +40,7 @@ namespace gradido {
 
         void allocate(T** out) {
             *out = new T[block_size];
+            memset(*out, 0, sizeof(T) * block_size);
             blocks.push_front(*out);
         }
     };
@@ -162,10 +172,11 @@ namespace gradido {
                 Item* item = no_payload.pop();
                 item->payload = 0;
                 used.push(item);
-                if constexpr (TCount == 1)
+                if constexpr (TCount == 1) {
                     res = new T();
-                else
+                 } else {
                     res = new T[TCount]();
+                }
                 memset(res, 0, sizeof(T) * TCount);
             } else {
                 Item* new_items;

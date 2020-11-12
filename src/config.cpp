@@ -41,10 +41,11 @@ namespace gradido {
 
         std::string grti = pfc->getString("group_register_topic_id");
 
-        int res = sscanf(grti, "%d.%d.%d", 
+        int res = sscanf(grti.c_str(), 
+                         "%ld.%ld.%ld",
                          &group_register_topic_id.shardNum,
                          &group_register_topic_id.realmNum,
-                         &group_register_topic_id.accountNum);
+                         &group_register_topic_id.topicNum);
         if (res == EOF)
             throw std::runtime_error("config: bad group register topic id");
             
@@ -124,14 +125,8 @@ namespace gradido {
             throw std::runtime_error("Couldn't save sibling file: " + std::string(e.what()));
         }
     }
-    std::string Config::get_group_requests_endpoint() {
-        return pfc->getString("group_requests_endpoint");
-    }
-    std::string Config::get_record_requests_endpoint() {
-        return pfc->getString("record_requests_endpoint");
-    }
-    std::string Config::get_manage_network_requests_endpoint() {
-        return pfc->getString("manage_network_requests_endpoint");
+    std::string Config::get_grpc_endpoint() {
+        return pfc->getString("grpc_endpoint");
     }
 
     void Config::reload_sibling_file() {
@@ -179,6 +174,10 @@ namespace gradido {
 
     HederaTopicID Config::get_group_register_topic_id() {
         return group_register_topic_id;
+    }
+
+    bool Config::is_topic_reset_allowed() {
+        return pfc->getInt("topic_reset_allowed");
     }
 
     

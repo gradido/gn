@@ -4,10 +4,6 @@
 
 namespace gradido {
 
-    GradidoGroupBlockchain::GradidoGroupBlockchain(GroupInfo gi, Poco::Path root_folder,
-                           IGradidoFacade* gf) {
-    }
-
     class PushRecordsTask : public ITask {
     private:
         IBlockchain* b;
@@ -34,11 +30,11 @@ namespace gradido {
             b(b), endpoints(endpoints) {
         }
         virtual void run() {
-            b->require_transactions(endpoints);
+            //b->require_transactions(endpoints);
         }
     };
 
-    class RecordReceiverImpl : public ICommunicationLayer::RecordReceiver {
+    class RecordReceiverImpl : public ICommunicationLayer::BlockRecordReceiver {
     private:
         IBlockchain* b;
         std::vector<std::string> endpoints;
@@ -48,11 +44,11 @@ namespace gradido {
                            std::vector<std::string> endpoints,
                            IGradidoFacade* gf) : 
             b(b), endpoints(endpoints), gf(gf) {}
-        virtual void on_record(grpr::BlockRecord br) {
+        virtual void on_block_record(grpr::BlockRecord br) {
             if (br.success()) {
-                gf->push_task(new PushRecordsTask(b, br));
+                //                gf->push_task(new PushRecordsTask(b, br));
             } else {
-                gf->push_task(new RequireRecordsTask(b, endpoints));
+                //                gf->push_task(new RequireRecordsTask(b, endpoints));
             }
         }
     };
@@ -61,21 +57,23 @@ namespace gradido {
     private:
         IBlockchain* b;
         IGradidoFacade* gf;
-        grpr::BlockRangeDescriptor brd;
+        grpr::BlockDescriptor bd;
         std::vector<std::string> endpoints;
     public:
         TryGetRecords(IBlockchain* b, IGradidoFacade* gf,
-                      grpr::BlockRangeDescriptor brd,
+                      grpr::BlockDescriptor bd,
                       std::vector<std::string> endpoints) : 
-            b(b), gf(gf), brd(brd),
+            b(b), gf(gf), bd(bd),
             endpoints(endpoints) {
         }
         virtual void run() {
+            /*
             std::string endpoint = endpoints.back();
             endpoints.pop_back();
             std::shared_ptr<ICommunicationLayer::RecordReceiver> rr = 
                 std::make_shared<RecordReceiverImpl>(b, endpoints, gf);
             gf->get_communications()->require_transactions(endpoint, brd, rr);
+            */
         }
     };
 
@@ -123,9 +121,6 @@ namespace gradido {
             else
                 gf->push_task(new ProcessTransactionTask(
                                   b, transaction));
-        }
-        virtual void on_reconnect() {
-            // TODO
         }
     };
 
@@ -365,10 +360,11 @@ namespace gradido {
         gf(gf),
         topic_id(gi.topic_id),
         omit_previous_transactions(false),
-        blockchain(gi.alias,
-                   root_folder,
-                   GRADIDO_BLOCK_SIZE,
-                   this),
+
+                // blockchain(gi.alias,
+                //    root_folder,
+                //    GRADIDO_BLOCK_SIZE,
+                //    this),
         write_owner(0),
         write_counter(1),
         is_busy(true),
@@ -493,8 +489,11 @@ namespace gradido {
                     inbound.push(tr); // putting back
                     write_owner = 0; // disowning current write;  
                 }
+            /* TODO: from gf
+
                 b->exec_once_paired_transaction_done(
                    task, paired_transaction);
+            */
             } else {
                 append(tr);
             }
@@ -513,8 +512,8 @@ namespace gradido {
     void GradidoGroupBlockchain::append(const MultipartTransaction& tr) {
         MLock lock(blockchain_lock); 
         // TODO: check output
-        for (int i = 0; i < tr.rec_count; i++)
-            blockchain.append(tr.rec[i]);
+        //for (int i = 0; i < tr.rec_count; i++)
+        //blockchain.append(tr.rec[i]);
     }
 
     void GradidoGroupBlockchain::continue_validation() {
@@ -527,14 +526,17 @@ namespace gradido {
         }
 
         int batch_size = gf->get_conf()->get_blockchain_init_batch_size();
-        MLock lock(blockchain_lock); 
-        int num = blockchain.validate_next_batch(batch_size);
+        //MLock lock(blockchain_lock); 
+        //int num = blockchain.validate_next_batch(batch_size);
+        int num = 0;
         if (prepare_rec_cannot_proceed) {
             IBlockchain* b = gf->create_or_get_group_blockchain(
                              other_group);
             ITask* task = new AttemptToContinueBlockchainTask(this);
+            /* TODO: from gf
             b->exec_once_paired_transaction_done(
                task, paired_transaction);
+            */
         } else if (num == batch_size) {
             ITask* task = new BlockchainValidator(this);
             gf->push_task(task);
@@ -546,7 +548,12 @@ namespace gradido {
         }
     }
 
-    grpr::BlockRecord GradidoGroupBlockchain::get_block_record(uint64_t seq_num) {
+    bool GradidoGroupBlockchain::get_block_record(
+                                                  uint64_t seq_num, 
+                                                  grpr::BlockRecord& res) {
+        // TODO
+        return false;
+        /*
         grpr::BlockRecord res;
         res.set_success(false);
 
@@ -560,19 +567,20 @@ namespace gradido {
         bool found = false;
         uint64_t i = 0;
         // TODO: optimize; should find by division + block bound index
-        for (i = 0; i < blockchain.get_rec_count(); i++) {
-            rec = blockchain.get_rec(i, hash);
+        //        for (i = 0; i < blockchain.get_rec_count(); i++) {
+        {
+            //rec = blockchain.get_rec(i, hash);
             if ((GradidoRecordType)rec.record_type == 
                 GRADIDO_TRANSACTION && rec.transaction.hedera_transaction.sequenceNumber == seq_num) {
                 found = true;
-                break;
+                //break;
             }
         }
 
         if (found) {
             bool first = true;
             while (true) {
-                rec = blockchain.get_rec(i, hash);
+                //rec = blockchain.get_rec(i, hash);
                 if ((GradidoRecordType)rec.record_type ==  
                     GRADIDO_TRANSACTION) {
                     if (!first) 
@@ -580,15 +588,19 @@ namespace gradido {
                     first = false;
                 }
                 std::string rec_str((char*)&rec, sizeof(GradidoRecord));
-                grpr::TransactionPart* tr1 = res.add_part();
-                tr1->set_hash(hash);
-                tr1->set_record(rec_str);
-                if (++i >= blockchain.get_rec_count())
-                    break;
+                
+                // TODO: put back
+                //grpr::TransactionPart* tr1 = res.add_part();
+                //tr1->set_hash(hash);
+                //tr1->set_record(rec_str);
+
+                //if (++i >= blockchain.get_rec_count())
+                //    break;
             }
         }
         
         return res;
+        */
     }
 
     bool GradidoGroupBlockchain::get_paired_transaction(
@@ -598,15 +610,6 @@ namespace gradido {
         return false;
     }
 
-    void GradidoGroupBlockchain::exec_once_validated(ITask* task) {
-        // TODO
-    }
-    void GradidoGroupBlockchain::exec_once_paired_transaction_done(
-                                 ITask* task, 
-                                 HederaTimestamp hti) {
-        // TODO
-    }
-    
     uint64_t GradidoGroupBlockchain::get_transaction_count() {
         MLock lock(blockchain_lock);
         return transaction_count;
@@ -615,19 +618,27 @@ namespace gradido {
     void GradidoGroupBlockchain::require_transactions(std::vector<std::string> endpoints) {
 
         // TODO: shuffle endpoints
-        MLock lock(blockchain_lock); 
-        uint64_t from = transaction_count + seq_num_offset;
-        assert(last_known_rec_seq_num >= from);
-        uint64_t count = last_known_rec_seq_num - from + 1;
+        // MLock lock(blockchain_lock); 
+        // uint64_t from = transaction_count + seq_num_offset;
+        // assert(last_known_rec_seq_num >= from);
+        // uint64_t count = last_known_rec_seq_num - from + 1;
 
-        if (count > 0) {
-            grpr::BlockRangeDescriptor brd;
-            brd.set_group(std::string(gi.alias));
-            brd.set_first_record(from);
-            brd.set_record_count(count);
-            ITask* task = new TryGetRecords(this, gf, brd, endpoints);
-            gf->push_task(task);
-        }
+        // if (count > 0) {
+        //     grpr::BlockDescriptor bd;
+        //     brd.set_group(std::string(gi.alias));
+        //     brd.set_record(from);
+        //     ITask* task = new TryGetRecords(this, gf, brd, endpoints);
+        //     gf->push_task(task);
+        // }
     }
+
+    void GradidoGroupBlockchain::get_checksums(
+                                 std::vector<BlockInfo>& res) {
+        // TODO
+    }
+    uint32_t GradidoGroupBlockchain::get_block_count() {
+        return 0;
+    }
+
 
 }

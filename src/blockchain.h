@@ -15,8 +15,6 @@
 
 namespace gradido {
 
-#define BLOCKCHAIN_CHECKSUM_SIZE SHA_512_SIZE
-
 // - thread agnostic
 // - validates in batches
 // - last record is always checksum
@@ -25,7 +23,7 @@ namespace gradido {
 //   each record; only last checksum is stored in block
 // - block size cannot be less than 2
 template<typename T, int RecCount>
-class Blockchain final {
+class Blockchain {
 public:
     enum RecordType {
         EMPTY=0,
@@ -114,7 +112,6 @@ private:
                 throw std::runtime_error("storage root cannot be read");
             if (!tmp.canWrite())
                 throw std::runtime_error("storage root cannot be written");
-
         }
         uint32_t get_file_count() const {
             uint32_t res = 0;
@@ -191,9 +188,8 @@ private:
     };
 
     void get_prev_checksum(uint32_t block_index, uint8_t* out) {
-        if (block_index == 0) {
-            memset(out, 0, BLOCKCHAIN_CHECKSUM_SIZE);
-        } else {
+        memset(out, 0, BLOCKCHAIN_CHECKSUM_SIZE);
+        if (block_index != 0) {
             Tile t = tiles.get_tile(block_index - 1);
             if (t.get_state() == TileState::OK) {
                 memcpy(out, t.get_sup()->checksum, 
@@ -563,7 +559,7 @@ public:
     bool append(const T* rec_payload, uint32_t rec_count, ExitCode& ec) {
         if (validator.is_valid(rec_payload, rec_count)) {
             for (uint32_t i = 0; i < rec_count; i ++)
-                if (!blockchain.append(rec_payload + i, ec))
+                if (!blockchain.append(*(rec_payload + i), ec))
                     return false;
             return true;
         } else
@@ -582,7 +578,9 @@ public:
         return blockchain.get_block_count();
     }
     uint32_t get_checksum_valid_block_count() {
-        return blockchain.get_checksum_valid_block_count();
+        return blockchain.get_block_count();
+        // TODO: finish here
+        //return blockchain.get_checksum_valid_block_count();
     }
 
     Record* get_block(uint32_t index, ExitCode& ec) {

@@ -1,14 +1,14 @@
 #ifndef BLOCKCHAIN_GRADIDO_H
 #define BLOCKCHAIN_GRADIDO_H
 
+#include <queue>
+#include <map>
+#include <Poco/Path.h>
 #include "gradido_interfaces.h"
 #include "blockchain_gradido_def.h"
 #include "blockchain_gradido_translate.h"
 #include "gradido_messages.h"
 #include "utils.h"
-#include <queue>
-#include <map>
-#include <Poco/Path.h>
 
 namespace gradido {
 
@@ -34,7 +34,7 @@ private:
     IGradidoFacade* gf;
     HederaTopicID topic_id;    
 
-    Blockchain<GradidoRecord> blockchain;
+    //    Blockchain<GradidoRecord> blockchain;
 
     struct UserInfo {
         GradidoValue current_balance;
@@ -114,7 +114,7 @@ private:
     uint64_t transaction_count;
 
     MultipartTransaction validation_buff;
-    RVR validate_multipart(const MultipartTransaction& mtr);
+    //RVR validate_multipart(const MultipartTransaction& mtr);
 
 public:
     GradidoGroupBlockchain(GroupInfo gi, Poco::Path root_folder,
@@ -129,16 +129,18 @@ public:
     virtual void continue_with_transactions();
     virtual void continue_validation();
 
-    virtual grpr::BlockRecord get_block_record(uint64_t seq_num);
+    virtual bool get_block_record(uint64_t seq_num, 
+                                  grpr::BlockRecord& res);
+
     virtual bool get_paired_transaction(HederaTimestamp hti, 
                                         Transaction tt);
-    virtual void exec_once_validated(ITask* task);
-    virtual void exec_once_paired_transaction_done(
-                           ITask* task, 
-                           HederaTimestamp hti);
     virtual uint64_t get_transaction_count();
 
     virtual void require_transactions(std::vector<std::string> endpoints);
+    virtual void get_checksums(std::vector<BlockInfo>& res);
+
+    virtual uint32_t get_block_count();
+
 };
 
 }

@@ -5,120 +5,12 @@
 #include "utils.h"
 #include "blockchain_gradido.h"
 #include "group_register.h"
+#include "gradido_events.h"
+#include "timer_pool.h"
 
 namespace gradido {
 
-    class ManageGroupListenerImpl : public ICommunicationLayer::ManageGroupListener {
-    private:
-        IGradidoFacade* gf;
-    public:
-        ManageGroupListenerImpl(GradidoFacade* gf) : gf(gf) {}
-        virtual grpr::ManageGroupResponse on_request(grpr::ManageGroupRequest r) {
-            // TODO: should be called from an event, and response
-            // returned asynchronously
-            grpr::ManageGroupResponse res;
-            res.set_success(false);
-            
-            if (r.action() == 0) {
-                if (r.group().size() >= GROUP_ALIAS_LENGTH - 1) {
-                    res.set_success(false);
-                } else {
-                    GroupInfo gi;
-                    HederaTopicID tid;
-                    /* TODO: acquire from group list
-                    tid.shardNum = r.topic_id().shardnum();
-                    tid.realmNum = r.topic_id().realmnum();
-                    tid.topicNum = r.topic_id().topicnum();
-                    */
-                    gi.topic_id = tid;
-                    memcpy(gi.alias, r.group().c_str(), 
-                           r.group().size());
-                    res.set_success(gf->add_group(gi));
-                }
-            } else if (r.action() == 1) {
-                res.set_success(gf->remove_group(r.group()));
-            }
-            return res;
-        }
-    };
 
-    class ProcessBlockRequest : public ITask {
-    private:
-        IGradidoFacade* gf;
-        grpr::BlockRangeDescriptor brd;
-        std::shared_ptr<ICommunicationLayer::BlockRecordSink> brs;
-    public:
-        ProcessBlockRequest(IGradidoFacade* gf,
-                            grpr::BlockRangeDescriptor brd,
-                            std::shared_ptr<ICommunicationLayer::BlockRecordSink> brs) : 
-            gf(gf), brd(brd), brs(brs) {}
-        virtual void run() {
-            IBlockchain* b = gf->get_group_blockchain(brd.group());
-            if (b) {
-                uint64_t first = brd.first_record();
-                uint64_t cnt = fmin(brd.record_count(), 
-                                    gf->get_conf()->get_block_record_outbound_batch_size());
-                uint64_t last = brd.first_record() + cnt;
-
-                uint64_t i = 0;
-                for (i = first; i <= last; i++) {
-                    grpr::BlockRecord br;
-                    if (i < b->get_transaction_count()) {
-                        // TODO: transaction_count in case when offset
-                        // TODO: try / catch
-                        br = b->get_block_record(i);
-                        br.set_success(true);
-                        brs->on_record(br);
-                    } else {
-                        br.set_success(false);
-                        brs->on_record(br);
-                        break;
-                    }
-                }
-                if (i < brd.record_count()) {
-                    brd.set_first_record(first + i);
-                    brd.set_record_count(brd.record_count() - i);
-                    ITask* task = new ProcessBlockRequest(gf, brd, brs);
-                    gf->push_task(task);
-                }
-            } else {
-                grpr::BlockRecord br;
-                br.set_success(false);
-                brs->on_record(br);
-            }
-        }
-    };
-
-    class RecordRequestListenerImpl : public ICommunicationLayer::RecordRequestListener {
-    private:
-        IGradidoFacade* gf;
-    public:
-        RecordRequestListenerImpl(GradidoFacade* gf) : gf(gf) {}
-        virtual void on_request(grpr::BlockRangeDescriptor brd,
-                                std::shared_ptr<ICommunicationLayer::BlockRecordSink> brs) {
-            ITask* task = new ProcessBlockRequest(gf, brd, brs);
-            gf->push_task(task);
-        }
-    };
-
-    class ManageNetworkReceiverImpl : public ICommunicationLayer::ManageNetworkReceiver {
-    private:
-        IGradidoFacade* gf;
-    public:
-        ManageNetworkReceiverImpl(IGradidoFacade* gf) : gf(gf) {}
-        virtual grpr::ManageNodeNetworkResponse on_request(grpr::ManageNodeNetwork mnn) {
-            // TODO: should be called from an event, and response
-            // returned asynchronously
-            grpr::ManageNodeNetworkResponse res;
-            res.set_success(false);
-            if (mnn.action() == 0) {
-                gf->get_conf()->add_sibling_node(mnn.endpoint());
-            } else if (mnn.action() == 1) {
-                gf->get_conf()->remove_sibling_node(mnn.endpoint());
-            }
-            return res;
-        }
-    };
 
     class StartBlockchainTask : public ITask {
     private:
@@ -134,33 +26,10 @@ namespace gradido {
         }
     };
 
-    class ContinueFacadeInit : public ITask {
-    private:
-        GradidoFacade* gf;
-    public:
-        ContinueFacadeInit(GradidoFacade* gf) : gf(gf) {}
-        virtual void run() {
-            gf->continue_init_after_group_register_done();
-        }
-    };
-
-    class StartGroupRegisterTask : public ITask {
-    private:
-        GradidoFacade* gf;
-        HederaTopicID topic_id;
-    public:
-        StartGroupRegisterTask(GradidoFacade* gf, 
-                               HederaTopicID topic_id) : 
-            gf(gf), topic_id(topic_id) {
-        }
-        virtual void run() {
-            IGroupRegisterBlockchain* gr = gf->get_group_register();
-            gr->init();
-        }
-    };
-
-    GradidoFacade::GradidoFacade() : communication_layer(this), 
-                                     group_register(0) {
+    GradidoFacade::GradidoFacade() : worker_pool(this),
+                                     communication_layer(this), 
+                                     group_register(0),
+                                     rpc_handler_factory(this) {
         SAFE_PT(pthread_mutex_init(&main_lock, 0));
     }
     GradidoFacade::~GradidoFacade() {
@@ -173,24 +42,15 @@ namespace gradido {
     void GradidoFacade::init(const std::vector<std::string>& params) {
         config.init(params);
         worker_pool.init(config.get_worker_count());
-        communication_layer.init(config.get_io_worker_count());
+        communication_layer.init(config.get_io_worker_count(), 
+                                 config.get_grpc_endpoint(),
+                                 &rpc_handler_factory);
 
         group_register = new GroupRegister(
                          config.get_data_root_folder(),
                          this,
                          config.get_group_register_topic_id());
-        group_register->exec_once_validated(new ContinueFacadeInit(this));
-
-        communication_layer.receive_manage_group_requests(
-                            config.get_group_requests_endpoint(),
-                            std::make_shared<ManageGroupListenerImpl>(this));
-        communication_layer.receive_record_requests(
-                            config.get_record_requests_endpoint(),
-                            std::make_shared<RecordRequestListenerImpl>(this));
-
-        communication_layer.receive_manage_network_requests(
-                            config.get_manage_network_requests_endpoint(),
-                            std::make_shared<ManageNetworkReceiverImpl>(this));
+        push_task(new InitGroupRegister(this));
     }
 
     void GradidoFacade::join() {
@@ -215,8 +75,11 @@ namespace gradido {
         }
         Poco::Path data_root(config.get_data_root_folder());
         Poco::Path bp = data_root.append(gi.get_directory_name());
-        IBlockchain* b = new GradidoGroupBlockchain(gi, bp, this);
-        blockchains.insert({alias, b});
+
+        //IBlockchain* b = new GradidoGroupBlockchain(gi, bp, this);
+        //blockchains.insert({alias, b});
+
+        IBlockchain* b = 0;
         return b;
     }
 
@@ -229,8 +92,12 @@ namespace gradido {
         GroupInfo gi;
         Poco::Path data_root(config.get_data_root_folder());
         Poco::Path bp = data_root.append(gi.get_directory_name());
-        IBlockchain* b = new GradidoGroupBlockchain(gi, bp, this);
-        blockchains.insert({group, b});
+
+        
+        //IBlockchain* b = new GradidoGroupBlockchain(gi, bp, this);
+        //blockchains.insert({group, b});
+
+        IBlockchain* b = 0;
         return b;
     }
 
@@ -291,6 +158,37 @@ namespace gradido {
         return group_register;
     }
 
+    void GradidoFacade::exclude_blockchain(std::string group) {
+    }
+
+    void GradidoFacade::remove_blockchain(std::string group) {
+    }
+
+    class TimerListenerImpl : public timer_pool::TimerListener {
+    private:
+        IGradidoFacade* gf;
+        ITask* task;
+        timer_pool::Timer* timer;
+    public:
+        TimerListenerImpl(IGradidoFacade* gf, ITask* task,
+                          uint32_t after_seconds) : 
+            gf(gf), task(task), timer(timer_pool::TimerPool::getInstance()->createTimer()) {
+            timer->setListener(this);
+            timer->start(after_seconds);
+        }
+        virtual ~TimerListenerImpl() {
+            delete timer;
+        }
+        virtual void timerEvent(timer_pool::Timer* timer) {
+            gf->push_task(task);
+            delete this;
+        }
+    };
+
+    void GradidoFacade::push_task(ITask* task, uint32_t after_seconds) {
+        new TimerListenerImpl(this, task, after_seconds);
+    }
+
     void GradidoFacade::continue_init_after_group_register_done() {
         for (auto i : config.get_group_info_list()) {
             ITask* task = new StartBlockchainTask(this, i);
@@ -298,6 +196,74 @@ namespace gradido {
         }
     }
 
+    void GradidoFacade::exec_once_paired_transaction_done(
+                                         std::string group,
+                                         ITask* task, 
+                                         HederaTimestamp hti) {
+        // TODO
+    }
+
+    bool GradidoFacade::get_random_sibling_endpoint(std::string& res) {
+        std::vector<std::string> s = config.get_sibling_nodes();
+        if (!s.size())
+            return false;
+        res = s[rng.next(s.size())];
+        return true;
+    }
+
+
+    ITask* GradidoFacade::HandlerFactoryImpl::subscribe_to_blocks(
+                               grpr::BlockDescriptor* req,
+                               grpr::BlockRecord* reply, 
+                               ICommunicationLayer::HandlerCb* cb) { 
+        return new BlockProvider(gf, req, reply, cb);
+    }
+
+    ITask* GradidoFacade::HandlerFactoryImpl::
+    subscribe_to_block_checksums(grpr::GroupDescriptor* req, 
+                                 grpr::BlockChecksum* reply, 
+                                 ICommunicationLayer::HandlerCb* cb) { 
+        return new ChecksumProvider(gf, req, reply, cb);
+    }
+
+    ITask* GradidoFacade::HandlerFactoryImpl::manage_group(grpr::ManageGroupRequest* req, 
+                        grpr::ManageGroupResponse* reply, 
+                        ICommunicationLayer::HandlerCb* cb) { return 0; }
+    ITask* GradidoFacade::HandlerFactoryImpl::manage_node_network(
+                               grpr::ManageNodeNetwork* req,
+                               grpr::ManageNodeNetworkResponse* reply, 
+                               ICommunicationLayer::HandlerCb* cb) { return 0; }
+    ITask* GradidoFacade::HandlerFactoryImpl::get_outbound_transaction(
+                                    grpr::OutboundTransactionDescriptor* req, 
+                                    grpr::OutboundTransaction* reply, 
+                                    ICommunicationLayer::HandlerCb* cb) { return 0; }
+
+    ITask* GradidoFacade::HandlerFactoryImpl::get_balance(grpr::UserDescriptor* req, 
+                       grpr::UserBalance* reply, 
+                       ICommunicationLayer::HandlerCb* cb) { return 0; }
+    ITask* GradidoFacade::HandlerFactoryImpl::get_transactions(
+                            grpr::TransactionRangeDescriptor* req, 
+                            grpr::TransactionData* reply, 
+                            ICommunicationLayer::HandlerCb* cb) { return 0; }
+    ITask* GradidoFacade::HandlerFactoryImpl::get_creation_sum(
+                            grpr::CreationSumRangeDescriptor* req, 
+                            grpr::CreationSumData* reply, 
+                            ICommunicationLayer::HandlerCb* cb) { return 0; }
+    ITask* GradidoFacade::HandlerFactoryImpl::get_users(grpr::GroupDescriptor* req, 
+                     grpr::UserData* reply, 
+                     ICommunicationLayer::HandlerCb* cb) { return 0; }
+
+    IAbstractBlockchain* GradidoFacade::get_any_blockchain(
+                                        std::string name) {
+        
+        if (name.compare(GROUP_REGISTER_NAME) == 0) {
+            return group_register;
+        } else return get_group_blockchain(name);
+    }
+
+    GradidoFacade::HandlerFactoryImpl::HandlerFactoryImpl(
+                                       IGradidoFacade* gf) :
+        gf(gf) {}
 
     
 }

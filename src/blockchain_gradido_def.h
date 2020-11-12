@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <math.h>
+#include "ed25519/ed25519.h"
 
 
 namespace gradido {
@@ -33,6 +34,7 @@ namespace gradido {
 
 #define GROUP_REGISTER_NAME "group-register"
 
+#define BLOCKCHAIN_CHECKSUM_SIZE SHA_512_SIZE
 
 // group alias field ends with null characters to have exact length and
 // have null-terminated string as well
@@ -271,6 +273,8 @@ struct GradidoRecord {
 
 struct GroupRecord {
     uint8_t alias[GROUP_ALIAS_LENGTH];
+    HederaTopicID topic_id;
+    bool success;
     HederaTransaction hedera_transaction;
     Signature signature;
 };

@@ -265,13 +265,14 @@ namespace gradido {
                            const grpr::BlockRecord& br, 
                            HashedMultipartTransaction& hmt) {
         memset(&hmt, 0, sizeof(hmt));
-        hmt.rec_count = br.part_size();
-        for (int i = 0; i < hmt.rec_count; i++) {
-            const grpr::TransactionPart& tp = br.part()[i];
-            memcpy(hmt.rec + i, tp.record().c_str(), 
-                   sizeof(GradidoRecord));
-            memcpy(hmt.rec + i, tp.hash().c_str(), BLOCKCHAIN_HASH_SIZE);
-        }
+        // TODO: put back
+        // hmt.rec_count = br.part_size();
+        // for (int i = 0; i < hmt.rec_count; i++) {
+        //     const grpr::TransactionPart& tp = br.part()[i];
+        //     memcpy(hmt.rec + i, tp.record().c_str(), 
+        //            sizeof(GradidoRecord));
+        //     memcpy(hmt.rec + i, tp.hash().c_str(), BLOCKCHAIN_HASH_SIZE);
+        // }
     }
 
     void TransactionUtils::check_structure(

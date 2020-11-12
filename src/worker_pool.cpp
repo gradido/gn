@@ -26,12 +26,17 @@ namespace gradido {
                 std::string msg = "error in worker thread: " + 
                     std::string(e.what());
                 LOG(msg);
+                wp->gf->exit(1);
+            } catch (...) {
+                LOG("unknown error");
+                wp->gf->exit(1);
             }
             delete task;
         }
     }
 
-    WorkerPool::WorkerPool() : shutdown(false), busy_workers(0) {
+    WorkerPool::WorkerPool(IGradidoFacade* gf) : 
+        gf(gf), shutdown(false), busy_workers(0) {
         SAFE_PT(pthread_mutex_init(&main_lock, 0));
         SAFE_PT(pthread_cond_init(&queue_cond, 0));
     }

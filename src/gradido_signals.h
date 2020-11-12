@@ -4,21 +4,9 @@
 #include <signal.h>
 #include <pthread.h>
 #include "gradido_interfaces.h"
+#include "gradido_events.h"
 
 namespace gradido {
-
-class ReloadConfigTask : public ITask {
-private:
-    IGradidoFacade* gf;
-public:
- ReloadConfigTask(IGradidoFacade* gf) : 
-    gf(gf) {
-    }
-    virtual void run() {
-        gf->reload_config();
-    }
-};
-
 
 class GradidoSignals {
 private:

@@ -32,13 +32,11 @@ namespace gradido {
         virtual bool add_sibling_node(std::string endpoint);
         virtual bool remove_sibling_node(std::string endpoint);
         virtual std::vector<std::string> get_sibling_nodes();
-        virtual std::string get_group_requests_endpoint();
-        virtual std::string get_record_requests_endpoint();
-        virtual std::string get_manage_network_requests_endpoint();
+        virtual std::string get_grpc_endpoint();
         virtual void reload_sibling_file();
         virtual void reload_group_infos();
         virtual HederaTopicID get_group_register_topic_id();
-
+        virtual bool is_topic_reset_allowed();
     };
 
 }

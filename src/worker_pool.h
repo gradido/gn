@@ -31,6 +31,7 @@ namespace gradido {
 
 class WorkerPool final {
 private:
+    IGradidoFacade* gf;
     std::queue<ITask*> queue;
     std::vector<pthread_t> workers;    
     pthread_mutex_t main_lock;
@@ -40,7 +41,7 @@ private:
     bool shutdown;
     size_t busy_workers;
 public:
-    WorkerPool();
+    WorkerPool(IGradidoFacade* gf);
     void init(int worker_count);
     virtual ~WorkerPool();
 

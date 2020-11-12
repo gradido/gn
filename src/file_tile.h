@@ -75,6 +75,7 @@ namespace gradido {
                 file_handle = 0;
                 sup.reset();
             }
+            TileDesc() : fetched_data(0), file_handle(0), index(0) {}
         };
 
         static TileState check_file2(const std::string& fname) {
@@ -113,6 +114,7 @@ namespace gradido {
             }
             TileDesc* td = unused_tiles[unused_tiles.size() - 1];
             td->reset(index);
+
             unused_tiles.pop_back();
             return td;
         }

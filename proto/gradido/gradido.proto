@@ -108,7 +108,8 @@ message GradidoTransaction {
 
 message AddGroupToRegister {
     bytes alias = 1;
-    bool reset_group_register = 2;
+    .proto.TopicID topic_id = 2;
+    bool reset_group_register = 3; // for debugging purposes only
 }
 
 /*
@@ -165,21 +166,24 @@ message ManageGroupResponse {
     bool success = 1;    
 }
 
-message BlockRangeDescriptor {
+message GroupDescriptor {
     bytes group = 1;
-    uint64 first_record = 2;        
-    uint64 record_count = 3;
 }
 
-message TransactionPart {
-    // 64 bytes
-    bytes hash = 1;
-    bytes record = 2; // record as it is stored in blockchain
+message BlockDescriptor {
+    GroupDescriptor group = 1;
+    uint32 block_id = 2;        
 }
 
 message BlockRecord {
     bool success = 1;
-    repeated TransactionPart part = 2;
+    bytes record = 2; // record as it is stored in blockchain
+}
+
+message BlockChecksum {
+    bool success = 1;
+    uint32 block_size = 2;
+    bytes checksum = 3;
 }
 
 message ManageNodeNetwork {
@@ -195,14 +199,64 @@ message ManageNodeNetworkResponse {
     bool success = 1;
 }
 
-service BlockService {
-    rpc subscribe_to_blocks (BlockRangeDescriptor) returns (stream BlockRecord);
+message OutboundTransactionDescriptor {
+    bytes group = 1;
+    .proto.Timestamp paired_transaction_id = 2;
 }
 
-service GradidoNode {
-    rpc manage_group (ManageGroupRequest) returns (ManageGroupResponse);
+message OutboundTransaction {
+    bool success = 1;
+    bytes data = 2;
 }
 
-service NodeService {
-    rpc manage_node_network (ManageNodeNetwork) returns (ManageNodeNetworkResponse);
+message UserDescriptor {
+    bytes group_alias = 1;
+    bytes pubkey = 2;
+}
+
+message TransactionRangeDescriptor {
+    bytes group_alias = 1;
+    uint64 start_seq_num = 2;    
+}
+
+message TransactionData {
+    bool success = 1;
+    bytes record = 2;
+}
+
+message CreationSumRangeDescriptor {
+    UserDescriptor user = 1;
+    uint32 month = 2;
+    uint32 year = 3;        
+}
+
+message CreationSumData {
+    bool success = 1;
+    uint64 balance = 2;
+}
+
+message UserData {
+    bool success = 1;
+    bytes pubkey = 2;        
+}
+
+message UserBalance {
+    bool success = 1;
+    Amount amount = 2;
+}
+
+service GradidoNodeService {
+    rpc subscribe_to_blocks (BlockDescriptor) returns (stream BlockRecord);
+    rpc subscribe_to_block_checksums (GroupDescriptor) returns (stream BlockChecksum);
+    // having stream as response for simplicity; should be non-stream; on
+    // the other hand, stream with just one message of success=0 means
+    // "no data", which is useful with protobuf
+    rpc manage_group (ManageGroupRequest) returns (stream ManageGroupResponse);
+    rpc manage_node_network (ManageNodeNetwork) returns (stream ManageNodeNetworkResponse);
+    rpc get_outbound_transaction (OutboundTransactionDescriptor) returns (stream OutboundTransaction);
+
+    rpc get_balance (UserDescriptor) returns (stream UserBalance);
+    rpc get_transactions (TransactionRangeDescriptor) returns (stream TransactionData);
+    rpc get_creation_sum (CreationSumRangeDescriptor) returns (stream CreationSumData);
+    rpc get_users (GroupDescriptor) returns (stream UserData);
 }

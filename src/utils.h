@@ -29,6 +29,7 @@ typedef GradidoBlockchainType::Record GradidoBlockRec;
 void dump_transaction_in_json(const GradidoBlockRec& r, std::ostream& out);
 void dump_transaction_in_json(const GradidoRecord& t, std::ostream& out);
 void dump_in_hex(const char* in, char* out, size_t in_len);
+
  
 }
 
