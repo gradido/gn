@@ -175,7 +175,7 @@ namespace gradido {
                 if constexpr (TCount == 1) {
                     res = new T();
                  } else {
-                    res = new T[TCount]();
+                    res = new T[TCount];
                 }
                 memset(res, 0, sizeof(T) * TCount);
             } else {

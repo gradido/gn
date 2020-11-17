@@ -13,7 +13,12 @@
 
 namespace gradido {
 
-class GradidoFacade : public IGradidoFacade {
+class GradidoFacade : public IGradidoFacade, 
+    ICommunicationLayer::PairedTransactionReceiver {
+ public:
+    virtual void on_block_record(grpr::OutboundTransaction br,
+                                 grpr::OutboundTransactionDescriptor req);
+
  private:
     pthread_mutex_t main_lock;
     Config config;
@@ -24,6 +29,14 @@ class GradidoFacade : public IGradidoFacade {
     IGroupRegisterBlockchain* group_register;
 
     Poco::Random rng;
+
+    struct PairedTransactionData {
+        IGradidoFacade::PairedTransactionListener* ptl;
+        grpr::OutboundTransactionDescriptor otd;
+    };
+
+    std::map<HederaTimestamp, PairedTransactionData> waiting_for_paired;
+
 
     class HandlerFactoryImpl : public ICommunicationLayer::HandlerFactory {
     private:
@@ -94,12 +107,16 @@ class GradidoFacade : public IGradidoFacade {
     virtual void exit(int ret_val);
     virtual void reload_config();
     virtual void exec_once_paired_transaction_done(
-                           std::string group,
-                           ITask* task, 
+                      std::string group,
+                      IGradidoFacade::PairedTransactionListener* ptl,
+                      HederaTimestamp hti);
+    virtual void exec_once_paired_transaction_done(
                            HederaTimestamp hti);
 
     virtual void continue_init_after_group_register_done();
     virtual bool get_random_sibling_endpoint(std::string& res);
+    virtual void on_paired_transaction(grpr::OutboundTransaction br,
+                                       grpr::OutboundTransactionDescriptor req);
 
 };
  

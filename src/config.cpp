@@ -53,10 +53,6 @@ namespace gradido {
         reload_group_infos();
     }
 
-    int Config::get_blockchain_init_batch_size() {
-        return pfc->getInt("blochchain_init_batch_size");
-    }
-    
     std::string Config::get_data_root_folder() {
         return pfc->getString("data_root_folder");
     }
@@ -67,10 +63,6 @@ namespace gradido {
 
     int Config::get_blockchain_append_batch_size() {
         return pfc->getInt("blockchain_append_batch_size");
-    }
-
-    int Config::get_block_record_outbound_batch_size() {
-        return pfc->getInt("block_record_outbound_batch_size");
     }
 
     void Config::add_blockchain(GroupInfo gi) {

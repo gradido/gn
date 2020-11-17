@@ -26,7 +26,7 @@ namespace gradido {
         }
     };
 
-    GradidoFacade::GradidoFacade() : worker_pool(this),
+    GradidoFacade::GradidoFacade() : worker_pool(this, "event-queue"),
                                      communication_layer(this), 
                                      group_register(0),
                                      rpc_handler_factory(this) {
@@ -42,10 +42,10 @@ namespace gradido {
     void GradidoFacade::init(const std::vector<std::string>& params) {
         config.init(params);
         worker_pool.init(config.get_worker_count());
+
         communication_layer.init(config.get_io_worker_count(), 
                                  config.get_grpc_endpoint(),
                                  &rpc_handler_factory);
-
         group_register = new GroupRegister(
                          config.get_data_root_folder(),
                          this,
@@ -196,14 +196,54 @@ namespace gradido {
         }
     }
 
+    void GradidoFacade::exec_once_paired_transaction_done(HederaTimestamp hti) {
+        std::string se;
+        if (!get_random_sibling_endpoint(se))
+            throw std::runtime_error("need sibling to get paired transaction");
+        PairedTransactionData ptd;
+        {
+            MLock lock(main_lock);
+            auto zz = waiting_for_paired.find(hti);
+            if (zz == waiting_for_paired.end())
+                throw std::runtime_error("cannot continue getting paired transaction");
+            ptd = zz->second;
+        }
+        communication_layer.require_outbound_transaction(se, 
+                                                         ptd.otd, 
+                                                         this);
+    }
+
+
     void GradidoFacade::exec_once_paired_transaction_done(
-                                         std::string group,
-                                         ITask* task, 
-                                         HederaTimestamp hti) {
-        // TODO
+                        std::string group,
+                        IGradidoFacade::PairedTransactionListener* ptl,
+                        HederaTimestamp hti) {
+        std::string se;
+        if (!get_random_sibling_endpoint(se))
+            throw std::runtime_error("need sibling to get paired transaction");
+        grpr::OutboundTransactionDescriptor otd;
+        {
+            MLock lock(main_lock);
+            auto zz = waiting_for_paired.find(hti);
+            if (zz != waiting_for_paired.end())
+                // not more than one blockchain can request it
+                return;
+
+            otd.set_group(group);
+            ::proto::Timestamp* ts = otd.mutable_paired_transaction_id();
+            ts->set_seconds(hti.seconds);
+            ts->set_nanos(hti.nanos);
+
+            PairedTransactionData ptd;
+            ptd.ptl = ptl;
+            ptd.otd = otd;
+            waiting_for_paired.insert({hti, ptd});
+        }
+        communication_layer.require_outbound_transaction(se, otd, this);
     }
 
     bool GradidoFacade::get_random_sibling_endpoint(std::string& res) {
+        MLock lock(main_lock);
         std::vector<std::string> s = config.get_sibling_nodes();
         if (!s.size())
             return false;
@@ -236,7 +276,7 @@ namespace gradido {
     ITask* GradidoFacade::HandlerFactoryImpl::get_outbound_transaction(
                                     grpr::OutboundTransactionDescriptor* req, 
                                     grpr::OutboundTransaction* reply, 
-                                    ICommunicationLayer::HandlerCb* cb) { return 0; }
+                                    ICommunicationLayer::HandlerCb* cb) { return new OutboundProvider(gf, req, reply, cb); }
 
     ITask* GradidoFacade::HandlerFactoryImpl::get_balance(grpr::UserDescriptor* req, 
                        grpr::UserBalance* reply, 
@@ -265,6 +305,38 @@ namespace gradido {
                                        IGradidoFacade* gf) :
         gf(gf) {}
 
+    void GradidoFacade::on_block_record(
+                           grpr::OutboundTransaction br,
+                           grpr::OutboundTransactionDescriptor req) {
+        if (br.success())
+            push_task(new AddPairedTask(this, br, req));
+        else 
+            push_task(new TryPairedAgainTask(this, br, req), 1);
+    }
+
+    void GradidoFacade::on_paired_transaction(
+                        grpr::OutboundTransaction br,
+                        grpr::OutboundTransactionDescriptor req) {
+        MLock lock(main_lock);
+
+        HederaTimestamp hti = TransactionUtils::translate_Timestamp_from_pb(req.paired_transaction_id());
+
+        auto wfp = waiting_for_paired.find(hti);        
+        if (wfp == waiting_for_paired.end())
+            throw std::runtime_error("unexpected incoming pair");
+        waiting_for_paired.erase(hti);
+
+        // TODO: should not be here
+        typedef ValidatedMultipartBlockchain<GradidoRecord, BlockchainGradido, GRADIDO_BLOCK_SIZE> StorageType; 
+        StorageType::Record rec;
+        memcpy((void*)&rec, (void*)br.data().c_str(), 
+               sizeof(StorageType::Record));
+        
+        Transaction& t = rec.payload.transaction;
+
+        wfp->second.ptl->on_paired_transaction_done(t);
+    }
+    
     
 }
 

@@ -7,7 +7,6 @@
 using namespace gradido;
 
 int main(int argc, char** argv) {
-
     GradidoFacade gf;
     GradidoSignals::init(&gf);
     std::vector<std::string> params;

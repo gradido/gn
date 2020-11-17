@@ -80,13 +80,23 @@ public:
 public:
 
     static void translate_from_ctr(const ConsensusTopicResponse& t, 
+                                   GroupRegisterRecordBatch& batch);
+
+    static void translate_from_ctr(const ConsensusTopicResponse& t, 
+                                   GradidoRecordBatch& batch);
+    
+
+    /*
+    static void translate_from_ctr(const ConsensusTopicResponse& t, 
                                    MultipartTransaction& mt);
     static void translate_from_br(const grpr::BlockRecord& br, 
                                   HashedMultipartTransaction& hmt);
+
     static void translate_to_ctr(const MultipartTransaction& mt,
                                  ConsensusTopicResponse& ctr);
-    
+
     static void check_structure(const MultipartTransaction& mt);
+    */    
     static void check_structure(const ConsensusTopicResponse& t);
 
     static bool is_empty(uint8_t* str, size_t size);

@@ -26,8 +26,6 @@ namespace gradido {
         virtual std::string get_data_root_folder();
         virtual std::string get_hedera_mirror_endpoint();
         virtual int get_blockchain_append_batch_size();
-        virtual int get_blockchain_init_batch_size();
-        virtual int get_block_record_outbound_batch_size();
         virtual void add_blockchain(GroupInfo gi);
         virtual bool add_sibling_node(std::string endpoint);
         virtual bool remove_sibling_node(std::string endpoint);

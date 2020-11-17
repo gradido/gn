@@ -6,6 +6,7 @@
 #include <vector>
 #include <string>
 #include <sstream>
+#include <pthread.h>
 #include "blockchain_gradido_def.h"
 #include "gradido_messages.h"
 
@@ -39,15 +40,15 @@
     any other method, and single time
 */
 
-// TODO: thread id, process id, timestamp
-#define LOG(msg) \
-    std::cerr << __FILE__ << ":" << __LINE__ << ": " << msg << std::endl
+namespace gradido {
 
 #define SAFE_PT(expr) if (expr != 0) throw std::runtime_error("couldn't " #expr)
 
 #define BLOCKCHAIN_HASH_SIZE 32
 
-namespace gradido {
+std::string get_time();
+extern pthread_mutex_t gradido_logger_lock;
+#define LOG(msg) pthread_mutex_lock(&gradido_logger_lock); std::cerr << __FILE__ << ":" << __LINE__ << ":#" << (uint64_t)pthread_self() << ":" << get_time() << ": " << msg << std::endl; pthread_mutex_unlock(&gradido_logger_lock);
 
 class ITask {
 public:
@@ -55,23 +56,21 @@ public:
     virtual void run() = 0;
 };
 
-// TODO: should expand to include possible long and wrong transactions
-struct MultipartTransaction {
-    MultipartTransaction() : rec_count(0), rec{0} {}
-    GradidoRecord rec[MAX_RECORD_PARTS];
-    int rec_count;
-    // is set only if there is a structural problem with the message
-    std::shared_ptr<std::string> raw_message;
-};
-
-struct HashedMultipartTransaction : public MultipartTransaction {
-    char hashes[MAX_RECORD_PARTS * BLOCKCHAIN_HASH_SIZE];
-};
-
 struct BlockInfo {
     uint32_t size;
     uint8_t checksum[BLOCKCHAIN_CHECKSUM_SIZE];
 };
+
+template<typename T>
+struct Batch {
+    // not owned by this object
+    T* buff;
+    uint32_t size;
+    bool reset_blockchain;
+};
+
+typedef Batch<GroupRegisterRecord> GroupRegisterRecordBatch;
+typedef Batch<GradidoRecord> GradidoRecordBatch;
 
 class IAbstractBlockchain {
 public:
@@ -90,13 +89,21 @@ public:
 
     virtual uint64_t get_transaction_count() = 0;
 
-    // TODO: remove
-    virtual void require_blocks(std::vector<std::string> endpoints) = 0;
-
     virtual uint32_t get_block_count() = 0;
     virtual void get_checksums(std::vector<BlockInfo>& res) = 0;
     virtual bool get_block_record(uint64_t seq_num, 
                                   grpr::BlockRecord& res) = 0;
+
+    // TODO: get rid of
+    virtual bool get_block_record(uint64_t seq_num, 
+                                  grpr::OutboundTransaction& res) = 0;
+};
+
+template<typename T>
+class ITypedBlockchain : public IAbstractBlockchain {
+ public:
+    virtual void add_transaction(Batch<T> rec) = 0;
+
 };
 
 struct GroupInfo {
@@ -117,23 +124,22 @@ struct GroupInfo {
 };
 
 // group blockchain
-class IBlockchain : public IAbstractBlockchain {
+class IBlockchain : public ITypedBlockchain<GradidoRecord> {
 public:
     virtual bool get_paired_transaction(HederaTimestamp hti, 
-                                        Transaction tt) = 0;
+                                        uint64_t& seq_num) = 0;
+    virtual bool get_transaction(uint64_t seq_num, Transaction& t) = 0;
+    /*
     virtual void add_transaction(const MultipartTransaction& tr) = 0;
     virtual void add_transaction(const HashedMultipartTransaction& tr) = 0;
+    */
 };
 
-class IGroupRegisterBlockchain : public IAbstractBlockchain {
+class IGroupRegisterBlockchain : 
+    public ITypedBlockchain<GroupRegisterRecord> {
 public:
 
-    virtual void add_transaction(const GroupRecord& rec) = 0;
-    virtual void add_multipart_transaction(
-                 const GroupRegisterRecord* rec, 
-                 size_t rec_count) = 0;
-
-
+    virtual void add_transaction(GroupRegisterRecordBatch rec) = 0;
 
     // just for debugging purposes
     virtual void add_record(std::string alias, HederaTopicID tid) = 0;
@@ -152,8 +158,6 @@ class IGradidoConfig {
     virtual std::string get_data_root_folder() = 0;
     virtual std::string get_hedera_mirror_endpoint() = 0;
     virtual int get_blockchain_append_batch_size() = 0;
-    virtual int get_blockchain_init_batch_size() = 0;
-    virtual int get_block_record_outbound_batch_size() = 0;
     virtual void add_blockchain(GroupInfo gi) = 0;
     virtual bool add_sibling_node(std::string endpoint) = 0;
     virtual bool remove_sibling_node(std::string endpoint) = 0;
@@ -168,6 +172,10 @@ class IGradidoConfig {
 // communication layer threads should not be delayed much; use tasks
 class ICommunicationLayer {
 public:
+
+    // handlers / listeners are supposed to create and start an ITask 
+    // subclass instance, to not block IO threads
+
     virtual ~ICommunicationLayer() {}
     class TransactionListener {
     public:
@@ -240,6 +248,12 @@ public:
         virtual void on_block_checksum(grpr::BlockChecksum br) = 0;
     };
 
+    class PairedTransactionReceiver {
+    public:
+        virtual void on_block_record(grpr::OutboundTransaction br,
+                                     grpr::OutboundTransactionDescriptor req) = 0;
+    };
+
  public:
     // hf ownership is not taken by communication layer
     virtual void init(int worker_count, 
@@ -248,7 +262,7 @@ public:
     
     virtual void receive_hedera_transactions(std::string endpoint,
                                              HederaTopicID topic_id,
-                                             std::shared_ptr<TransactionListener> tl) = 0;
+                                             TransactionListener* tl) = 0;
     // not possible to have more than one listener for a topic (reason is
     // that single blockchain won't be kept in more than one 
     // representtion locally)
@@ -261,6 +275,10 @@ public:
     virtual void require_block_checksums(std::string endpoint,
                                          grpr::GroupDescriptor gd, 
                                          BlockChecksumReceiver* rr) = 0;
+    virtual void require_outbound_transaction(
+                         std::string endpoint,
+                         grpr::OutboundTransactionDescriptor otd,
+                         PairedTransactionReceiver* rr) = 0;
 };
 
 class IGradidoFacade {
@@ -323,12 +341,24 @@ class IGradidoFacade {
     // system is running; use exclude_blockchain() instead
     virtual void reload_config() = 0;
 
+    class PairedTransactionListener {
+    public:
+        virtual void on_paired_transaction_done(Transaction t) = 0;
+    };
+    virtual void on_paired_transaction(grpr::OutboundTransaction br,
+                                       grpr::OutboundTransactionDescriptor req) = 0;
+
     // will check local / remote blockchains and call when data is
     // ready
     virtual void exec_once_paired_transaction_done(
                            std::string group,
-                           ITask* task, 
+                           PairedTransactionListener* ptl,
                            HederaTimestamp hti) = 0;
+
+    // for repeated requests to get paired transaction
+    virtual void exec_once_paired_transaction_done(
+                           HederaTimestamp hti) = 0;
+
 
     virtual bool get_random_sibling_endpoint(std::string& res) = 0;
 };

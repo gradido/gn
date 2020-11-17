@@ -2,6 +2,7 @@
 #define GRADIDO_EVENTS_H
 
 #include "gradido_interfaces.h"
+#include "blockchain_gradido_translate.h"
 
 namespace gradido {
 
@@ -31,6 +32,38 @@ namespace gradido {
         }
         virtual void run() {
             gf->reload_config();
+        }
+    };
+
+    class AddPairedTask : public ITask {
+    private:
+        IGradidoFacade* gf;
+        grpr::OutboundTransaction br;
+        grpr::OutboundTransactionDescriptor req;
+    public:
+    AddPairedTask(IGradidoFacade* gf, grpr::OutboundTransaction br,
+                  grpr::OutboundTransactionDescriptor req) : 
+        gf(gf), br(br), req(req) {}
+
+        virtual void run() {
+            gf->on_paired_transaction(br, req);
+        }
+    };
+
+    class TryPairedAgainTask : public ITask {
+    private:
+        IGradidoFacade* gf;
+        grpr::OutboundTransaction br;
+        grpr::OutboundTransactionDescriptor req;
+    public:
+    TryPairedAgainTask(IGradidoFacade* gf, grpr::OutboundTransaction br,
+                       grpr::OutboundTransactionDescriptor req) : 
+        gf(gf), br(br), req(req) {}
+
+        virtual void run() {
+            LOG("waiting for paired transaction to finish");
+            HederaTimestamp hti = TransactionUtils::translate_Timestamp_from_pb(req.paired_transaction_id());
+            gf->exec_once_paired_transaction_done(hti);
         }
     };
 
@@ -67,6 +100,7 @@ namespace gradido {
         virtual void run() {
             BlockProviderContext* ctx = (BlockProviderContext*)cb->get_ctx();
             // TODO: optimize; should not call on each run()
+            // TODO: should use proper field for checksums
             IAbstractBlockchain* ab = gf->get_any_blockchain(ctx->alias);
             uint64_t offset = (uint64_t)GRADIDO_BLOCK_SIZE * 
                 (uint64_t)req->block_id();
@@ -137,6 +171,82 @@ namespace gradido {
         }
     };
 
+    class OutboundProvider : public ITask {
+    private:
+        IGradidoFacade* gf;
+        grpr::OutboundTransactionDescriptor* req;
+        grpr::OutboundTransaction* reply;
+        ICommunicationLayer::HandlerCb* cb;
+
+    public:
+        OutboundProvider(IGradidoFacade* gf,
+                         grpr::OutboundTransactionDescriptor* req,
+                         grpr::OutboundTransaction* reply, 
+                         ICommunicationLayer::HandlerCb* cb) : 
+        gf(gf), req(req), reply(reply), cb(cb) {}
+
+        virtual void run() {
+
+            if (cb->get_writes_done() > 0)
+                reply->set_success(false);
+            else {
+                IBlockchain* ab = gf->get_group_blockchain(req->group());
+                HederaTimestamp hti = TransactionUtils::translate_Timestamp_from_pb(req->paired_transaction_id());
+                uint64_t seq_num;
+                if (ab && ab->get_paired_transaction(hti, seq_num) &&
+                    ab->get_block_record(seq_num, *reply))
+                    reply->set_success(true);
+                else
+                    reply->set_success(false);
+            }
+            cb->write_ready();
+        }
+    };
+
+    ///////////////////////////// abstract blockchain
+
+    template<typename T>
+    class PushTransactionsTask : public ITask {
+    private:
+        ITypedBlockchain<T>* b;
+        ConsensusTopicResponse transaction;
+    public:
+        PushTransactionsTask(ITypedBlockchain<T>* b, 
+                             const ConsensusTopicResponse& transaction) : 
+        b(b), transaction(transaction) {}
+        virtual void run() {
+            Batch<T> batch;
+            TransactionUtils::translate_from_ctr(transaction, batch);
+            b->add_transaction(batch);
+
+            // TODO: stop transmission if bad
+        }
+    };
+
+    template<typename T>
+    class ContinueTransactionsTask : public ITask {
+    private:
+        ITypedBlockchain<T>* b;
+    public:
+        ContinueTransactionsTask(ITypedBlockchain<T>* b) : 
+        b(b) {}
+        virtual void run() {
+            b->continue_with_transactions();
+        }
+    };
+
+    template<typename T>
+    class ContinueValidationTask : public ITask {
+    private:
+        ITypedBlockchain<T>* b;
+    public:
+        ContinueValidationTask(ITypedBlockchain<T>* b) : 
+        b(b) {}
+        virtual void run() {
+            b->continue_validation();
+        }
+    };
+
     ///////////////////////////// group register
 
     class ContinueFacadeInit : public ITask {
@@ -149,27 +259,15 @@ namespace gradido {
         }
     };
 
-    class ValidateGroupRegister : public ITask {
-    private:
-        IGradidoFacade* gf;
-    public:
-        ValidateGroupRegister(IGradidoFacade* gf) : gf(gf) {}
-        virtual void run() {
-            gf->get_group_register()->continue_validation();
-            // group register adds events according to what is needed
-            // (it may want to continue, or wait for data from other
-            // nodes, or push_task(ContinueFacadeInit))
-        }
-    };
-
     class InitGroupRegister : public ITask {
     private:
         IGradidoFacade* gf;
     public:
         InitGroupRegister(IGradidoFacade* gf) : gf(gf) {}
         virtual void run() {
-            gf->get_group_register()->init();
-            gf->push_task(new ValidateGroupRegister(gf));
+            IGroupRegisterBlockchain* gr = gf->get_group_register();
+            gr->init();
+            gf->push_task(new ContinueValidationTask<GroupRegisterRecord>(gr));
         }
     };
 

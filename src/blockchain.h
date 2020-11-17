@@ -470,6 +470,24 @@ public:
         return checksum_valid_block_count;
     }
 
+    Record* get_record(uint64_t index, ExitCode& ec) {
+
+        if (index >= rec_count) {
+            ec = INDEX_TOO_LARGE;
+            return 0;
+        }
+
+        uint32_t block_id = (uint32_t)(index / GRADIDO_BLOCK_SIZE);
+        uint32_t rec_id = (uint32_t)(index % GRADIDO_BLOCK_SIZE);
+
+        Record* res = get_block(block_id, ec);
+        if (res) {
+            ec = OK;
+            res = res + rec_id;
+        }
+        return res;
+    }
+
     Record* get_block(uint32_t index, ExitCode& ec) {
         maybe_flush_cache();
 
@@ -531,6 +549,7 @@ public:
     void truncate(uint32_t first) {
         tiles.truncate_tail(first);
     }
+    
 };    
 
 // - allows additional validation to happen
@@ -598,6 +617,9 @@ public:
     }
     void truncate(uint32_t first) {
         return blockchain.truncate(first);
+    }
+    Record* get_record(uint64_t index, ExitCode& ec) {
+        return blockchain.get_record(index, ec);
     }
 };
  

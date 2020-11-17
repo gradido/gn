@@ -4,5 +4,5 @@
 using namespace gradido;
 
 int main(int argc, char** argv) {
-    return dump<GradidoBlockchainType>(argc, argv, "Gradido blockchains");
+    return dump<GradidoGroupBlockchainType>(argc, argv, "Gradido blockchains");
 }    

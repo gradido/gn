@@ -34,9 +34,8 @@ namespace gradido {
         while (!shutdown) {
             void* got_tag;
             bool ok = false;
-            cq.Next(&got_tag, &ok);
-            // TODO: check ok
-            if (!shutdown) {
+            bool ok2 = cq.Next(&got_tag, &ok);
+            if (!shutdown && ok && got_tag) {
                 PollClient* pc = (PollClient*)got_tag;
                 if (!pc->got_data()) {
                     clients.erase(std::find(clients.begin(), 
@@ -66,14 +65,19 @@ namespace gradido {
     CommunicationLayer::TopicSubscriber::TopicSubscriber(
                         std::string endpoint,
                         HederaTopicID topic_id,
-                        std::shared_ptr<TransactionListener> tl) :
-        AbstractSubscriber(endpoint), topic_id(topic_id), tl(tl) {}
+                        TransactionListener* tl) :
+        AbstractSubscriber(endpoint), topic_id(topic_id), tl(tl) {
+    }
 
     bool CommunicationLayer::TopicSubscriber::got_data() {
         // could of consider hiding (void*)this from PollClient, but
         // lets keep it simple here
         stream->Read(&ctr, (void*)this);
-        tl->on_transaction(ctr);
+        if (first_message) {
+            first_message = false;
+        } else {
+            tl->on_transaction(ctr);
+        }
         return true;
     }
     void CommunicationLayer::TopicSubscriber::init(grpc::CompletionQueue& cq) {
@@ -90,8 +94,10 @@ namespace gradido {
 
     
     CommunicationLayer::CommunicationLayer(IGradidoFacade* gf) : 
-        gf(gf), worker_pool(gf), round_robin_distribute_counter(0), 
+        gf(gf), worker_pool(gf, "comm-workers"), 
+        round_robin_distribute_counter(0), 
         rpcs_service(0) {
+        SAFE_PT(pthread_mutex_init(&main_lock, 0));
     }
 
     void CommunicationLayer::init(int worker_count,
@@ -112,6 +118,7 @@ namespace gradido {
 
         start_rpc<BlockCallData>();
         start_rpc<ChecksumCallData>();
+
         start_rpc<ManageGroupCallData>();
         start_rpc<ManageNodeCallData>();
         start_rpc<OutboundTransactionCallData>();
@@ -138,19 +145,21 @@ namespace gradido {
     
     void CommunicationLayer::receive_hedera_transactions(std::string endpoint,
                                                          HederaTopicID topic_id,
-                                                         std::shared_ptr<TransactionListener> tl) {
-        // TODO: synchronize for multi-thread access
+                                                         TransactionListener* tl) {
+        MLock lock(main_lock); 
         PollService* ps = get_poll_service();
         TopicSubscriber* ts = new TopicSubscriber(endpoint, topic_id, tl);
         ps->add_client(ts);
     }
     void CommunicationLayer::stop_receiving_gradido_transactions(HederaTopicID topic_id) {
+        MLock lock(main_lock); 
         // TODO
     }
 
     void CommunicationLayer::require_block_data(std::string endpoint,
                                                 grpr::BlockDescriptor brd, 
                                                 BlockRecordReceiver* rr) {
+        MLock lock(main_lock); 
         PollService* ps = get_poll_service();
         BlockSubscriber* bs = new BlockSubscriber(endpoint, brd, rr);
         ps->add_client(bs);
@@ -158,6 +167,7 @@ namespace gradido {
     void CommunicationLayer::require_block_checksums(std::string endpoint,
                                                      grpr::GroupDescriptor brd, 
                                                      BlockChecksumReceiver* rr) {
+        MLock lock(main_lock); 
         PollService* ps = get_poll_service();
         BlockChecksumSubscriber* bs = 
             new BlockChecksumSubscriber(endpoint, brd, rr);
@@ -216,10 +226,18 @@ namespace gradido {
         void* tag; // uniquely identifies a request.
         bool ok;
         while (true) {
-            GPR_ASSERT(cq_->Next(&tag, &ok));
+            cq_->Next(&tag, &ok);
             // assert not good here; multiple methods served
-            GPR_ASSERT(ok);
+            if (!ok)
+                break;
             ((AbstractCallData*)tag)->proceed();
+        }
+
+        bool ok2 = true;
+        while (ok2) {
+            ok2 = cq_->Next(&tag, &ok);
+            if (ok2)
+                delete (AbstractCallData*)tag;
         }
     }
 
@@ -236,8 +254,9 @@ namespace gradido {
     
     void CommunicationLayer::RpcsService::stop() {
         shutdown = true;
-        // TODO: not possible
-        //cq_.Shutdown();
+        server_->Shutdown();
+        server_->Wait();
+        cq_->Shutdown();
     }
 
     grpr::GradidoNodeService::AsyncService*
@@ -287,7 +306,8 @@ namespace gradido {
                         BlockChecksumReceiver* bcr) : 
         AbstractSubscriber(endpoint), bcr(bcr), gd(gd) {}
 
-    bool CommunicationLayer::BlockChecksumSubscriber::got_data() {                if (done)
+    bool CommunicationLayer::BlockChecksumSubscriber::got_data() {
+        if (done)
             return false;
         stream->Read(&bc, (void*)this);
 
@@ -310,5 +330,49 @@ namespace gradido {
         stream = stub->PrepareAsyncsubscribe_to_block_checksums(&ctx, gd, &cq);
         stream->StartCall((void*)this);
     }
+
+    void CommunicationLayer::require_outbound_transaction(
+                         std::string endpoint,
+                         grpr::OutboundTransactionDescriptor otd,
+                         PairedTransactionReceiver* rr) {
+        MLock lock(main_lock); 
+        PollService* ps = get_poll_service();
+        OutboundSubscriber* bs = 
+            new OutboundSubscriber(endpoint, otd, rr);
+        ps->add_client(bs);
+    }
+
+    CommunicationLayer::OutboundSubscriber::OutboundSubscriber(
+                        std::string endpoint,
+                        grpr::OutboundTransactionDescriptor otd,
+                        PairedTransactionReceiver* brr) : 
+        AbstractSubscriber(endpoint), brr(brr), otd(otd) {}
+
+    bool CommunicationLayer::OutboundSubscriber::got_data() {        
+        if (done) {
+            return false;
+        }
+        stream->Read(&br, (void*)this);
+
+        if (first_message) {
+            first_message = false;
+        } else {
+            brr->on_block_record(br, otd);
+            if (!br.success())
+                done = true;
+        }
+        return true;
+    }
+
+    void CommunicationLayer::OutboundSubscriber::init(
+                             grpc::CompletionQueue& cq) {
+        stub = std::unique_ptr<grpr::GradidoNodeService::Stub>(
+                               grpr::GradidoNodeService::NewStub(channel));
+            
+        stream = stub->PrepareAsyncget_outbound_transaction(&ctx, otd, &cq);
+        stream->StartCall((void*)this);
+    }
+
+
 
 }

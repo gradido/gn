@@ -220,15 +220,17 @@ namespace gradido {
             bool sync_to_file(bool close_on_exit) {
                 if (desc->fetched_data) {
                     if (open_file()) {
-                        size_t res = fwrite((void*)desc->fetched_data, 
+                        size_t res = fwrite(desc->fetched_data, 
                                             sizeof(T), 
                                             TCount,
                                             desc->file_handle);
                         if (res != TCount) {
                             desc->state = ERROR_WHILE_WRITING;
                             return false;
-                        } else
+                        } else {
+                            fflush(desc->file_handle);
                             desc->state = OK;
+                        }
                         if (close_on_exit)
                             close_file();
                         return true;

@@ -35,8 +35,13 @@ namespace gradido {
         }
     }
 
+    WorkerPool::WorkerPool(IGradidoFacade* gf, std::string name) : 
+        gf(gf), name(name), shutdown(false), busy_workers(0) {
+        SAFE_PT(pthread_mutex_init(&main_lock, 0));
+        SAFE_PT(pthread_cond_init(&queue_cond, 0));
+    }
     WorkerPool::WorkerPool(IGradidoFacade* gf) : 
-        gf(gf), shutdown(false), busy_workers(0) {
+        gf(gf), name("unknown"), shutdown(false), busy_workers(0) {
         SAFE_PT(pthread_mutex_init(&main_lock, 0));
         SAFE_PT(pthread_cond_init(&queue_cond, 0));
     }
@@ -46,6 +51,7 @@ namespace gradido {
         for (int i = 0; i < worker_count; i++) {
             pthread_t t;
             SAFE_PT(pthread_create(&t, 0, &run_entry, (void*)this));
+            LOG("worker_pool " + name + " started thread #" + std::to_string((uint64_t)t));
             workers.push_back(t);
         }
     }

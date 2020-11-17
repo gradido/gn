@@ -29,6 +29,7 @@ class CommunicationLayer : public ICommunicationLayer {
 private:
 
     IGradidoFacade* gf;
+    pthread_mutex_t main_lock;
     ICommunicationLayer::HandlerFactory* hf;
 
     WorkerPool worker_pool;
@@ -73,7 +74,7 @@ private:
     class TopicSubscriber : public AbstractSubscriber {
     private:
         HederaTopicID topic_id;        
-        std::shared_ptr<TransactionListener> tl;
+        TransactionListener* tl;
         std::unique_ptr< ::grpc::ClientAsyncReader<ConsensusTopicResponse>> stream;
         std::unique_ptr<ConsensusService::Stub> stub;
         ConsensusTopicQuery query;
@@ -82,7 +83,7 @@ private:
     public:
         TopicSubscriber(std::string endpoint,
                         HederaTopicID topic_id,
-                        std::shared_ptr<TransactionListener> tl);
+                        TransactionListener* tl);
 
         virtual bool got_data();
         virtual void init(grpc::CompletionQueue& cq);
@@ -115,6 +116,22 @@ private:
         BlockChecksumSubscriber(std::string endpoint,
                                 grpr::GroupDescriptor gd,
                                 BlockChecksumReceiver* bcr);
+
+        virtual bool got_data();
+        virtual void init(grpc::CompletionQueue& cq);
+    };
+
+    class OutboundSubscriber : public AbstractSubscriber {
+    private:
+        PairedTransactionReceiver* brr;
+        std::unique_ptr< ::grpc::ClientAsyncReader<grpr::OutboundTransaction>> stream;
+        std::unique_ptr<grpr::GradidoNodeService::Stub> stub;
+        grpr::OutboundTransactionDescriptor otd;
+        grpr::OutboundTransaction br;
+    public:
+        OutboundSubscriber(std::string endpoint,
+                           grpr::OutboundTransactionDescriptor otd,
+                           PairedTransactionReceiver* brr);
 
         virtual bool got_data();
         virtual void init(grpc::CompletionQueue& cq);
@@ -487,7 +504,7 @@ public:
 
     virtual void receive_hedera_transactions(std::string endpoint,
                                              HederaTopicID topic_id,
-                                             std::shared_ptr<TransactionListener> tl);
+                                             TransactionListener* tl);
     virtual void stop_receiving_gradido_transactions(HederaTopicID topic_id);
 
     virtual void require_block_data(std::string endpoint,
@@ -496,7 +513,10 @@ public:
     virtual void require_block_checksums(std::string endpoint,
                                          grpr::GroupDescriptor brd, 
                                          BlockChecksumReceiver* rr);
-
+    virtual void require_outbound_transaction(
+                         std::string endpoint,
+                         grpr::OutboundTransactionDescriptor otd,
+                         PairedTransactionReceiver* rr);
 };
 
 }

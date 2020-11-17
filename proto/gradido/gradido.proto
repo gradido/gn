@@ -204,6 +204,7 @@ message OutboundTransactionDescriptor {
     .proto.Timestamp paired_transaction_id = 2;
 }
 
+// TODO: probably use BlockRecord instead
 message OutboundTransaction {
     bool success = 1;
     bytes data = 2;

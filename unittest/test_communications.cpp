@@ -53,6 +53,15 @@ private:
     virtual bool get_random_sibling_endpoint(std::string& res) { return false; }
 
     virtual IAbstractBlockchain* get_any_blockchain(std::string name) {}
+    virtual void exec_once_paired_transaction_done(
+                      std::string group,
+                      IGradidoFacade::PairedTransactionListener* ptl,
+                      HederaTimestamp hti) {}
+    virtual void exec_once_paired_transaction_done(
+                                                   HederaTimestamp hti) {}
+
+    virtual void on_paired_transaction(grpr::OutboundTransaction br,
+                                       grpr::OutboundTransactionDescriptor req) {}
 
 };
 
@@ -149,7 +158,7 @@ TEST(GradidoCommunications, smoke) {
 
     grpr::BlockDescriptor bd;
     auto gg = bd.mutable_group();
-    gg->set_group("smaka");
+    gg->set_group("tttgroup");
     bd.set_block_id(10);
 
     ICommunicationLayer::BlockRecordReceiver* brr = 

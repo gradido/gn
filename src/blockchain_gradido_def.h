@@ -71,6 +71,15 @@ enum TransactionType {
 struct HederaTimestamp {
     int64_t seconds;
     int32_t nanos;
+
+    bool operator<(const HederaTimestamp& ts) const {
+        return ts.seconds > seconds || (ts.seconds == seconds && 
+                                        ts.nanos > nanos);
+    }
+    bool operator==(const HederaTimestamp& ts) const {
+        return ts.seconds == seconds && ts.nanos == nanos;
+    }
+
 };
 
 struct HederaAccountID {
@@ -255,6 +264,7 @@ struct StructurallyBadMessage : public TransactionCommonHeader {
     uint8_t result; // enum StructurallyBadMessageResult
     uint64_t length; // total length of message in bytes; contents is
                      // provided in following parts
+    HederaTransaction hedera_transaction;
 };
 
 // idea is that most transactions are supposed to be transfers; those
@@ -280,7 +290,7 @@ struct GroupRecord {
 };
 
 enum GroupRegisterRecordType {
-    GROUP_RECORD,
+    GROUP_RECORD=0,
     GR_STRUCTURALLY_BAD_MESSAGE,
     GR_RAW_MESSAGE
 };

@@ -102,165 +102,219 @@ namespace gradido {
 
     void TransactionUtils::translate_from_ctr(
                            const ConsensusTopicResponse& t, 
-                           MultipartTransaction& mt) {
+                           GroupRegisterRecordBatch& batch) {
 
-        check_structure(t);
+        memset(&batch, 0, sizeof(batch));
 
-        memset(&mt, 0, sizeof(mt));
+        try {
 
-        // main
-        mt.rec_count = 1;
-        GradidoRecord* r0 = mt.rec;
-        r0->record_type = (uint8_t)GRADIDO_TRANSACTION;
-        Transaction* tt = &r0->transaction;
+            GroupRegisterRecord buff[100];
+            memset(buff, 0, sizeof(GroupRegisterRecord) * 100);
 
-        grpr::GradidoTransaction gt;
-        gt.ParseFromString(t.message());
-        grpr::TransactionBody tb;
-        tb.ParseFromString(gt.body_bytes());
+            int buff_size = 1;
+            GroupRegisterRecord* r0 = buff;
 
-        tt->version_number = tb.version_number();
-        tt->signature_count = gt.sig_map().sig_pair_size();
+            r0->record_type = (uint8_t)GROUP_RECORD;
+            GroupRecord* tt = &r0->group_record;
 
-        if (tt->signature_count < MINIMUM_SIGNATURE_COUNT)
-            throw NotEnoughSignatures();
-        if (tt->signature_count > MAXIMUM_SIGNATURE_COUNT)
-            throw TooManySignatures();
+            grpr::GradidoTransaction gt;
+            gt.ParseFromString(t.message());
+            grpr::AddGroupToRegister tb;
+            tb.ParseFromString(gt.body_bytes());
 
-        tt->signature = translate_Signature_from_pb(gt.sig_map().sig_pair()[0]);
-        
-        tt->hedera_transaction = translate_HederaTransaction_from_pb(t);
-        if (tb.has_creation()) {
-            tt->transaction_type = (uint8_t)GRADIDO_CREATION;
-            tt->gradido_creation.amount = 
-                tb.creation().receiver().amount();
-            memcpy(tt->gradido_creation.user, 
-                   tb.creation().receiver().pubkey().c_str(), 
-                   PUB_KEY_LENGTH);
-        } else if (tb.has_group_friends_update()) {
-            std::string g = tb.group_friends_update().group();
-            // TODO: mention exact pb enum type
-            if (tb.group_friends_update().action() == 0) {
-                tt->transaction_type = (uint8_t)ADD_GROUP_FRIEND;
-                memcpy(tt->add_group_friend.group, g.c_str(), g.size());
-            } else {
-                tt->transaction_type = (uint8_t)REMOVE_GROUP_FRIEND;
-                memcpy(tt->remove_group_friend.group, g.c_str(), g.size());
-            }
-        } else if (tb.has_group_member_update()) {
-            uint8_t mut = tb.group_member_update().member_update_type();
-            std::string u = tb.group_member_update().user_pubkey();
+            // TODO: check overflow
+            strcpy((char*)tt->alias, tb.alias().c_str());
+            tt->topic_id.shardNum = tb.topic_id().shardnum();
+            tt->topic_id.realmNum = tb.topic_id().realmnum();
+            tt->topic_id.topicNum = tb.topic_id().topicnum();
 
-            if (mut == 0) {
-                tt->transaction_type = (uint8_t)ADD_USER;
-                memcpy(tt->add_user.user, u.c_str(), PUB_KEY_LENGTH);
-            } else if (mut == 1) {
-                tt->transaction_type = (uint8_t)MOVE_USER_INBOUND;
-                memcpy(tt->move_user_inbound.user, u.c_str(), PUB_KEY_LENGTH);
-                tt->move_user_inbound.paired_transaction_id = 
-                    translate_Timestamp_from_pb(tb.group_member_update().
-                                                paired_transaction_id());
-                std::string group = tb.group_member_update().
-                    target_group();
-                memcpy(tt->move_user_inbound.other_group, 
-                       group.c_str(), group.size());
-            } else {
-                tt->transaction_type = (uint8_t)MOVE_USER_OUTBOUND;
-                memcpy(tt->move_user_outbound.user, u.c_str(), PUB_KEY_LENGTH);
-                tt->move_user_outbound.paired_transaction_id = 
-                    translate_Timestamp_from_pb(tb.group_member_update().
-                                                paired_transaction_id());
-                std::string group = tb.group_member_update().
-                    target_group();
-                memcpy(tt->move_user_outbound.other_group, 
-                       group.c_str(), group.size());
-            }
-        } else if (tb.has_transfer()) {
-            grpr::GradidoTransfer g2 = tb.transfer();
-            if (g2.has_local()) {
-                tt->transaction_type = (uint8_t)LOCAL_TRANSFER;
-                tt->local_transfer.amount = g2.local().sender().amount();
-                memcpy(tt->local_transfer.sender.user, 
-                       g2.local().sender().pubkey().c_str(), 
-                       PUB_KEY_LENGTH);
-                memcpy(tt->local_transfer.receiver.user, 
-                       g2.local().receiver().c_str(), 
-                       PUB_KEY_LENGTH);
-            } else if (g2.has_inbound()) {
-                tt->transaction_type = (uint8_t)INBOUND_TRANSFER;
-                tt->inbound_transfer.amount = g2.inbound().sender().
-                    amount();
-                memcpy(tt->inbound_transfer.sender.user, 
-                       g2.inbound().sender().pubkey().c_str(), 
-                       PUB_KEY_LENGTH);
-                memcpy(tt->inbound_transfer.receiver.user, 
-                       g2.inbound().receiver().c_str(), 
-                       PUB_KEY_LENGTH);
-                tt->inbound_transfer.paired_transaction_id = 
-                    translate_Timestamp_from_pb(g2.inbound().
-                                                paired_transaction_id());
-                std::string group = g2.inbound().other_group();
-                memcpy(tt->inbound_transfer.other_group, 
-                       group.c_str(), group.size());
-            } else if (g2.has_outbound()) {
-                tt->transaction_type = (uint8_t)OUTBOUND_TRANSFER;
-                tt->outbound_transfer.amount = g2.outbound().sender().
-                    amount();
-                memcpy(tt->outbound_transfer.sender.user, 
-                       g2.outbound().sender().pubkey().c_str(), 
-                       PUB_KEY_LENGTH);
-                memcpy(tt->outbound_transfer.receiver.user, 
-                       g2.outbound().receiver().c_str(), 
-                       PUB_KEY_LENGTH);
-                tt->outbound_transfer.paired_transaction_id = 
-                    translate_Timestamp_from_pb(g2.outbound().
-                                                paired_transaction_id());
-                std::string group = g2.outbound().other_group();
-                memcpy(tt->outbound_transfer.other_group, 
-                       group.c_str(), group.size());
-            }
-        }
-        tt->result == UNKNOWN;
-
-        std::string memo = tb.memo();
-        bool multipart_memo = false;
-        if (memo.size() > MEMO_MAIN_SIZE - 1) {
-            memcpy(tt->memo, memo.c_str(), MEMO_MAIN_SIZE);
-            multipart_memo = true;
-        } else 
-            memcpy(tt->memo, memo.c_str(), memo.size());
-
-        int sig_part_count = 
-            tt->signature_count <= SIGNATURES_IN_MAIN_PART ? 0 : 
-            ((int)((tt->signature_count - SIGNATURES_IN_MAIN_PART - 1) / 
-                   SIGNATURES_PER_RECORD) + 1);
-        tt->parts = 1 + (multipart_memo ? 1 : 0) + sig_part_count;
-
-        // parts
-        if (multipart_memo) {
-            std::string other_part = memo.substr(
-                                     MEMO_MAIN_SIZE,
-                                     MEMO_PART_SIZE - 1);
-            r0 = mt.rec + mt.rec_count;
-            mt.rec_count++;
-
-            r0->record_type = (uint8_t)MEMO;
-            memcpy(r0->memo, other_part.c_str(), other_part.size());
-        }
-
-        int cs = SIGNATURES_IN_MAIN_PART;
-        for (int i = 0; i < sig_part_count; i++) {
-            r0 = mt.rec + mt.rec_count;
-            mt.rec_count++;
-            r0->record_type = (uint8_t)SIGNATURES;
-            for (int j = 0; j < SIGNATURES_PER_RECORD; j++) {
-                r0->signature[j] = translate_Signature_from_pb(gt.sig_map().sig_pair()[cs++]);
-                if (cs == tt->signature_count)
-                    break;
-            }
+            tt->hedera_transaction = translate_HederaTransaction_from_pb(t);
+            // TODO: finish here
+            //tt->signature = translate_Signature_from_pb();
+            
+            memcpy(batch.buff, buff, sizeof(GroupRegisterRecord) * buff_size);
+            batch.size = buff_size;
+        } catch (...) {
+            LOG("couldn't translate, resetting");
+            batch.reset_blockchain = true;
         }
     }
 
+
+    void TransactionUtils::translate_from_ctr(
+                           const ConsensusTopicResponse& t, 
+                           GradidoRecordBatch& batch) {
+
+        //check_structure(t);
+
+        memset(&batch, 0, sizeof(batch));
+
+        try {
+        
+            GradidoRecord buff[100];
+            memset(buff, 0, sizeof(GradidoRecord) * 100);
+
+            // main
+            int buff_size = 1;
+            GradidoRecord* r0 = buff;
+            r0->record_type = (uint8_t)GRADIDO_TRANSACTION;
+            Transaction* tt = &r0->transaction;
+
+            grpr::GradidoTransaction gt;
+            gt.ParseFromString(t.message());
+            grpr::TransactionBody tb;
+            tb.ParseFromString(gt.body_bytes());
+
+            tt->version_number = tb.version_number();
+            tt->signature_count = gt.sig_map().sig_pair_size();
+
+            if (tt->signature_count < MINIMUM_SIGNATURE_COUNT)
+                throw NotEnoughSignatures();
+            if (tt->signature_count > MAXIMUM_SIGNATURE_COUNT)
+                throw TooManySignatures();
+
+            tt->signature = translate_Signature_from_pb(gt.sig_map().sig_pair()[0]);
+        
+            tt->hedera_transaction = translate_HederaTransaction_from_pb(t);
+            if (tb.has_creation()) {
+                tt->transaction_type = (uint8_t)GRADIDO_CREATION;
+                tt->gradido_creation.amount = 
+                    tb.creation().receiver().amount();
+                memcpy(tt->gradido_creation.user, 
+                       tb.creation().receiver().pubkey().c_str(), 
+                       PUB_KEY_LENGTH);
+            } else if (tb.has_group_friends_update()) {
+                std::string g = tb.group_friends_update().group();
+                // TODO: mention exact pb enum type
+                if (tb.group_friends_update().action() == 0) {
+                    tt->transaction_type = (uint8_t)ADD_GROUP_FRIEND;
+                    memcpy(tt->add_group_friend.group, g.c_str(), g.size());
+                } else {
+                    tt->transaction_type = (uint8_t)REMOVE_GROUP_FRIEND;
+                    memcpy(tt->remove_group_friend.group, g.c_str(), g.size());
+                }
+            } else if (tb.has_group_member_update()) {
+                uint8_t mut = tb.group_member_update().member_update_type();
+                std::string u = tb.group_member_update().user_pubkey();
+
+                if (mut == 0) {
+                    tt->transaction_type = (uint8_t)ADD_USER;
+                    memcpy(tt->add_user.user, u.c_str(), PUB_KEY_LENGTH);
+                } else if (mut == 1) {
+                    tt->transaction_type = (uint8_t)MOVE_USER_INBOUND;
+                    memcpy(tt->move_user_inbound.user, u.c_str(), PUB_KEY_LENGTH);
+                    tt->move_user_inbound.paired_transaction_id = 
+                        translate_Timestamp_from_pb(tb.group_member_update().
+                                                    paired_transaction_id());
+                    std::string group = tb.group_member_update().
+                        target_group();
+                    memcpy(tt->move_user_inbound.other_group, 
+                           group.c_str(), group.size());
+                } else {
+                    tt->transaction_type = (uint8_t)MOVE_USER_OUTBOUND;
+                    memcpy(tt->move_user_outbound.user, u.c_str(), PUB_KEY_LENGTH);
+                    tt->move_user_outbound.paired_transaction_id = 
+                        translate_Timestamp_from_pb(tb.group_member_update().
+                                                    paired_transaction_id());
+                    std::string group = tb.group_member_update().
+                        target_group();
+                    memcpy(tt->move_user_outbound.other_group, 
+                           group.c_str(), group.size());
+                }
+            } else if (tb.has_transfer()) {
+                grpr::GradidoTransfer g2 = tb.transfer();
+                if (g2.has_local()) {
+                    tt->transaction_type = (uint8_t)LOCAL_TRANSFER;
+                    tt->local_transfer.amount = g2.local().sender().amount();
+                    memcpy(tt->local_transfer.sender.user, 
+                           g2.local().sender().pubkey().c_str(), 
+                           PUB_KEY_LENGTH);
+                    memcpy(tt->local_transfer.receiver.user, 
+                           g2.local().receiver().c_str(), 
+                           PUB_KEY_LENGTH);
+                } else if (g2.has_inbound()) {
+                    tt->transaction_type = (uint8_t)INBOUND_TRANSFER;
+                    tt->inbound_transfer.amount = g2.inbound().sender().
+                        amount();
+                    memcpy(tt->inbound_transfer.sender.user, 
+                           g2.inbound().sender().pubkey().c_str(), 
+                           PUB_KEY_LENGTH);
+                    memcpy(tt->inbound_transfer.receiver.user, 
+                           g2.inbound().receiver().c_str(), 
+                           PUB_KEY_LENGTH);
+                    tt->inbound_transfer.paired_transaction_id = 
+                        translate_Timestamp_from_pb(g2.inbound().
+                                                    paired_transaction_id());
+                    std::string group = g2.inbound().other_group();
+                    memcpy(tt->inbound_transfer.other_group, 
+                           group.c_str(), group.size());
+                } else if (g2.has_outbound()) {
+                    tt->transaction_type = (uint8_t)OUTBOUND_TRANSFER;
+                    tt->outbound_transfer.amount = g2.outbound().sender().
+                        amount();
+                    memcpy(tt->outbound_transfer.sender.user, 
+                           g2.outbound().sender().pubkey().c_str(), 
+                           PUB_KEY_LENGTH);
+                    memcpy(tt->outbound_transfer.receiver.user, 
+                           g2.outbound().receiver().c_str(), 
+                           PUB_KEY_LENGTH);
+                    tt->outbound_transfer.paired_transaction_id = 
+                        translate_Timestamp_from_pb(g2.outbound().
+                                                    paired_transaction_id());
+                    std::string group = g2.outbound().other_group();
+                    memcpy(tt->outbound_transfer.other_group, 
+                           group.c_str(), group.size());
+                }
+            }
+            tt->result == UNKNOWN;
+
+            std::string memo = tb.memo();
+            bool multipart_memo = false;
+            if (memo.size() > MEMO_MAIN_SIZE - 1) {
+                memcpy(tt->memo, memo.c_str(), MEMO_MAIN_SIZE);
+                multipart_memo = true;
+            } else 
+                memcpy(tt->memo, memo.c_str(), memo.size());
+
+            int sig_part_count = 
+                tt->signature_count <= SIGNATURES_IN_MAIN_PART ? 0 : 
+                ((int)((tt->signature_count - SIGNATURES_IN_MAIN_PART - 1) / 
+                       SIGNATURES_PER_RECORD) + 1);
+            tt->parts = 1 + (multipart_memo ? 1 : 0) + sig_part_count;
+
+            // parts
+            if (multipart_memo) {
+                std::string other_part = memo.substr(
+                                                     MEMO_MAIN_SIZE,
+                                                     MEMO_PART_SIZE - 1);
+                r0 = buff + buff_size;
+                buff_size++;
+
+                r0->record_type = (uint8_t)MEMO;
+                memcpy(r0->memo, other_part.c_str(), other_part.size());
+            }
+
+            int cs = SIGNATURES_IN_MAIN_PART;
+            for (int i = 0; i < sig_part_count; i++) {
+                r0 = buff + buff_size;
+                buff_size++;
+                r0->record_type = (uint8_t)SIGNATURES;
+                for (int j = 0; j < SIGNATURES_PER_RECORD; j++) {
+                    r0->signature[j] = translate_Signature_from_pb(gt.sig_map().sig_pair()[cs++]);
+                    if (cs == tt->signature_count)
+                        break;
+                }
+            }
+
+            memcpy(batch.buff, buff, sizeof(GradidoRecord) * buff_size);
+            batch.size = buff_size;
+        } catch (...) {
+            LOG("couldn't translate, resetting");
+            batch.reset_blockchain = true;
+        }
+    }
+
+    /*
     void TransactionUtils::translate_from_br(
                            const grpr::BlockRecord& br, 
                            HashedMultipartTransaction& hmt) {
@@ -274,13 +328,14 @@ namespace gradido {
         //     memcpy(hmt.rec + i, tp.hash().c_str(), BLOCKCHAIN_HASH_SIZE);
         // }
     }
+    */
 
     void TransactionUtils::check_structure(
                            const ConsensusTopicResponse& t) {
         
     }
 
-
+    /*
     void TransactionUtils::check_structure(
                            const MultipartTransaction& mt) {
         if (mt.rec_count == 0)
@@ -512,7 +567,7 @@ namespace gradido {
 
         t.set_message(gt_bytes);
     }
-
+    */
     void TransactionUtils::check_alias(const uint8_t* str) {
     }
     

@@ -96,23 +96,6 @@ std::string get_as_str(GradidoRecordType r) {
     }
 }
 
-void dump_transaction_in_json(const GradidoBlockRec& r, std::ostream& out) {
-    GradidoBlockchainType::RecordType rt = (GradidoBlockchainType::RecordType)r.type;
-    switch (rt) {
-    case GradidoBlockchainType::RecordType::EMPTY:
-        break;
-    case GradidoBlockchainType::RecordType::PAYLOAD:
-        dump_transaction_in_json(r.payload, out);
-        break;
-    case GradidoBlockchainType::RecordType::CHECKSUM: {
-        char buff[BLOCKCHAIN_CHECKSUM_SIZE * 2 + 1];
-        dump_in_hex((char*)r.checksum, buff, BLOCKCHAIN_CHECKSUM_SIZE);
-        out << "\"" << std::string(buff) << "\"";
-        break;
-    }
-    }
-}
-
 void dump_transaction_in_json(const GradidoRecord& t, std::ostream& out) {
 
     std::string record_type = get_as_str((GradidoRecordType)t.record_type);
@@ -347,5 +330,57 @@ void dump_transaction_in_json(const GradidoRecord& t, std::ostream& out) {
     out << "}" << std::endl;
 }
 
+bool ends_with(std::string const & value, std::string const & ending) {
+    if (ending.size() > value.size()) return false;
+    return std::equal(ending.rbegin(), ending.rend(), value.rbegin());
+}
+
+    
+void dump_transaction_in_json(const GroupRegisterRecord& t, std::ostream& out) {
+    const GroupRecord& u = t.group_record;
+    char buff[1024];
+
+    out << "{" << std::endl;
+
+    std::string alias((char*)u.alias);
+    out << "    \"alias\": \"" << alias << "\","<< std::endl;
+    out << "    \"topic_id\": {" << std::endl;
+    {
+        out << "        \"shardNum\": " << u.topic_id.shardNum << "," << std::endl;
+        out << "        \"realmNum\": " << u.topic_id.realmNum << "," << std::endl;
+        out << "        \"topicNum\": " << u.topic_id.topicNum << std::endl;
+    }
+    out << "    }," << std::endl;
+    out << "    \"success\": " << u.success << "," << std::endl;
+
+    out << "    \"hedera_transaction\": {" << std::endl;
+    {
+        char buff[1024];
+        dump_in_hex((char*)u.hedera_transaction.runningHash, buff, 48);
+        std::string running_hash(buff);
+        out << "      \"consensusTimestamp\": {" << std::endl
+            << "        \"seconds\": " << u.hedera_transaction.consensusTimestamp.seconds << ", " << std::endl
+            << "        \"nanos\": " << u.hedera_transaction.consensusTimestamp.nanos  << std::endl
+            << "      }," << std::endl
+            << "      \"runningHash\": \"" << running_hash << "\", " << std::endl
+            << "      \"sequenceNumber\": " << u.hedera_transaction.sequenceNumber << ", " << std::endl
+            << "      \"runningHashVersion\": " << u.hedera_transaction.runningHashVersion << std::endl;
+    }
+    out << "    }," << std::endl;
+
+    dump_in_hex((char*)u.signature.pubkey, buff, PUB_KEY_LENGTH);
+    std::string sig_pubkey(buff);
+
+    dump_in_hex((char*)u.signature.signature, buff, SIGNATURE_LENGTH);
+    std::string sig_sig(buff);
+
+    out << "    \"signature\": {" << std::endl;
+    out << "      \"pubkey\": \"" << sig_pubkey << "\", " << std::endl;
+    out << "      \"signature\": \"" << sig_sig << "\"" << std::endl;
+    out << "    }, " << std::endl;
+
+    out << "}" << std::endl;
+    
+}
 
 }

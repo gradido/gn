@@ -68,10 +68,8 @@ TEST(GradidoSystem, delay_task) {
 TEST(GradidoSystem, smoke) {
 
     // checking if group contents is properly fetched from another node
-    
     prepare_system_folders(NODE_0_FOLDER, 13000, 
                            std::vector<std::string>());
-
     GradidoFacade gf0;
     {    
         std::vector<std::string> params;
@@ -79,13 +77,11 @@ TEST(GradidoSystem, smoke) {
         params.push_back(std::string(NODE_0_FOLDER) + "/gradido.conf");
         gf0.init(params);
     }
-
     HederaTopicID tid;
     tid.shardNum = 0;
     tid.realmNum = 0;
     tid.topicNum = 79606;
     gf0.get_group_register()->add_record("some-group", tid);
-
     sleep(1);
 
     std::vector<std::string> siblings1;
@@ -98,9 +94,8 @@ TEST(GradidoSystem, smoke) {
         params.push_back(std::string(NODE_1_FOLDER) + "/gradido.conf");
         gf1.init(params);
     }
-
     sleep(1);
-    /*
+
     auto gr = gf1.get_group_register();
     ASSERT_EQ(gr->get_transaction_count(), 1);
     std::vector<GroupInfo> gis = gr->get_groups();
@@ -117,7 +112,8 @@ TEST(GradidoSystem, smoke) {
     ASSERT_EQ(tid.shardNum, gii.topic_id.shardNum);
     ASSERT_EQ(tid.realmNum, gii.topic_id.realmNum);
     ASSERT_EQ(tid.topicNum, gii.topic_id.topicNum);
-    */
+    LOG("group data exchange complete");
+
 }
 
 
