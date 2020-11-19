@@ -54,7 +54,7 @@ class BlockchainGradido :
 
     std::map<std::string, UserInfo> user_index;
     std::map<std::string, FriendGroupInfo> friend_group_index;
-    std::map<HederaTimestamp, Transaction> outbound_transactions;
+    std::map<HederaTimestamp, uint64_t> outbound_transactions;
 
     std::string other_group;
     HederaTimestamp paired_transaction;
@@ -71,6 +71,7 @@ class BlockchainGradido :
     virtual bool get_paired_transaction(HederaTimestamp hti, 
                                         uint64_t& seq_num);
     virtual bool get_transaction(uint64_t seq_num, Transaction& t);
+    virtual std::vector<std::string> get_users();
 
 };
  

@@ -42,9 +42,23 @@
 
 namespace gradido {
 
+// TODO: consider moving utility things away
+
 #define SAFE_PT(expr) if (expr != 0) throw std::runtime_error("couldn't " #expr)
 
 #define BLOCKCHAIN_HASH_SIZE 32
+
+template<typename T>
+T max(T a, T b) {
+    return a > b ? a : b;
+}
+
+template<typename T>
+T min(T a, T b) {
+    return a < b ? a : b;
+}
+
+
 
 std::string get_time();
 extern pthread_mutex_t gradido_logger_lock;
@@ -118,6 +132,38 @@ struct GroupInfo {
         return ss.str();
     }
 
+    static GroupInfo create(std::string alias, 
+                            uint32_t shard_num,
+                            uint32_t realm_num,
+                            uint32_t topic_num) {
+        HederaTopicID tid;
+        tid.shardNum = shard_num;
+        tid.realmNum = realm_num;
+        tid.topicNum = topic_num;
+        return create(alias, tid);
+    }
+
+    static GroupInfo create(std::string alias, 
+                            HederaTopicID topic_id) {
+        GroupInfo gi;
+        gi.topic_id = topic_id;
+
+        memset(gi.alias, 0, GROUP_ALIAS_LENGTH);
+        strncpy(gi.alias, alias.c_str(), min((size_t)GROUP_ALIAS_LENGTH, 
+                                             alias.size()));
+        return gi;
+    }
+
+    static std::string get_directory_name(std::string alias, 
+                                          HederaTopicID topic_id) {
+        GroupInfo gi;
+        gi.topic_id = topic_id;
+        memset(gi.alias, 0, GROUP_ALIAS_LENGTH);
+        strncpy(gi.alias, alias.c_str(), min((size_t)GROUP_ALIAS_LENGTH, 
+                                             alias.size()));
+        return gi.get_directory_name();
+    }
+
     bool operator<(const GroupInfo& gi) const {
         return strncmp(alias, gi.alias, GROUP_ALIAS_LENGTH);
     }
@@ -129,6 +175,8 @@ public:
     virtual bool get_paired_transaction(HederaTimestamp hti, 
                                         uint64_t& seq_num) = 0;
     virtual bool get_transaction(uint64_t seq_num, Transaction& t) = 0;
+
+    virtual std::vector<std::string> get_users() = 0;
     /*
     virtual void add_transaction(const MultipartTransaction& tr) = 0;
     virtual void add_transaction(const HashedMultipartTransaction& tr) = 0;
@@ -140,6 +188,7 @@ class IGroupRegisterBlockchain :
 public:
 
     virtual void add_transaction(GroupRegisterRecordBatch rec) = 0;
+    virtual bool get_topic_id(std::string alias, HederaTopicID& res) = 0;
 
     // just for debugging purposes
     virtual void add_record(std::string alias, HederaTopicID tid) = 0;
@@ -326,9 +375,6 @@ class IGradidoFacade {
 
     // available after init(), always
     virtual IGradidoConfig* get_conf() = 0;
-
-    virtual bool add_group(GroupInfo gi) = 0;
-    virtual bool remove_group(std::string group) = 0;
 
     // available after init(), always
     virtual ICommunicationLayer* get_communications() = 0;

@@ -2,7 +2,7 @@ import yaml, requests, json, sys, random, time, copy, datetime, traceback, re, o
 from pukala import grow, ContextBase, PukalaGrowException, Path, PukalaPathException, FCall
 sys.path.append("./hedera/proto_gen")
 from hedera.hedera_context import HederaContext
-from gradido.gradido_context import GradidoContext
+from gradido2.gradido_context import GradidoContext
 from webapp_demo.webapp_demo_context import WebappDemo, WebappDemoFull
 
 # avoiding unicode mentions in output yaml

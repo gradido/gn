@@ -109,6 +109,8 @@ scraps:
     gradido-create-group-message-body:
       _type: AddGroupToRegister
       _use_with: SerializeToString
+      topic_id: 
+        _type: TopicID
     gradido-transfer-message-body:
       _type: GradidoTransaction
       _use_with: SerializeToString
@@ -843,6 +845,12 @@ scraps:
     canberra:
       - instance: webapp-demo-full
         messages:
+          manage-group-message:
+            _class: GradidoNodeServiceStub
+            _method: manage_group
+            _arg:
+              request:
+                _type: ManageGroupRequest
           hedera-message:
             _class: ConsensusServiceStub
             _method: submitMessage

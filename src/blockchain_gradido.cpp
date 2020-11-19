@@ -19,6 +19,7 @@ namespace gradido {
             StorageType::Record* block = storage.get_block(i, ec);
             for (uint32_t j = 0; j < GRADIDO_BLOCK_SIZE; j++) {
                 StorageType::Record* rec = block + j;
+                uint64_t rec_num = (uint64_t)i * (uint64_t)GRADIDO_BLOCK_SIZE + (uint64_t)j;
 
                 if (rec->type == StorageType::RecordType::CHECKSUM)
                     break;
@@ -71,7 +72,7 @@ namespace gradido {
                                                        (char*)tr.move_user_outbound.user, 
                                                        PUB_KEY_LENGTH);
                         user_index.erase(user);
-                        outbound_transactions.insert({tr.move_user_outbound.paired_transaction_id, tr});
+                        outbound_transactions.insert({tr.move_user_outbound.paired_transaction_id, rec_num});
 
                         break;
                     }
@@ -109,7 +110,7 @@ namespace gradido {
                                                            PUB_KEY_LENGTH);
                             auto urec = user_index.find(user);
                             urec->second.current_balance = tr.outbound_transfer.sender.new_balance;
-                            outbound_transactions.insert({tr.outbound_transfer.paired_transaction_id, tr});
+                            outbound_transactions.insert({tr.outbound_transfer.paired_transaction_id, rec_num});
                         }
                         break;
                     }
@@ -292,7 +293,7 @@ namespace gradido {
             break;
         }
         case MOVE_USER_OUTBOUND: {
-            outbound_transactions.insert({tr.move_user_outbound.paired_transaction_id, tr});
+            outbound_transactions.insert({tr.move_user_outbound.paired_transaction_id, storage.get_rec_count() - 1});
             std::string user = std::string(
                                (char*)tr.move_user_outbound.user, 
                                PUB_KEY_LENGTH);
@@ -302,7 +303,6 @@ namespace gradido {
             } else {
                 tr.result = SUCCESS;
                 user_index.erase(user);
-                outbound_transactions.insert({tr.move_user_outbound.paired_transaction_id, tr});
 
             }
             break;
@@ -386,14 +386,15 @@ namespace gradido {
                     return false;
                 } else {
                     uint64_t pt_seq_num;
-                    bool zz;
+                    bool zz = false;
                     if (found) {
                         zz = true;
                         tt = paired_tr;
                     } else {
                         zz = b->get_paired_transaction(
                              lt.paired_transaction_id, pt_seq_num);
-                        zz = b->get_transaction(pt_seq_num, tt);
+                        if (zz)
+                            zz = b->get_transaction(pt_seq_num, tt);
                     }
                     if (!zz) {
                         prepare_rec_cannot_proceed = true;
@@ -429,7 +430,9 @@ namespace gradido {
             break;
         }
         case OUTBOUND_TRANSFER: {
-            outbound_transactions.insert({tr.outbound_transfer.paired_transaction_id, tr});
+            std::cerr << name << " + insert + " << storage.get_rec_count() << std::endl;
+            outbound_transactions.insert({tr.outbound_transfer.paired_transaction_id, storage.get_rec_count() - 1});
+
             OutboundTransfer& lt = tr.outbound_transfer;
             std::string sender = std::string(
                                (char*)lt.sender.user, 
@@ -456,7 +459,6 @@ namespace gradido {
                                                    PUB_KEY_LENGTH);
                     auto urec = user_index.find(user);
                     urec->second.current_balance = tr.outbound_transfer.sender.new_balance;
-                    outbound_transactions.insert({tr.outbound_transfer.paired_transaction_id, tr});
                 }
             }
             break;
@@ -473,13 +475,22 @@ namespace gradido {
 
     bool BlockchainGradido::get_paired_transaction(HederaTimestamp hti, 
                                                    uint64_t& seq_num) {
-        MLock lock(main_lock);
+        //TODO: make reentrant
+        //MLock lock(main_lock);
+
+        std::cerr << name << " fetch " << std::endl;
+        for (auto i : outbound_transactions) {
+            std::cerr << i.first.seconds << "; " << i.first.nanos << std::endl;
+        }
 
         auto pt = outbound_transactions.find(hti);
         if (pt == outbound_transactions.end()) 
             return false;
-        Transaction t = pt->second;
-        seq_num = t.hedera_transaction.sequenceNumber;
+
+        seq_num = pt->second;
+
+        std::cerr << name << " fetch2 " << seq_num << std::endl;
+
         return true;
     }
 
@@ -494,6 +505,9 @@ namespace gradido {
 
     bool BlockchainGradido::get_transaction(uint64_t seq_num, 
                                             Transaction& t) {
+
+        std::cerr << name << " pull " << seq_num << "; " << storage.get_rec_count() << std::endl;
+
         if (seq_num >= storage.get_rec_count())
             return false;
         StorageType::ExitCode ec;
@@ -502,6 +516,13 @@ namespace gradido {
         return true;
     }
 
+    std::vector<std::string> BlockchainGradido::get_users() {
+        MLock lock(main_lock);
+        std::vector<std::string> res;
+        for (auto i : user_index)
+            res.push_back(i.first);
+        return res;
+    }
 
 
 }

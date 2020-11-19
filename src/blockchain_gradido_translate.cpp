@@ -117,10 +117,13 @@ namespace gradido {
             r0->record_type = (uint8_t)GROUP_RECORD;
             GroupRecord* tt = &r0->group_record;
 
-            grpr::GradidoTransaction gt;
-            gt.ParseFromString(t.message());
             grpr::AddGroupToRegister tb;
-            tb.ParseFromString(gt.body_bytes());
+            tb.ParseFromString(t.message());
+
+            if (tb.reset_group_register()) {
+                batch.reset_blockchain = true;
+                return;
+            }
 
             // TODO: check overflow
             strcpy((char*)tt->alias, tb.alias().c_str());
@@ -131,9 +134,9 @@ namespace gradido {
             tt->hedera_transaction = translate_HederaTransaction_from_pb(t);
             // TODO: finish here
             //tt->signature = translate_Signature_from_pb();
-            
-            memcpy(batch.buff, buff, sizeof(GroupRegisterRecord) * buff_size);
+            batch.buff = new GroupRegisterRecord[1];
             batch.size = buff_size;
+            memcpy(batch.buff, buff, sizeof(GroupRegisterRecord) * buff_size);
         } catch (...) {
             LOG("couldn't translate, resetting");
             batch.reset_blockchain = true;
@@ -176,7 +179,10 @@ namespace gradido {
             tt->signature = translate_Signature_from_pb(gt.sig_map().sig_pair()[0]);
         
             tt->hedera_transaction = translate_HederaTransaction_from_pb(t);
-            if (tb.has_creation()) {
+            if (tb.has_debug_reset_blockchain_mark()) {
+                batch.reset_blockchain = true;
+                return;
+            } else if (tb.has_creation()) {
                 tt->transaction_type = (uint8_t)GRADIDO_CREATION;
                 tt->gradido_creation.amount = 
                     tb.creation().receiver().amount();
@@ -306,8 +312,9 @@ namespace gradido {
                 }
             }
 
-            memcpy(batch.buff, buff, sizeof(GradidoRecord) * buff_size);
+            batch.buff = new GradidoRecord[buff_size];
             batch.size = buff_size;
+            memcpy(batch.buff, buff, sizeof(GradidoRecord) * buff_size);
         } catch (...) {
             LOG("couldn't translate, resetting");
             batch.reset_blockchain = true;

@@ -67,7 +67,8 @@ namespace gradido {
         memset(&rec0, 0, sizeof(GroupRecord));
         strcpy((char*)rec0.alias, (char*)alias.c_str());
         rec0.topic_id = tid;
-        rec0.success = aliases.find(alias) == aliases.end();
+        rec0.success = alias.size() > 0 && 
+            aliases.find(alias) == aliases.end();
         if (rec0.success)
             aliases.insert({alias, rec0});
         StorageType::ExitCode ec;
@@ -82,11 +83,15 @@ namespace gradido {
 
             for (uint32_t i = 0; i < storage.get_block_count(); i++) {
                 StorageType::Record* block = storage.get_block(i, ec);
+
                 for (uint32_t j = 0; j < GRADIDO_BLOCK_SIZE; j++) {
                     StorageType::Record* rec = block + j;
+
                     if (rec->type == StorageType::RecordType::CHECKSUM)
                         break;
+
                     GroupRegisterRecord* pp = &rec->payload;
+
                     if (pp->record_type == 
                         GroupRegisterRecordType::GROUP_RECORD && 
                         pp->group_record.success) {
@@ -111,12 +116,18 @@ namespace gradido {
 
     bool GroupRegister::calc_fields_and_update_indexes_for(
                         Batch<GroupRegisterRecord>& b) {
+        
         // TODO: structurally bad message
         GroupRecord& rec = b.buff[0].group_record;
+        // TODO: check bad characters
+
         std::string alias((char*)rec.alias, 
                           GROUP_ALIAS_LENGTH);
-        bool succ = aliases.find(alias) == aliases.end();
+
+        bool succ = alias.size() > 0 && 
+            aliases.find(alias) == aliases.end();
         rec.success = succ;
+
         if (succ) 
             aliases.insert({alias, rec});
         return true;
@@ -127,12 +138,28 @@ namespace gradido {
     }
 
     void GroupRegister::on_blockchain_ready() {
+        StorageType::ExitCode ec;
+
         if (first_good_validation) {
             first_good_validation = false;
             gf->push_task(new ContinueFacadeInit(gf));
         }
     }
 
+    bool GroupRegister::get_topic_id(std::string alias,
+                                     HederaTopicID& res) {
+
+        // TODO: optimize
+        std::vector<GroupInfo> zz = get_groups();
+        for (auto i : zz) {
+            std::string aa(i.alias);
+            if (aa.compare(alias) == 0) {
+                res = i.topic_id;
+                return true;
+            }
+        }
+        return false;
+    }
     
 }
 

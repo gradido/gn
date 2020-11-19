@@ -96,6 +96,17 @@ std::string get_as_str(GradidoRecordType r) {
     }
 }
 
+std::string get_as_str(GroupRegisterRecordType r) {
+    switch (r) {
+    case GROUP_RECORD:
+        return "GROUP_RECORD";
+    case GR_STRUCTURALLY_BAD_MESSAGE:
+        return "GR_STRUCTURALLY_BAD_MESSAGE";
+    case GR_RAW_MESSAGE:
+        return "GR_RAW_MESSAGE";
+    }
+}
+
 void dump_transaction_in_json(const GradidoRecord& t, std::ostream& out) {
 
     std::string record_type = get_as_str((GradidoRecordType)t.record_type);
@@ -242,7 +253,7 @@ void dump_transaction_in_json(const GradidoRecord& t, std::ostream& out) {
 
             out << "    \"inbound_transfer\": {" << std::endl;
             out << "      \"sender\": {" << std::endl;
-            out << "        \"user\": \"" << sender << std::endl;
+            out << "        \"user\": \"" << sender << "\"" << std::endl;
             out << "      }," << std::endl;
             out << "      \"receiver\": {" << std::endl;
             out << "        \"user\": \"" << receiver << "\", " << std::endl;
@@ -269,7 +280,7 @@ void dump_transaction_in_json(const GradidoRecord& t, std::ostream& out) {
             out << "        \"prev_transfer_rec_num\": " << tt.sender.prev_transfer_rec_num << std::endl;
             out << "      }," << std::endl;
             out << "      \"receiver\": {" << std::endl;
-            out << "        \"user\": \"" << receiver << std::endl;
+            out << "        \"user\": \"" << receiver << "\"" << std::endl;
             out << "      }," << std::endl;
             out << "      \"amount\": " << tt.amount << std::endl;
             out << "    }," << std::endl;
@@ -342,6 +353,9 @@ void dump_transaction_in_json(const GroupRegisterRecord& t, std::ostream& out) {
 
     out << "{" << std::endl;
 
+    // TODO: raw message + structurally bad message
+    out << "    \"record_type\": \"" << get_as_str((GroupRegisterRecordType)t.record_type) << "\","<< std::endl;
+
     std::string alias((char*)u.alias);
     out << "    \"alias\": \"" << alias << "\","<< std::endl;
     out << "    \"topic_id\": {" << std::endl;
@@ -377,7 +391,7 @@ void dump_transaction_in_json(const GroupRegisterRecord& t, std::ostream& out) {
     out << "    \"signature\": {" << std::endl;
     out << "      \"pubkey\": \"" << sig_pubkey << "\", " << std::endl;
     out << "      \"signature\": \"" << sig_sig << "\"" << std::endl;
-    out << "    }, " << std::endl;
+    out << "    } " << std::endl;
 
     out << "}" << std::endl;
     

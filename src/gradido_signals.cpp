@@ -49,6 +49,7 @@ namespace gradido {
             if (gs->shutdown)
                 break;
             if (gs->last_signal != -1) {
+                LOG("reloading config");
                 gs->last_signal = 0;
                 gs->facade->push_task(new ReloadConfigTask(gs->facade));
             }

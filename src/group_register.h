@@ -51,6 +51,8 @@ public:
                   IGradidoFacade* gf,
                   HederaTopicID topic_id);
 
+    virtual bool get_topic_id(std::string alias, HederaTopicID& res);
+
     virtual void add_record(std::string alias, HederaTopicID tid);
     virtual std::vector<GroupInfo> get_groups();
 };

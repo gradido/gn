@@ -67,6 +67,18 @@ namespace gradido {
         }
     };
 
+    class StartBlockchainTask : public ITask {
+    private:
+        IGradidoFacade* gf;
+        GroupInfo gi;
+    public:
+        StartBlockchainTask(IGradidoFacade* gf, GroupInfo gi) : gf(gf), 
+            gi(gi) {}
+        virtual void run() {
+            gf->create_group_blockchain(gi);
+        }
+    };
+
     ///////////////////////////// rpc handlers
 
     class BlockProvider : public ITask {
@@ -203,6 +215,89 @@ namespace gradido {
         }
     };
 
+    class ManageGroupProvider : public ITask {
+    private:
+        IGradidoFacade* gf;
+        grpr::ManageGroupRequest* req;
+        grpr::ManageGroupResponse* reply;
+        ICommunicationLayer::HandlerCb* cb;
+
+    public:
+        ManageGroupProvider(IGradidoFacade* gf,
+                            grpr::ManageGroupRequest* req,
+                            grpr::ManageGroupResponse* reply, 
+                            ICommunicationLayer::HandlerCb* cb) : 
+        gf(gf), req(req), reply(reply), cb(cb) {}
+
+        virtual void run() {
+            if (cb->get_writes_done() > 0)
+                reply->set_success(false);
+            else {
+                reply->set_success(true);
+
+                // TODO: remove group
+                // TODO: consider race conditions
+
+                IGroupRegisterBlockchain* gr = gf->get_group_register();
+
+                HederaTopicID topic_id;
+                if (!gr->get_topic_id(req->group(), topic_id))
+                    reply->set_success(false);
+                else {
+                    reply->set_success(true);
+
+                    GroupInfo gi = GroupInfo::create(req->group(), 
+                                                     topic_id);
+
+                    gf->create_group_blockchain(gi);
+                }
+            }
+            cb->write_ready();
+        }
+    };
+
+    class UsersProvider : public ITask {
+    private:
+        IGradidoFacade* gf;
+        grpr::GroupDescriptor* req;
+        grpr::UserData* reply;
+        ICommunicationLayer::HandlerCb* cb;
+
+        class UsersProviderContext : 
+            public ICommunicationLayer::HandlerContext {
+        public:
+            std::vector<std::string> users;
+        };
+
+    public:
+        UsersProvider(IGradidoFacade* gf,
+                            grpr::GroupDescriptor* req,
+                            grpr::UserData* reply, 
+                            ICommunicationLayer::HandlerCb* cb) : 
+        gf(gf), req(req), reply(reply), cb(cb) {
+            if (!cb->get_ctx()) {
+                IBlockchain* ab = gf->get_group_blockchain(req->group());
+                if (ab) {
+                    UsersProviderContext* ctx = new UsersProviderContext();
+                    ctx->users = ab->get_users();
+                    cb->set_ctx(ctx);
+                }
+            }
+        }
+
+        virtual void run() {
+            UsersProviderContext* ctx = (UsersProviderContext*)cb->get_ctx();
+
+            if (!ctx || cb->get_writes_done() >= ctx->users.size())
+                reply->set_success(false);
+            else {
+                reply->set_pubkey(ctx->users.at(cb->get_writes_done()));
+                reply->set_success(true);
+            }
+            cb->write_ready();
+        }
+    };
+
     ///////////////////////////// abstract blockchain
 
     template<typename T>
@@ -246,6 +341,21 @@ namespace gradido {
             b->continue_validation();
         }
     };
+
+    ///////////////////////////// group blockchains
+    class InitGroupBlockchain : public ITask {
+    private:
+        IGradidoFacade* gf;
+        IBlockchain* b;
+    public:
+        InitGroupBlockchain(IGradidoFacade* gf, 
+                            IBlockchain* b) : gf(gf), b(b) {}
+        virtual void run() {
+            b->init();
+            gf->push_task(new ContinueValidationTask<GradidoRecord>(b));
+        }
+    };
+
 
     ///////////////////////////// group register
 

@@ -354,7 +354,6 @@ public:
                 ec = WRITE_ERROR;
                 return false;
             } else {
-                rec_count++;
                 if (!t.write(&cr, block_pos, false)) {
                     ec = WRITE_ERROR;
                     return false;
@@ -495,6 +494,10 @@ public:
 
         Record* res = 0;
         Tile t = tiles.get_tile(index);
+
+        // TODO: remove
+        ;; t.sync_from_file(true);
+
 
         res = t.get_tile_data();
 

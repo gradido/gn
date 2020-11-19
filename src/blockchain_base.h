@@ -124,9 +124,15 @@ class BlockchainBase : public Parent,
     std::string data_storage_root;
     StorageType storage;
 
-    std::string ensure_storage_root(const Poco::Path& sr) {
+    static std::string ensure_blockchain_folder(const Poco::Path& sr,
+                                                std::string name,
+                                                HederaTopicID topic_id) {
         Poco::Path p0(sr);
-        p0.append(name);
+        std::string blockchain_folder = GroupInfo::get_directory_name(
+                                        name,
+                                        topic_id);
+        p0.append(blockchain_folder);
+
         Poco::File srf(p0.absolute());
         if (!srf.exists())
             srf.createDirectories();
@@ -186,7 +192,8 @@ class BlockchainBase : public Parent,
             }
         }
     }
-
+    
+    // TODO: remove
     uint64_t indexed_blocks;
 
 
@@ -211,14 +218,20 @@ class BlockchainBase : public Parent,
     virtual void on_blockchain_ready() {}
 
  public:
+    // name: name of blockchain (for example, group-register)
+    // root_folder: where blockchain data folder will be created
+    // topic_id: each blockchain has exactly one associated
     BlockchainBase(std::string name,
                 Poco::Path root_folder,
                 IGradidoFacade* gf,
                 HederaTopicID topic_id) :
     state(INITIAL), gf(gf), name(name),
         topic_id(topic_id),
-        data_storage_root(ensure_storage_root(root_folder)),
+        data_storage_root(ensure_blockchain_folder(root_folder, name, 
+                                                   topic_id)),
         storage(name, data_storage_root, 100, 100, *((Child*)this)),
+        fetched_record_count(0), block_to_fetch(0), 
+        fetched_data_count(0), indexed_blocks(0),  
         batch_size(gf->get_conf()->
                    get_blockchain_append_batch_size()),
         topic_reset_allowed(gf->get_conf()->is_topic_reset_allowed()) {
@@ -240,7 +253,13 @@ class BlockchainBase : public Parent,
 
         switch (state) {
         case INITIAL: {
-            if (gf->get_random_sibling_endpoint(fetch_endpoint)) {
+            if (storage.get_block_count() > 0) {
+                LOG(name + " blockchain validating existing data");
+                state = VALIDATING;
+                clear_indexes();
+                indexed_blocks = 0;
+                gf->push_task(new ContinueValidationTask<T>(this));
+            } else if (gf->get_random_sibling_endpoint(fetch_endpoint)) {
                 state = FETCHING_CHECKSUMS;
                 LOG(name + " blockchain fetches checksums from " + 
                     fetch_endpoint);
@@ -252,11 +271,10 @@ class BlockchainBase : public Parent,
                 gf->get_communications()->require_block_checksums(
                                           fetch_endpoint, gd, this);
             } else {
-                LOG(name + " blockchain cannot get sibling endpoint");
-                state = VALIDATING;
-                clear_indexes();
-                indexed_blocks = 0;
-                gf->push_task(new ContinueValidationTask<T>(this));
+                LOG(name + " blockchain cannot get sibling endpoint, starting blank");
+                state = READY;
+                on_blockchain_ready();
+                gf->push_task(new ContinueTransactionsTask<T>(this));
             }
             break;
         }
@@ -291,6 +309,7 @@ class BlockchainBase : public Parent,
                 clear_indexes();
                 if (batch.buff)
                     delete [] batch.buff;
+                LOG(name + " blockchain reset done");
             } else {
                 if (batch.size < 1 || !batch.buff)
                     throw std::runtime_error("empty batch");

@@ -251,7 +251,8 @@ service GradidoNodeService {
     rpc subscribe_to_block_checksums (GroupDescriptor) returns (stream BlockChecksum);
     // having stream as response for simplicity; should be non-stream; on
     // the other hand, stream with just one message of success=0 means
-    // "no data", which is useful with protobuf
+    // "no data", which is useful with protobuf (stream should always 
+    // end with success=0; last message contents is disregarded) 
     rpc manage_group (ManageGroupRequest) returns (stream ManageGroupResponse);
     rpc manage_node_network (ManageNodeNetwork) returns (stream ManageNodeNetworkResponse);
     rpc get_outbound_transaction (OutboundTransactionDescriptor) returns (stream OutboundTransaction);

@@ -36,14 +36,22 @@ from proto_gen.gradido.gradido_pb2 import GradidoCreation
 from proto_gen.gradido.gradido_pb2 import TransactionBody as gradido_TransactionBody
 from proto_gen.gradido.gradido_pb2 import ManageGroupRequest
 from proto_gen.gradido.gradido_pb2 import ManageGroupResponse
-from proto_gen.gradido.gradido_pb2 import BlockRangeDescriptor
-from proto_gen.gradido.gradido_pb2 import TransactionPart
+from proto_gen.gradido.gradido_pb2 import BlockDescriptor
+from proto_gen.gradido.gradido_pb2 import GroupDescriptor
 from proto_gen.gradido.gradido_pb2 import BlockRecord
 from proto_gen.gradido.gradido_pb2 import ManageNodeNetwork
 from proto_gen.gradido.gradido_pb2 import ManageNodeNetworkResponse
 from proto_gen.gradido.gradido_pb2 import GradidoTransaction
 from proto_gen.gradido.gradido_pb2 import DebugResetBlockchainMark
 from proto_gen.gradido.gradido_pb2 import AddGroupToRegister
+
+from proto_gen.gradido.gradido_pb2 import ManageNodeNetwork
+
+sys.path.insert(0, "hedera/proto_gen")
+from gradido.gradido_pb2_grpc import GradidoNodeServiceStub
+
+
+
 
 
 # TODO: remove
@@ -214,6 +222,35 @@ class HederaContext(object):
         # should extract data explicitly with _output: field_name: method_to_call
         return [self.extract_response(i) for i in res]
 
+    def do_grpc_calls(self, context):
+        ii = context.path.as_arr()[1]
+        endpoint = context.args[0]
+        if len(context.args) > 1:
+            inp = context.args[1]
+        else:
+            inst = context.doc["steps"][ii]
+            inp = copy.deepcopy(inst["input"]["val"])
+
+        res = []
+
+        with grpc.insecure_channel(endpoint) as channel:
+            for i in inp:
+                stub = globals()[i["_class"]](channel)
+                method = i["_method"]
+                arg = i["_arg"]
+
+                j = 0
+                while not self.transform_into_grpc(arg, j) and j < 100:
+                    j += 1
+                if j == 100:
+                    raise Exception("pass limit exceeded at step %d" % ii)
+                kw = {}
+                self.gather_kw(arg, kw)
+                print "8988988989898  ", arg, kw, stub, method, endpoint
+                res.append(getattr(stub, method)(**kw))
+        # should extract data explicitly with _output: field_name: method_to_call
+        return res
+
     def is_simulated_hedera_started(self, context):
         return self.simulated_hedera_started
 
@@ -240,4 +277,28 @@ class HederaContext(object):
         return {
             "stderr": lines
         }
+
+    def attach_group(self, endpoint, action, group):
+        with grpc.insecure_channel(endpoint) as channel:
+            stub = GradidoNodeServiceStub(channel)
+            req = ManageGroupRequest(action=action, group=group)
+            tre = stub.manage_group(request=req)
+            time.sleep(2) # important
+            return tre
+
+    def rpc_get_users(self, endpoint, group):
+        with grpc.insecure_channel(endpoint) as channel:
+            stub = GradidoNodeServiceStub(channel)
+            req = GroupDescriptor(group=group)
+            res = []
+            for i in stub.get_users(request=req):
+                if i.success:
+                    res.append(i.pubkey)
+                else: 
+                    break
+            return res
+
+
+        
+
             

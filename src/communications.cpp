@@ -206,12 +206,8 @@ namespace gradido {
             status_ = PROCESS;
             finish_create();
         } else if (status_ == PROCESS) {
-            // Now that we go through this stage multiple times, 
-            // we don't want to create a new instance every time.
-            // Refer to gRPC's original example if you don't understand 
-            // why we create a new instance of CallData here.
             if (first_call) {
-                first_call = true;
+                first_call = false;
                 add_clone_to_cq();
             }
             if (!do_process())

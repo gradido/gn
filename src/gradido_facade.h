@@ -101,8 +101,6 @@ class GradidoFacade : public IGradidoFacade,
     virtual void push_task(ITask* task, uint32_t after_seconds);
 
     virtual IGradidoConfig* get_conf();
-    virtual bool add_group(GroupInfo gi);
-    virtual bool remove_group(std::string group);
     virtual ICommunicationLayer* get_communications();
     virtual void exit(int ret_val);
     virtual void reload_config();

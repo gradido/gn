@@ -11,21 +11,6 @@
 namespace gradido {
 
 
-
-    class StartBlockchainTask : public ITask {
-    private:
-        IGradidoFacade* gf;
-        GroupInfo gi;
-    public:
-        StartBlockchainTask(IGradidoFacade* gf, GroupInfo gi) : 
-            gf(gf), gi(gi) {
-        }
-        virtual void run() {
-            IBlockchain* b = gf->create_group_blockchain(gi);
-            b->init();
-        }
-    };
-
     GradidoFacade::GradidoFacade() : worker_pool(this, "event-queue"),
                                      communication_layer(this), 
                                      group_register(0),
@@ -71,15 +56,15 @@ namespace gradido {
         auto ii = blockchains.find(alias);
         if (ii != blockchains.end()) {
             LOG("group already exists");
-            exit(1); // should not happen
+            return 0;
         }
         Poco::Path data_root(config.get_data_root_folder());
-        Poco::Path bp = data_root.append(gi.get_directory_name());
+        IBlockchain* b = new BlockchainGradido(alias, data_root,
+                                               this, gi.topic_id);
+        blockchains.insert({alias, b});
+        push_task(new InitGroupBlockchain(this, b));
 
-        //IBlockchain* b = new GradidoGroupBlockchain(gi, bp, this);
-        //blockchains.insert({alias, b});
-
-        IBlockchain* b = 0;
+        LOG("attached to blockchain " + alias);
         return b;
     }
 
@@ -108,33 +93,18 @@ namespace gradido {
     IGradidoConfig* GradidoFacade::get_conf() {
         return &config;
     }
-
-    bool GradidoFacade::add_group(GroupInfo gi) {
-        MLock lock(main_lock);
-        std::string alias(gi.alias);
-        if (get_group_blockchain(alias) != 0) {
-            LOG("group already exists");
-            return false;
-        }
-        ITask* task = new StartBlockchainTask(this, gi);
-        worker_pool.push(task);
-        return true;
-    }
-
-    bool GradidoFacade::remove_group(std::string group) {
-        // TODO: finish here
-        return false;
-    }
     
     ICommunicationLayer* GradidoFacade::get_communications() {
         return &communication_layer;
     }
 
     void GradidoFacade::exit(int ret_val) {
-        exit(ret_val);
+        // TODO: ret_val
+        raise(SIGTERM);
     }
 
     void GradidoFacade::reload_config() {
+        /* TODO: maybe not needed
         // following things are possible to alter for dynamic reload:
         // - adding new blockchain folder (removing not supported)
         // - updating sibling endpoint file (adding, removing lines)
@@ -152,6 +122,7 @@ namespace gradido {
                 worker_pool.push(task);
             }
         }
+        */
     }
 
     IGroupRegisterBlockchain* GradidoFacade::get_group_register() {
@@ -220,7 +191,7 @@ namespace gradido {
                         HederaTimestamp hti) {
         std::string se;
         if (!get_random_sibling_endpoint(se))
-            throw std::runtime_error("need sibling to get paired transaction");
+            throw std::runtime_error("need sibling to get paired transaction2");
         grpr::OutboundTransactionDescriptor otd;
         {
             MLock lock(main_lock);
@@ -268,15 +239,21 @@ namespace gradido {
 
     ITask* GradidoFacade::HandlerFactoryImpl::manage_group(grpr::ManageGroupRequest* req, 
                         grpr::ManageGroupResponse* reply, 
-                        ICommunicationLayer::HandlerCb* cb) { return 0; }
+                        ICommunicationLayer::HandlerCb* cb) { 
+        return new ManageGroupProvider(gf, req, reply, cb); 
+    }
+
     ITask* GradidoFacade::HandlerFactoryImpl::manage_node_network(
                                grpr::ManageNodeNetwork* req,
                                grpr::ManageNodeNetworkResponse* reply, 
                                ICommunicationLayer::HandlerCb* cb) { return 0; }
+
     ITask* GradidoFacade::HandlerFactoryImpl::get_outbound_transaction(
                                     grpr::OutboundTransactionDescriptor* req, 
                                     grpr::OutboundTransaction* reply, 
-                                    ICommunicationLayer::HandlerCb* cb) { return new OutboundProvider(gf, req, reply, cb); }
+                                    ICommunicationLayer::HandlerCb* cb) {
+        return new OutboundProvider(gf, req, reply, cb); 
+    }
 
     ITask* GradidoFacade::HandlerFactoryImpl::get_balance(grpr::UserDescriptor* req, 
                        grpr::UserBalance* reply, 
@@ -291,7 +268,9 @@ namespace gradido {
                             ICommunicationLayer::HandlerCb* cb) { return 0; }
     ITask* GradidoFacade::HandlerFactoryImpl::get_users(grpr::GroupDescriptor* req, 
                      grpr::UserData* reply, 
-                     ICommunicationLayer::HandlerCb* cb) { return 0; }
+                     ICommunicationLayer::HandlerCb* cb) { 
+        return new UsersProvider(gf, req, reply, cb); 
+    }
 
     IAbstractBlockchain* GradidoFacade::get_any_blockchain(
                                         std::string name) {
