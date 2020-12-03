@@ -1,5 +1,7 @@
 #include "JsonRPCHandler.h"
 
+#include "../blockchain_gradido.h"
+
 JsonRPCHandler::JsonRPCHandler(gradido::GradidoFacade* _gf)
 : gf(_gf)
 {
@@ -59,8 +61,13 @@ void JsonRPCHandler::getTransactions(const std::string& groupAlias, Poco::UInt64
             gradido_record.record_type = gradido::GRADIDO_TRANSACTION;
             gradido::GradidoBlockchainType::Record record;
 
+            auto gradido_blockchain = (gradido::BlockchainGradido*)blockchain;
+
             if(!blockchain->get_block_record(i, proto_record)) continue;
-            //if(!blockchain->get_transaction(i, gradido_record.transaction)) continue;
+
+            //int ex;
+            //auto record2 = gradido_blockchain->get_record(i, ex);
+            if(!blockchain->get_transaction(i, gradido_record.transaction)) continue;
             //memcpy((char*)&record, proto_record.record().data(), sizeof(gradido::GradidoBlockchainType::Record));
 
             //printf("record size: %d\n", proto_record.record().size());
@@ -87,35 +94,3 @@ void JsonRPCHandler::getTransactions(const std::string& groupAlias, Poco::UInt64
     }
 }
 
-/*
-void JsonRPCHandler::putTransaction(const std::string& transactionBinary, const std::string& groupPublicBinary, Json& response)
-{
-	Profiler timeUsed;
-	auto gm = GroupManager::getInstance();
-	auto groupBase58 = convertBinToBase58(groupPublicBinary);
-	auto group = gm->findGroup(groupBase58);
-	Poco::AutoPtr<model::Transaction> transaction(new model::Transaction(transactionBinary));
-	transaction->addBase58GroupHash(groupBase58);
-
-	if (transaction->errorCount() > 0) {
-		Json errorJson;
-		transaction->getErrors(errorJson);
-		response["errors"] = errorJson;
-		response["state"] = "error";
-		return;
-	}
-
-	if (!group->addTransaction(transaction)) {
-		response = { { "state", "error" },{ "msg", "error adding transaction" } };
-		Json errorJson;
-		transaction->getErrors(errorJson);
-		response["details"] = errorJson;
-		return;
-	}
-
-
-	//response = { { "state", "error" },{ "groupBase58", groupBase58 } };
-	response = { { "state", "success"}, {"timeUsed", timeUsed.string() } };
-
-}
-*/
