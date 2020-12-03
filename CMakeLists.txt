@@ -18,9 +18,10 @@ FILE(GLOB PROTOS "proto_gen/*.cc" "proto_gen/*.h")
 FILE(GLOB PROTOS_MIRROR "proto_gen/mirror/*.cc" "proto_gen/mirror/*.h")
 FILE(GLOB PROTOS_GRADIDO "proto_gen/gradido/*.cc" "proto_gen/gradido/*.h")
 FILE(GLOB UNITTEST_SRC "unittest/*.cpp" "unittest/*.h")
+FILE(GLOB JSONRPC "src/json_rpc/*.cpp" "src/json_rpc/*.h")
 
 
-add_executable(gradido_node ${LOCAL_SRC} ${PROTOS} ${PROTOS_MIRROR} ${PROTOS_GRADIDO} "src/gradido_node/main.cpp")
+add_executable(gradido_node ${LOCAL_SRC} ${PROTOS} ${PROTOS_MIRROR} ${PROTOS_GRADIDO} ${JSONRPC} "src/gradido_node/main.cpp")
 target_link_libraries(gradido_node -led25519 -lPocoNet -lPocoUtil -lPocoJSON -lPocoFoundation -lPocoData -lPocoNetSSL -lall -ldl -lpthread)
 
 add_executable(dump_blockchain "src/blockchain_gradido_def.h" "src/utils.h" "src/utils.cpp" "src/dump_blockchain/dump_blockchain.cpp")

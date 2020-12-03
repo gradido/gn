@@ -4,6 +4,11 @@
 #include <vector>
 #include "gradido_signals.h"
 
+#include "Poco/Net/ServerSocket.h"
+#include "Poco/Net/HTTPServer.h"
+#include "json_rpc/JsonRequestHandlerFactory.h"
+
+
 using namespace gradido;
 
 int main(int argc, char** argv) {
@@ -17,7 +22,14 @@ int main(int argc, char** argv) {
     try {
         LOG("starting gradido node");
         gf.init(params);
+        Poco::Net::ServerSocket jsonrpc_svs(13702);
+		Poco::Net::HTTPServer jsonrpc_srv(new JsonRequestHandlerFactory(&gf), jsonrpc_svs, new Poco::Net::HTTPServerParams);
+
+		// start the json server
+		jsonrpc_srv.start();
+
         gf.join();
+        jsonrpc_srv.stop();
     } catch (Poco::Exception& e) {
         std::cerr << e.what() << std::endl;
         return 1;
@@ -25,4 +37,4 @@ int main(int argc, char** argv) {
         std::cerr << e.what() << std::endl;
         return 2;
     }
-}    
+}
