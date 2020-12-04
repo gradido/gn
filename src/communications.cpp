@@ -1,4 +1,5 @@
 #include "communications.h"
+#include "google/protobuf/port_def.inc"
 
 using grpc::Server;
 using grpc::ServerAsyncResponseWriter;
@@ -81,6 +82,11 @@ namespace gradido {
         return true;
     }
     void CommunicationLayer::TopicSubscriber::init(grpc::CompletionQueue& cq) {
+        std::string protobuf_version = std::to_string(PROTOBUF_MIN_PROTOC_VERSION);
+        LOG("protobuf min version is " + protobuf_version);
+        std::string grpc_version(grpc_version_string());
+        LOG("grpc version is " + grpc_version);
+
         stub = std::unique_ptr<ConsensusService::Stub>(ConsensusService::NewStub(channel));
             
         proto::TopicID* topicId = query.mutable_topicid();
