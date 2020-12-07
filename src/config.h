@@ -35,6 +35,8 @@ namespace gradido {
         virtual void reload_group_infos();
         virtual HederaTopicID get_group_register_topic_id();
         virtual bool is_topic_reset_allowed();
+        virtual int get_json_rpc_port();
+        virtual int get_general_batch_size();
     };
 
 }

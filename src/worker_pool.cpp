@@ -3,6 +3,41 @@
 
 namespace gradido {
 
+    class SyncedTask : public ITask {
+    private:
+        ITask* task;
+        bool finished_status;
+        pthread_mutex_t main_lock;
+        pthread_cond_t cond;
+    public:
+        SyncedTask(ITask* task) : task(task), finished_status(false) {
+            SAFE_PT(pthread_mutex_init(&main_lock, 0));
+            SAFE_PT(pthread_cond_init(&cond, 0));
+        }
+        virtual ~SyncedTask() {
+            pthread_cond_destroy(&cond);
+            pthread_mutex_destroy(&main_lock);
+        }
+        virtual void run() {
+            task->run();
+            {
+                MLock lock(main_lock);
+                finished_status = true;
+                pthread_cond_signal(&cond);
+                while (finished_status) 
+                    pthread_cond_wait(&cond, &main_lock);
+            }
+        }
+        void join() {
+            MLock lock(main_lock);
+            while (!finished_status) 
+                pthread_cond_wait(&cond, &main_lock);
+            // signalling back to not allow premature destructor call
+            finished_status = false; 
+            pthread_cond_signal(&cond);
+        }
+    };
+
     void* WorkerPool::run_entry(void* arg) {
         WorkerPool* wp = (WorkerPool*)arg;
         while (1) {
@@ -88,6 +123,23 @@ namespace gradido {
             delete task;
         }
     }
+
+    void WorkerPool::push_and_join(ITask* task) {
+        SyncedTask* task2 = 0;
+        {
+            MLock lock(main_lock);
+            if (!shutdown) {
+                task2 = new SyncedTask(task);
+                queue.push(task2);
+                pthread_cond_signal(&queue_cond);
+            }
+        }
+        if (task2)
+            task2->join();
+        else
+            delete task;
+    }
+
 
     size_t WorkerPool::get_worker_count() {
         MLock lock(main_lock);

@@ -1,7 +1,7 @@
-#include "gradido_facade.h"
 #include <iostream>
 #include <string>
 #include <vector>
+#include "gradido_facade.h"
 #include "gradido_signals.h"
 
 using namespace gradido;
@@ -25,4 +25,4 @@ int main(int argc, char** argv) {
         std::cerr << e.what() << std::endl;
         return 2;
     }
-}    
+}

@@ -478,7 +478,6 @@ namespace gradido {
         //TODO: make reentrant
         //MLock lock(main_lock);
 
-        std::cerr << name << " fetch " << std::endl;
         for (auto i : outbound_transactions) {
             std::cerr << i.first.seconds << "; " << i.first.nanos << std::endl;
         }
@@ -505,14 +504,22 @@ namespace gradido {
 
     bool BlockchainGradido::get_transaction(uint64_t seq_num, 
                                             Transaction& t) {
+        GradidoRecord rec;
+        bool res = get_transaction(seq_num, rec);
+        if (!res || rec.record_type != (uint8_t)GRADIDO_TRANSACTION)
+            return false;
+        t = rec.transaction;
+        return true;
+    }
 
-        std::cerr << name << " pull " << seq_num << "; " << storage.get_rec_count() << std::endl;
+    bool BlockchainGradido::get_transaction(uint64_t seq_num, 
+                                            GradidoRecord& t) {
 
         if (seq_num >= storage.get_rec_count())
             return false;
         StorageType::ExitCode ec;
         StorageType::Record* rec = storage.get_record(seq_num, ec);
-        t = rec->payload.transaction;
+        t = rec->payload;
         return true;
     }
 

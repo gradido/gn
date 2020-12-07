@@ -684,10 +684,12 @@ class WebappDemoFull(object):
             "hedera_mirror_endpoint": self.context.doc[
                 "test-config"]["hedera-mirror-endpoint"],
             "blockchain_append_batch_size": 5,
+            "general_batch_size": 10,
             "grpc_endpoint": grpc_endpoint,
             "sibling_node_file": sibling_node_file,
             "group_register_topic_id": "0.0.79574",
-            "topic_reset_allowed": 1
+            "topic_reset_allowed": 1,
+            "json_rpc_port": cp + 1
         }
 
         self.proc_man.start_gradido_node_with_args(

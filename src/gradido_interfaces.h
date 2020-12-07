@@ -64,6 +64,34 @@ std::string get_time();
 extern pthread_mutex_t gradido_logger_lock;
 #define LOG(msg) pthread_mutex_lock(&gradido_logger_lock); std::cerr << __FILE__ << ":" << __LINE__ << ":#" << (uint64_t)pthread_self() << ":" << get_time() << ": " << msg << std::endl; pthread_mutex_unlock(&gradido_logger_lock);
 
+template<typename T>
+class BlockchainTypes {
+public:
+    enum RecordType {
+        EMPTY=0,
+        PAYLOAD,
+        CHECKSUM
+    };
+
+    class Record {
+    public:
+        uint8_t type; // RecordType
+        union {
+            T payload;
+            uint8_t checksum[BLOCKCHAIN_CHECKSUM_SIZE];
+        };
+        void operator=(const Record& from) {
+            memcpy(this, &from, sizeof(Record));
+        }
+
+        Record() {
+            memset(this, 0, sizeof(Record));
+        }
+        ~Record() {}
+    };
+
+};
+
 class ITask {
 public:
     virtual ~ITask() {}
@@ -118,6 +146,9 @@ class ITypedBlockchain : public IAbstractBlockchain {
  public:
     virtual void add_transaction(Batch<T> rec) = 0;
 
+    using RecordType = typename BlockchainTypes<T>::RecordType;
+    using Record = typename BlockchainTypes<T>::Record;
+    virtual bool get_transaction2(uint64_t seq_num, Record& t) = 0;
 };
 
 struct GroupInfo {
@@ -175,6 +206,8 @@ public:
     virtual bool get_paired_transaction(HederaTimestamp hti, 
                                         uint64_t& seq_num) = 0;
     virtual bool get_transaction(uint64_t seq_num, Transaction& t) = 0;
+    virtual bool get_transaction(uint64_t seq_num, GradidoRecord& t) = 0;
+
 
     virtual std::vector<std::string> get_users() = 0;
     /*
@@ -216,6 +249,8 @@ class IGradidoConfig {
     virtual void reload_group_infos() = 0;
     virtual HederaTopicID get_group_register_topic_id() = 0;
     virtual bool is_topic_reset_allowed() = 0;
+    virtual int get_json_rpc_port() = 0;
+    virtual int get_general_batch_size() = 0;
 };
 
 // communication layer threads should not be delayed much; use tasks
@@ -307,6 +342,7 @@ public:
     // hf ownership is not taken by communication layer
     virtual void init(int worker_count, 
                       std::string rpcs_endpoint,
+                      int json_rpc_port,
                       HandlerFactory* hf) = 0;
     
     virtual void receive_hedera_transactions(std::string endpoint,
@@ -370,8 +406,13 @@ class IGradidoFacade {
 
     virtual IGroupRegisterBlockchain* get_group_register() = 0;
 
+    // takes ownership
     virtual void push_task(ITask* task) = 0;
+    // takes ownership
     virtual void push_task(ITask* task, uint32_t after_seconds) = 0;
+
+    // does not take ownership
+    virtual void push_task_and_join(ITask* task) = 0;
 
     // available after init(), always
     virtual IGradidoConfig* get_conf() = 0;

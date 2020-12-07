@@ -102,14 +102,18 @@ namespace gradido {
     CommunicationLayer::CommunicationLayer(IGradidoFacade* gf) : 
         gf(gf), worker_pool(gf, "comm-workers"), 
         round_robin_distribute_counter(0), 
-        rpcs_service(0) {
+        rpcs_service(0), jsonrpc_svs(0), jsonrpc_srv(0) {
         SAFE_PT(pthread_mutex_init(&main_lock, 0));
     }
 
     void CommunicationLayer::init(int worker_count,
                                   std::string rpcs_endpoint,
+                                  int json_rpc_port,
                                   HandlerFactory* hf) {
         this->hf = hf;
+
+        LOG("rpcs_endpoint: " + rpcs_endpoint);
+        LOG("json_rpc_port: " + std::to_string(json_rpc_port));
 
         // +1 for serving rpcs
         worker_pool.init(worker_count + 1);
@@ -132,6 +136,12 @@ namespace gradido {
         start_rpc<GetTransactionsCallData>();
         start_rpc<GetCreationSumCallData>();
         start_rpc<GetUserCallData>();
+
+        jsonrpc_svs = new Poco::Net::ServerSocket(json_rpc_port);
+		jsonrpc_srv = new Poco::Net::HTTPServer(
+                      new JsonRequestHandlerFactory(gf), 
+                      *jsonrpc_svs, new Poco::Net::HTTPServerParams);
+		jsonrpc_srv->start();
     }
 
     CommunicationLayer::~CommunicationLayer() {
@@ -147,6 +157,12 @@ namespace gradido {
         // from it
 
         poll_services.clear();
+
+        if (jsonrpc_srv) {
+            jsonrpc_srv->stop();
+            delete jsonrpc_srv;
+            delete jsonrpc_svs;
+        }
     }
     
     void CommunicationLayer::receive_hedera_transactions(std::string endpoint,

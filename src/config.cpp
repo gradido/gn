@@ -9,6 +9,14 @@
 
 namespace gradido {
 
+#define SAFE_GET_CONF_ITEM(func, key)                     \
+    try {                                                 \
+        return pfc->func(key);                            \
+    } catch (Poco::NotFoundException& e) {                \
+        LOG("config: missing " << key);                   \
+        throw e;                                          \
+    }
+
     Config::Config() {
         SAFE_PT(pthread_mutex_init(&main_lock, 0));
     }
@@ -22,24 +30,31 @@ namespace gradido {
     }
 
     int Config::get_worker_count() {
-        return pfc->getInt("worker_count");
+        SAFE_GET_CONF_ITEM(getInt, "worker_count");
     }
 
     int Config::get_io_worker_count() {
-        return pfc->getInt("io_worker_count");
+        SAFE_GET_CONF_ITEM(getInt, "io_worker_count");
     }
     
     void Config::init(const std::vector<std::string>& params) {
+
         try {
             std::string conf_file = "gradido.conf";
             if (params.size() > 1)
                 conf_file = params[1];
             pfc = new Poco::Util::PropertyFileConfiguration(conf_file);
-        } catch (Poco::Exception& e) {
+        } catch (std::exception& e) {
             throw std::runtime_error("Couldn't open configuration file: " + std::string(e.what()));
         }
 
-        std::string grti = pfc->getString("group_register_topic_id");
+        std::string grti;
+        try {
+            grti = pfc->getString("group_register_topic_id");
+        } catch (Poco::NotFoundException& e) {
+            LOG("config: missing group_register_topic_id");
+            throw e;
+        }
 
         int res = sscanf(grti.c_str(), 
                          "%ld.%ld.%ld",
@@ -54,15 +69,15 @@ namespace gradido {
     }
 
     std::string Config::get_data_root_folder() {
-        return pfc->getString("data_root_folder");
+        SAFE_GET_CONF_ITEM(getString, "data_root_folder");
     }
 
     std::string Config::get_hedera_mirror_endpoint() {
-        return pfc->getString("hedera_mirror_endpoint");
+        SAFE_GET_CONF_ITEM(getString, "hedera_mirror_endpoint");
     }
 
     int Config::get_blockchain_append_batch_size() {
-        return pfc->getInt("blockchain_append_batch_size");
+        SAFE_GET_CONF_ITEM(getInt, "blockchain_append_batch_size");
     }
 
     void Config::add_blockchain(GroupInfo gi) {
@@ -113,12 +128,15 @@ namespace gradido {
             out.close();
             std::string sibling_file = pfc->getString("sibling_node_file");
             tmp.moveTo(sibling_file);
+        } catch (Poco::NotFoundException& e) {
+            LOG("config: missing sibling_node_file");
+            throw e;
         } catch (std::exception& e) {
             throw std::runtime_error("Couldn't save sibling file: " + std::string(e.what()));
         }
     }
     std::string Config::get_grpc_endpoint() {
-        return pfc->getString("grpc_endpoint");
+        SAFE_GET_CONF_ITEM(getString, "grpc_endpoint");
     }
 
     void Config::reload_sibling_file() {
@@ -169,7 +187,15 @@ namespace gradido {
     }
 
     bool Config::is_topic_reset_allowed() {
-        return pfc->getInt("topic_reset_allowed");
+        SAFE_GET_CONF_ITEM(getInt, "topic_reset_allowed");
+    }
+
+    int Config::get_json_rpc_port() {
+        SAFE_GET_CONF_ITEM(getInt, "json_rpc_port");
+    }
+
+    int Config::get_general_batch_size() {
+        SAFE_GET_CONF_ITEM(getInt, "general_batch_size");
     }
 
     

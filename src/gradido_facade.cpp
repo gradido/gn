@@ -30,6 +30,7 @@ namespace gradido {
 
         communication_layer.init(config.get_io_worker_count(), 
                                  config.get_grpc_endpoint(),
+                                 config.get_json_rpc_port(),
                                  &rpc_handler_factory);
         group_register = new GroupRegister(
                          config.get_data_root_folder(),
@@ -88,6 +89,10 @@ namespace gradido {
 
     void GradidoFacade::push_task(ITask* task) {
         worker_pool.push(task);
+    }
+
+    void GradidoFacade::push_task_and_join(ITask* task) {
+        worker_pool.push_and_join(task);
     }
 
     IGradidoConfig* GradidoFacade::get_conf() {

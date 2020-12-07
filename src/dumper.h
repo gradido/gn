@@ -14,10 +14,8 @@
 
 namespace gradido {
 
-template<typename BType>
+template<typename T>
 int dump(int argc, char** argv, std::string type_desc) {
-
-    using T = typename BType::Record;
 
     if (argc < 2) {
         std::cerr << "Utility for dumping " << type_desc << 
@@ -75,7 +73,7 @@ int dump(int argc, char** argv, std::string type_desc) {
                             is_first = false;
                         else 
                             std::cout << ",\n";
-                        dump_transaction_in_json<BType>(r, std::cout);
+                        dump_transaction_in_json(r, std::cout);
                     }
                 } else 
                     break;

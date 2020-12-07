@@ -18,9 +18,14 @@
 #include <grpcpp/channel.h>
 #include <grpcpp/client_context.h>
 #include <grpcpp/generic/generic_stub.h>
+#include "Poco/Net/ServerSocket.h"
+#include "Poco/Net/HTTPServer.h"
+
 #include "gradido_interfaces.h"
 #include "blockchain_gradido_def.h"
 #include "worker_pool.h"
+#include "json_rpc/JsonRequestHandlerFactory.h"
+
 
 
 namespace gradido {
@@ -495,11 +500,16 @@ private:
               gf, hf);
     }
 
+    Poco::Net::ServerSocket* jsonrpc_svs;
+    Poco::Net::HTTPServer* jsonrpc_srv;
+
 public:
     CommunicationLayer(IGradidoFacade* gf);
     ~CommunicationLayer();
 
-    virtual void init(int worker_count, std::string rpcs_endpoint,
+    virtual void init(int worker_count, 
+                      std::string rpcs_endpoint,
+                      int json_rpc_port,
                       ICommunicationLayer::HandlerFactory* hf);
 
     virtual void receive_hedera_transactions(std::string endpoint,

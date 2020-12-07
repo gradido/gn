@@ -99,6 +99,7 @@ class GradidoFacade : public IGradidoFacade,
 
     virtual void push_task(ITask* task);
     virtual void push_task(ITask* task, uint32_t after_seconds);
+    virtual void push_task_and_join(ITask* task);
 
     virtual IGradidoConfig* get_conf();
     virtual ICommunicationLayer* get_communications();

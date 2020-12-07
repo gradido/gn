@@ -25,27 +25,20 @@ public:
 
 bool ends_with(std::string const & value, std::string const & ending);
 
-typedef Blockchain<GradidoRecord, GRADIDO_BLOCK_SIZE> GradidoBlockchainType;
-typedef GradidoBlockchainType::Record GradidoBlockRec;
-
-
-typedef Blockchain<GroupRegisterRecord, GRADIDO_BLOCK_SIZE> GradidoGroupBlockchainType;
-typedef GradidoGroupBlockchainType::Record GradidoGroupBlockRec;
-
 void dump_in_hex(const char* in, char* out, size_t in_len);
 
 
-template<typename BType>
-void dump_transaction_in_json(const typename BType::Record& r, std::ostream& out) {
+template<typename T>
+void dump_transaction_in_json(const typename BlockchainTypes<T>::Record& r, std::ostream& out) {
 
-    typename BType::RecordType rt = (typename BType::RecordType)r.type;
+    typename BlockchainTypes<T>::RecordType rt = (typename BlockchainTypes<T>::RecordType)r.type;
     switch (rt) {
-    case BType::RecordType::EMPTY:
+    case BlockchainTypes<T>::RecordType::EMPTY:
         break;
-    case BType::RecordType::PAYLOAD:
+    case BlockchainTypes<T>::RecordType::PAYLOAD:
         dump_transaction_in_json(r.payload, out);
         break;
-    case BType::RecordType::CHECKSUM: {
+    case BlockchainTypes<T>::RecordType::CHECKSUM: {
         char buff[BLOCKCHAIN_CHECKSUM_SIZE * 2 + 1];
         dump_in_hex((char*)r.checksum, buff, BLOCKCHAIN_CHECKSUM_SIZE);
         out << "\"" << std::string(buff) << "\"" << std::endl;

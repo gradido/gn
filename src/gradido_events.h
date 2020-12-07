@@ -79,6 +79,65 @@ namespace gradido {
         }
     };
 
+    ///////////////////////////// json rpc handlers
+    class GetTransactionsTask : public ITask {
+    public:
+        using Record = typename BlockchainTypes<GradidoRecord>::Record;
+    private:
+        IBlockchain* b;
+        uint64_t first;
+
+        // TODO: should be done differently to allow large sizes
+        std::vector<Record> result;
+        int batch_size;
+
+        bool finished;
+
+        //        std::exception* last;
+
+    public:
+        GetTransactionsTask(IBlockchain* b,
+                            uint64_t first,
+                            int batch_size) : 
+        b(b), first(first),
+        batch_size(batch_size), finished(false) {}
+
+        virtual void run() {
+            try {
+                if (!finished && b &&
+                    (uint64_t)result.size() + first < 
+                    b->get_transaction_count()) {
+                    for (int i = 0; i < batch_size; i++) {
+                        uint64_t seq_num = 
+                            first + (uint64_t)result.size();
+                        Record rec;
+                        if (!b->get_transaction2(seq_num, rec)) {
+                            finished = true;
+                            break;
+                        }
+                        result.push_back(rec);
+                    }
+                } else
+                    finished = true;
+            } catch (std::exception& e) {
+                std::string msg = "GetTransactionsTask: " + 
+                    std::string(e.what());
+                LOG(msg);
+                finished = true;
+            }
+        }
+
+        std::vector<Record>* get_result() {
+            return &result;
+        }
+
+        bool is_finished() {
+            return finished;
+        }
+    };
+
+
+
     ///////////////////////////// rpc handlers
 
     class BlockProvider : public ITask {

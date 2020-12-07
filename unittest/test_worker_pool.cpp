@@ -11,6 +11,18 @@ TEST(WorkerPool, single_task_gets_executed)
     task_settle();
 }
 
+
+TEST(WorkerPool, single_task_gets_executed_and_joined)
+{
+    WorkerPool wp(0);
+    wp.init(1);
+    NiceMock<MockSampleTask>* t = new NiceMock<MockSampleTask>();
+    EXPECT_CALL(*t, run()).Times(1);
+    wp.push_and_join(t);
+    delete t;
+}
+
+/* this is not true anymore; left as an example here
 TEST(WorkerPool, exception_doesnt_stop_worker)
 {
     WorkerPool wp(0);
@@ -31,6 +43,7 @@ TEST(WorkerPool, exception_doesnt_stop_worker)
         task_settle();
     }
 }
+*/
 
 TEST(WorkerPool, tasks_are_done_in_parallel)
 {
@@ -49,6 +62,7 @@ TEST(WorkerPool, tasks_are_done_in_parallel)
         wp.get_busy_worker_count();
     ASSERT_EQ(tasks_in_progress, 0) << "some tasks are not yet done";
 }
+
 
 
 TEST(WorkerPool, tasks_are_done_in_serial)
@@ -121,3 +135,4 @@ TEST(WorkerPool, push_after_shutdown)
     wp.push(t);
     task_settle();
 }
+

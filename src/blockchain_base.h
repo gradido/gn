@@ -32,6 +32,10 @@ class BlockchainBase : public Parent,
     ICommunicationLayer::TransactionListener {
  public:
 
+    using RecordType = typename BlockchainTypes<T>::RecordType;
+    using Record = typename BlockchainTypes<T>::Record;
+
+ public:
 
     virtual void on_transaction(ConsensusTopicResponse& transaction) {
         gf->push_task(new PushTransactionsTask<T>(this, transaction));
@@ -367,6 +371,14 @@ class BlockchainBase : public Parent,
             inbound.push(rec);
         }
         continue_with_transactions();
+    }
+
+    bool get_transaction2(uint64_t seq_num, Record& t) override {
+        if (seq_num >= storage.get_rec_count())
+            return false;
+        typename StorageType::ExitCode ec;
+        t = *storage.get_record(seq_num, ec);
+        return true;
     }
 
     virtual uint32_t get_block_count() {
