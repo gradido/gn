@@ -8,7 +8,9 @@
 
 #include <sstream>
 
-JsonRequestHandlerFactory::JsonRequestHandlerFactory(gradido::GradidoFacade* _gf)
+using namespace gradido;
+
+JsonRequestHandlerFactory::JsonRequestHandlerFactory(gradido::IGradidoFacade* _gf)
 	: mRemoveGETParameters("^/([a-zA-Z0-9_-]*)"), gf(_gf)
 {
 }

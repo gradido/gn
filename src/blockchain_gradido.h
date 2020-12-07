@@ -71,6 +71,8 @@ class BlockchainGradido :
     virtual bool get_paired_transaction(HederaTimestamp hti, 
                                         uint64_t& seq_num);
     virtual bool get_transaction(uint64_t seq_num, Transaction& t);
+    virtual bool get_transaction(uint64_t seq_num, GradidoRecord& t);
+
     virtual std::vector<std::string> get_users();
 
 };

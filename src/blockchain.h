@@ -25,28 +25,9 @@ namespace gradido {
 template<typename T, int RecCount>
 class Blockchain {
 public:
-    enum RecordType {
-        EMPTY=0,
-        PAYLOAD,
-        CHECKSUM
-    };
 
-    class Record {
-    public:
-        uint8_t type; // RecordType
-        union {
-            T payload;
-            uint8_t checksum[BLOCKCHAIN_CHECKSUM_SIZE];
-        };
-        void operator=(const Record& from) {
-            memcpy(this, &from, sizeof(Record));
-        }
-
-        Record() {
-            memset(this, 0, sizeof(Record));
-        }
-        ~Record() {}
-    };
+    using RecordType = typename BlockchainTypes<T>::RecordType;
+    using Record = typename BlockchainTypes<T>::Record;
 
     enum ExitCode {
         OK=0,
@@ -223,19 +204,19 @@ private:
         bool has_payload = false;
         for (int i = 0; i < RecCount; i++) {
             if (finished) {
-                if (r[i].type != (uint8_t)EMPTY) {
+                if (r[i].type != (uint8_t)RecordType::EMPTY) {
                     ec = NON_EMPTY_RECORD_AFTER_CHECKSUM;
                     return false;
                 } else
                     has_empty = true;
             } else {
-                if (r[i].type == (uint8_t)PAYLOAD) 
+                if (r[i].type == (uint8_t)RecordType::PAYLOAD) 
                     has_payload = true;
-                else if (r[i].type == (uint8_t)EMPTY) {
+                else if (r[i].type == (uint8_t)RecordType::EMPTY) {
                     ec = EMPTY_RECORD_BEFORE_CHECKSUM;
                     return false;
                 }
-                else if (r[i].type == (uint8_t)CHECKSUM) {
+                else if (r[i].type == (uint8_t)RecordType::CHECKSUM) {
                     if (!has_payload) {
                         ec = NO_PAYLOAD;
                         return false;
@@ -262,7 +243,7 @@ private:
         get_prev_checksum(block_index, checksum);
 
         for (int i = 0; i < RecCount; i++) {
-            if (r[i].type == (uint8_t)CHECKSUM) {
+            if (r[i].type == (uint8_t)RecordType::CHECKSUM) {
                 if (strncmp((char*)r[i].checksum,
                             (char*)checksum, 
                             BLOCKCHAIN_CHECKSUM_SIZE)) {
@@ -281,7 +262,7 @@ private:
     uint32_t get_rec_count(Record* r) {
         uint32_t res = 0;
         for (int i = 0; i < RecCount; i++)
-            if (r[i].type == (uint8_t)EMPTY)
+            if (r[i].type == (uint8_t)RecordType::EMPTY)
                 break;
             else res++;
         return res;
@@ -316,11 +297,11 @@ public:
         uint8_t prev_checksum[BLOCKCHAIN_CHECKSUM_SIZE];
 
         Record rec;
-        rec.type = PAYLOAD;
+        rec.type = RecordType::PAYLOAD;
         rec.payload = rec_payload;
 
         Record cr;
-        cr.type = CHECKSUM;
+        cr.type = RecordType::CHECKSUM;
         if (block_pos == 0) {
             if (tiles.get_tile_count() > 0) {
                 Tile t0 = tiles.get_tile(tiles.get_tile_count() - 1);
@@ -389,7 +370,7 @@ public:
             }
             Record* r = t.get_tile_data();
             if (r[RecCount - 1].type !=
-                (uint8_t)CHECKSUM) {
+                (uint8_t)RecordType::CHECKSUM) {
                 ec = LAST_BLOCK_NOT_FULL;
                 return false; 
             }

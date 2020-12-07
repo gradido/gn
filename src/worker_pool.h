@@ -49,6 +49,10 @@ public:
 
     // takes ownership of task
     void push(ITask* task);
+
+    // doesn't take ownership of task
+    void push_and_join(ITask* task);
+
     size_t get_worker_count();
 
     // only way for this method to exit once called is by calling

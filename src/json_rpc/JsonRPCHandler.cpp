@@ -1,8 +1,9 @@
 #include "JsonRPCHandler.h"
 
-#include "../blockchain_gradido.h"
+#include "blockchain_gradido.h"
+#include "gradido_events.h"
 
-JsonRPCHandler::JsonRPCHandler(gradido::GradidoFacade* _gf)
+JsonRPCHandler::JsonRPCHandler(gradido::IGradidoFacade* _gf)
 : gf(_gf)
 {
 
@@ -46,51 +47,59 @@ void JsonRPCHandler::handle(const jsonrpcpp::Request& request, Json& response)
 	}
 }
 
-void JsonRPCHandler::getTransactions(const std::string& groupAlias, Poco::UInt64 lastKnownSequenceNumber, Json& response)
-{
-    auto blockchain = gf->get_group_blockchain(groupAlias);
-    if(0 == blockchain) {
-        response = {{ "state", "error"}, {"msg", "group blockchain not found"} };
+void JsonRPCHandler::getTransactions(
+                     const std::string& groupAlias, 
+                     Poco::UInt64 lastKnownSequenceNumber, 
+                     Json& response) {
+
+    using namespace gradido;
+
+    IBlockchain* blockchain = gf->get_group_blockchain(groupAlias);
+    if (0 == blockchain) {
+        response = {{"state", "error"}, 
+                    {"msg", "group blockchain not found"} };
     } else {
-        auto transaction_count = blockchain->get_transaction_count();
-        auto block_count = blockchain->get_block_count();
-        std::vector<Json> block_jsons;
-        for(int i = 0; i < block_count; i++) {
-            gradido::grpr::BlockRecord proto_record;
-            gradido::GradidoRecord gradido_record;
-            gradido_record.record_type = gradido::GRADIDO_TRANSACTION;
-            gradido::GradidoBlockchainType::Record record;
-
-            auto gradido_blockchain = (gradido::BlockchainGradido*)blockchain;
-
-            if(!blockchain->get_block_record(i, proto_record)) continue;
-
-            //int ex;
-            //auto record2 = gradido_blockchain->get_record(i, ex);
-            if(!blockchain->get_transaction(i, gradido_record.transaction)) continue;
-            //memcpy((char*)&record, proto_record.record().data(), sizeof(gradido::GradidoBlockchainType::Record));
-
-            //printf("record size: %d\n", proto_record.record().size());
-            std::stringstream ss;
-            gradido::dump_transaction_in_json(gradido_record, ss);
-            std::string block_json_string = ss.str();
-            Json json_block_record;
-            try {
-                ss >> json_block_record;
-            } catch(const std::exception & ex) {
-                //response = {{ "state", "success"}, {"msg", "json exception"}, {"details", ex.what()}, {"json", ss.str()} };
-                //return;
-                block_jsons.push_back(block_json_string);
-                continue;
+        try {
+            int batch_size = gf->get_conf()->get_general_batch_size();
+            GetTransactionsTask task(blockchain,
+                                     lastKnownSequenceNumber,
+                                     batch_size);
+            while (!task.is_finished()) {
+                gf->push_task_and_join(&task);
             }
-            block_jsons.push_back(json_block_record);
-        }
-        response["blocks"] = block_jsons;
-        response["transaction_count"] = transaction_count;
-        response["block_count"] = block_count;
-        response["state"] = "success";
 
-        //response = { { "state", "success"} };
+            using Record = typename GetTransactionsTask::Record;
+
+            // not optimal for large amount of data; should be streaming
+            // that instead to client
+            std::stringstream ss;
+            ss << "[\n";
+            bool is_first = true;
+            std::vector<Record>* records = task.get_result();
+            for (auto i : *records) {
+                if (is_first)
+                    is_first = false;
+                else 
+                    ss << ",\n";
+                dump_transaction_in_json<GradidoRecord>(i, ss);
+            }
+            ss << "]";
+
+            Json contents;
+            ss >> contents;
+            response["blocks"] = contents;
+            response["transaction_count"] = records->size();
+            response["state"] = "success";
+        } catch (std::exception& e) {
+            std::string msg = "get_transactions(): " + 
+                std::string(e.what());
+            LOG(msg);
+            response = {{"state", "error"}, 
+                        {"msg", msg} };
+        } catch (...) {
+            LOG("unknown error");
+            gf->exit(1);
+        }
     }
 }
 
