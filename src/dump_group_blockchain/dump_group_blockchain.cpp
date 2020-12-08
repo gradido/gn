@@ -4,6 +4,5 @@
 using namespace gradido;
 
 int main(int argc, char** argv) {
-    using Record = typename BlockchainTypes<GroupRegisterRecord>::Record;
-    return dump<Record>(argc, argv, "Gradido blockchains");
+    return dump<GroupRegisterRecord>(argc, argv, "Gradido blockchains");
 }    

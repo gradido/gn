@@ -31,6 +31,9 @@ private:
 
         worker_pool.push(task);
     }
+    virtual void push_task_and_join(ITask* task) {
+    }
+
     virtual IGradidoConfig* get_conf() {
         return 0;
     }
@@ -143,7 +146,9 @@ TEST(GradidoCommunications, smoke) {
     std::vector<std::string> params;
     ef.init(params);
     std::string endpoint0 = "0.0.0.0:17171";
-    std::string endpoint1 = "0.0.0.0:17172";
+    int json_rpc_port0 = 17172;
+    std::string endpoint1 = "0.0.0.0:17181";
+    int json_rpc_port1 = 17182;
     TestHandlerFactory thf;
     
 
@@ -151,8 +156,8 @@ TEST(GradidoCommunications, smoke) {
     CommunicationLayer comm1(&ef);
 
 
-    comm0.init(1, endpoint0, &thf);
-    comm1.init(1, endpoint1, &thf);
+    comm0.init(1, endpoint0, json_rpc_port0, &thf);
+    comm1.init(1, endpoint1, json_rpc_port1, &thf);
 
     sleep(1);
 

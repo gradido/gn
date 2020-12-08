@@ -30,6 +30,6 @@ target_link_libraries(dump_blockchain -lPocoNet -lPocoUtil -lPocoJSON -lPocoFoun
 add_executable(dump_group_blockchain "src/blockchain_gradido_def.h" "src/utils.h" "src/utils.cpp" "src/dump_group_blockchain/dump_group_blockchain.cpp")
 target_link_libraries(dump_group_blockchain -lPocoNet -lPocoUtil -lPocoJSON -lPocoFoundation -lPocoData -lPocoNetSSL -lpthread)
 
-add_executable(unit_tests ${LOCAL_SRC} ${PROTOS} ${PROTOS_MIRROR} ${PROTOS_GRADIDO} ${UNITTEST_SRC})
+add_executable(unit_tests ${LOCAL_SRC} ${PROTOS} ${PROTOS_MIRROR} ${PROTOS_GRADIDO} ${JSONRPC} ${UNITTEST_SRC})
 target_link_libraries(unit_tests -led25519 -lPocoNet -lPocoUtil -lPocoJSON -lPocoFoundation -lPocoData -lPocoNetSSL -lall -ldl -lgmock -lgtest -lgtest_main -lpthread)
 

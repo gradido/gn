@@ -17,6 +17,8 @@ namespace gradido {
 template<typename T>
 int dump(int argc, char** argv, std::string type_desc) {
 
+    using RecType = typename BlockchainTypes<T>::Record;
+
     if (argc < 2) {
         std::cerr << "Utility for dumping " << type_desc << 
             std::endl << "Usage: " << std::endl << "dump_blockchain <blockchain_folder> <options>" << 
@@ -45,7 +47,7 @@ int dump(int argc, char** argv, std::string type_desc) {
             if (ends_with(ps, ".block")) {
                 Poco::File f(ps);
                 if (f.getSize() == 0 || 
-                    f.getSize() != GRADIDO_BLOCK_SIZE * sizeof(T))
+                    f.getSize() != GRADIDO_BLOCK_SIZE * sizeof(RecType))
                     throw std::runtime_error(
                           "not a block file (bad size): " + ps);
 
@@ -64,8 +66,8 @@ int dump(int argc, char** argv, std::string type_desc) {
             bool is_first = true;
 
             for (int i = 0; i < GRADIDO_BLOCK_SIZE; i++) {
-                T r;
-                fs.read((char*)&r, sizeof(T));
+                RecType r;
+                fs.read((char*)&r, sizeof(RecType));
                 if (r.type > 0) {
                     rec_count++;
                     if (!just_count) {
@@ -73,7 +75,7 @@ int dump(int argc, char** argv, std::string type_desc) {
                             is_first = false;
                         else 
                             std::cout << ",\n";
-                        dump_transaction_in_json(r, std::cout);
+                        dump_transaction_in_json<T>(r, std::cout);
                     }
                 } else 
                     break;
