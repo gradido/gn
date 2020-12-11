@@ -43,30 +43,41 @@ void JsonRPCHandler::handle(const jsonrpcpp::Request& request, Json& response)
 		response = { {"state" , "success"}, {"transaction", ""} };
 	}*/
 	else {
-		response = { { "state", "error" },{ "msg", "method not known" } };
+		response = { { "state", "error" },{ "msg", "method not known" }, {"details", request.method()} };
 	}
 }
 
 void JsonRPCHandler::getTransactions(
-                     const std::string& groupAlias, 
-                     Poco::UInt64 lastKnownSequenceNumber, 
+                     const std::string& groupAlias,
+                     Poco::UInt64 lastKnownSequenceNumber,
                      Json& response) {
 
     using namespace gradido;
 
+    printf("[JsonRPCHandler::getTransactions] group alias: %s, last know sequence number: %d\n", groupAlias.data(), lastKnownSequenceNumber);
+
     IBlockchain* blockchain = gf->get_group_blockchain(groupAlias);
+
+    std::string transactions_json_temp;
     if (0 == blockchain) {
-        response = {{"state", "error"}, 
+        response = {{"state", "error"},
                     {"msg", "group blockchain not found"} };
     } else {
+        auto transaction_count = blockchain->get_transaction_count();
+        auto block_count = blockchain->get_block_count ();
+
+        printf("[JsonRPCHandler::getTransactions] transaction count: %d, block count: %d\n", transaction_count, block_count);
+
         try {
             int batch_size = gf->get_conf()->get_general_batch_size();
             GetTransactionsTask task(blockchain,
                                      lastKnownSequenceNumber,
                                      batch_size);
+            printf("batch_size: %d\n", batch_size);
             while (!task.is_finished()) {
                 gf->push_task_and_join(&task);
             }
+
 
             using Record = typename GetTransactionsTask::Record;
 
@@ -76,26 +87,32 @@ void JsonRPCHandler::getTransactions(
             ss << "[\n";
             bool is_first = true;
             std::vector<Record>* records = task.get_result();
+            printf("[JsonRPCHandler::getTransactions] records count: %d\n", records->size());
             for (auto i : *records) {
                 if (is_first)
                     is_first = false;
-                else 
+                else
                     ss << ",\n";
                 dump_transaction_in_json<GradidoRecord>(i, ss);
             }
             ss << "]";
+            transactions_json_temp = ss.str();
+            Json contents = Json::parse(transactions_json_temp);
 
-            Json contents;
-            ss >> contents;
             response["blocks"] = contents;
             response["transaction_count"] = records->size();
             response["state"] = "success";
         } catch (std::exception& e) {
-            std::string msg = "get_transactions(): " + 
+            std::string msg = "get_transactions(): " +
                 std::string(e.what());
             LOG(msg);
-            response = {{"state", "error"}, 
-                        {"msg", msg} };
+            LOG(transactions_json_temp);
+            response = {
+                {"state", "error"},
+                {"msg", msg},
+                {"details", transactions_json_temp}
+
+            };
         } catch (...) {
             LOG("unknown error");
             gf->exit(1);

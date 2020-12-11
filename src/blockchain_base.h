@@ -20,11 +20,11 @@ namespace gradido {
 // Child: BlockchainBase is expected to be inherited; have to specify
 //   Child class here; there are several pure virtual methods which
 //   this class has to implement
-// Parent: to keep class hierarchy less complex, BlockchainBase 
+// Parent: to keep class hierarchy less complex, BlockchainBase
 //   Parent can be specified
 // TransactionComparator: used to order incoming transactions; expected
 //   to contain only operator(lhs, rhs)
-template<typename T, typename Child, typename Parent, 
+template<typename T, typename Child, typename Parent,
     typename TransactionComparator>
 class BlockchainBase : public Parent,
     ICommunicationLayer::BlockChecksumReceiver,
@@ -60,7 +60,7 @@ class BlockchainBase : public Parent,
                 }
             } else {
                 if (fetched_data_count != fetched_record_count)
-                    reset_validation("bad record count"); 
+                    reset_validation("bad record count");
                 else {
                     block_to_fetch++;
                     fetch_next_block();
@@ -68,8 +68,8 @@ class BlockchainBase : public Parent,
             }
         } else {
             // omitting checksums; they are calculated anyway
-            if (fetched_data_count % GRADIDO_BLOCK_SIZE < 
-                GRADIDO_BLOCK_SIZE - 1 && 
+            if (fetched_data_count % GRADIDO_BLOCK_SIZE <
+                GRADIDO_BLOCK_SIZE - 1 &&
                 fetched_data_count + 1 < fetched_record_count) {
                 T rec;
                 memcpy(&rec, br.record().c_str(), sizeof(T));
@@ -124,7 +124,7 @@ class BlockchainBase : public Parent,
     IGradidoFacade* gf;
     std::string name;
     HederaTopicID topic_id;
-    typedef ValidatedMultipartBlockchain<T, Child, GRADIDO_BLOCK_SIZE> StorageType; 
+    typedef ValidatedMultipartBlockchain<T, Child, GRADIDO_BLOCK_SIZE> StorageType;
 
     std::string data_storage_root;
     StorageType storage;
@@ -172,7 +172,7 @@ class BlockchainBase : public Parent,
         storage.truncate(0);
         clear_indexes();
         indexed_blocks = 0;
-        gf->push_task(new ContinueValidationTask<T>(this), 
+        gf->push_task(new ContinueValidationTask<T>(this),
                       BLOCKCHAIN_RESET_TIMEOUT_SECONDS);
     }
     void validate_next_batch() {
@@ -197,19 +197,19 @@ class BlockchainBase : public Parent,
             }
         }
     }
-    
+
     // TODO: remove
     uint64_t indexed_blocks;
 
 
-    std::priority_queue<Batch<T>, std::vector<Batch<T>>, 
+    std::priority_queue<Batch<T>, std::vector<Batch<T>>,
         TransactionComparator> inbound;
     int batch_size;
     bool topic_reset_allowed;
 
  protected:
     virtual bool get_latest_transaction_id(uint64_t& res) = 0;
-    virtual bool get_transaction_id(uint64_t& res, 
+    virtual bool get_transaction_id(uint64_t& res,
                                     const Batch<T>& rec) = 0;
 
     // returns true, if record is ready to be inserted; if false, then
@@ -232,11 +232,11 @@ class BlockchainBase : public Parent,
                 HederaTopicID topic_id) :
     state(INITIAL), gf(gf), name(name),
         topic_id(topic_id),
-        data_storage_root(ensure_blockchain_folder(root_folder, name, 
+        data_storage_root(ensure_blockchain_folder(root_folder, name,
                                                    topic_id)),
         storage(name, data_storage_root, 100, 100, *((Child*)this)),
-        fetched_record_count(0), block_to_fetch(0), 
-        fetched_data_count(0), indexed_blocks(0),  
+        fetched_record_count(0), block_to_fetch(0),
+        fetched_data_count(0), indexed_blocks(0),
         batch_size(gf->get_conf()->
                    get_blockchain_append_batch_size()),
         topic_reset_allowed(gf->get_conf()->is_topic_reset_allowed()) {
@@ -266,7 +266,7 @@ class BlockchainBase : public Parent,
                 gf->push_task(new ContinueValidationTask<T>(this));
             } else if (gf->get_random_sibling_endpoint(fetch_endpoint)) {
                 state = FETCHING_CHECKSUMS;
-                LOG(name + " blockchain fetches checksums from " + 
+                LOG(name + " blockchain fetches checksums from " +
                     fetch_endpoint);
                 fetched_record_count = 0;
                 fetched_checksums.clear();
@@ -291,7 +291,7 @@ class BlockchainBase : public Parent,
         case READY:
             throw std::runtime_error(name + " init(): wrong state");
         }
-    }    
+    }
 
     virtual void continue_with_transactions() {
         MLock lock(main_lock);
@@ -325,7 +325,7 @@ class BlockchainBase : public Parent,
                 get_transaction_id(curr_seq_num, batch);
 
                 if ((has_latest && curr_seq_num == seq_num + 1) ||
-                    (!has_latest && (topic_reset_allowed || 
+                    (!has_latest && (topic_reset_allowed ||
                                      curr_seq_num == 1))) {
                     if (calc_fields_and_update_indexes_for(batch)) {
                         typename StorageType::ExitCode ec;
@@ -341,7 +341,7 @@ class BlockchainBase : public Parent,
                         delete [] batch.buff;
                         continue;
                     } else {
-                        // TODO: more elaborate; need just some 
+                        // TODO: more elaborate; need just some
                         // records, not all of them
                         inbound.push(batch);
                         reset_validation("hole in seq_num");
@@ -398,38 +398,38 @@ class BlockchainBase : public Parent,
             if (i == storage.get_block_count() - 1) {
                 for (uint32_t j = 0; j < GRADIDO_BLOCK_SIZE; j++) {
                     typename StorageType::Record* rec2 = rec + j;
-                    if (rec2->type == 
+                    if (rec2->type ==
                         StorageType::RecordType::CHECKSUM) {
                         bi.size = j + 1;
                         memset(bi.checksum, 0, BLOCKCHAIN_CHECKSUM_SIZE);
-                        strcpy((char*)bi.checksum, 
+                        strcpy((char*)bi.checksum,
                                (char*)rec2[j].checksum);
                         res.push_back(bi);
                         return;
                     }
-                }                
+                }
             } else {
                 bi.size = GRADIDO_BLOCK_SIZE;
                 memset(bi.checksum, 0, BLOCKCHAIN_CHECKSUM_SIZE);
-                strcpy((char*)bi.checksum, 
+                strcpy((char*)bi.checksum,
                        (char*)rec[GRADIDO_BLOCK_SIZE - 1].checksum);
                 res.push_back(bi);
             }
         }
     }
-    virtual bool get_block_record(uint64_t seq_num, 
+    virtual bool get_block_record(uint64_t seq_num,
                                   grpr::BlockRecord& res) {
         MLock lock(main_lock);
 
         uint32_t block_num = (uint32_t)(seq_num / GRADIDO_BLOCK_SIZE);
-        
+
         if (block_num >= storage.get_block_count())
             return false;
 
         uint32_t seq_index = (uint32_t)(seq_num % GRADIDO_BLOCK_SIZE);
 
         typename StorageType::ExitCode ec;
-        typename StorageType::Record* rec = 
+        typename StorageType::Record* rec =
             storage.get_block(block_num, ec) + seq_index;
 
         if (rec->type == StorageType::RecordType::EMPTY)
@@ -442,19 +442,19 @@ class BlockchainBase : public Parent,
         return true;
     }
 
-    virtual bool get_block_record(uint64_t seq_num, 
+    virtual bool get_block_record(uint64_t seq_num,
                                   grpr::OutboundTransaction& res) {
         MLock lock(main_lock);
 
         uint32_t block_num = (uint32_t)(seq_num / GRADIDO_BLOCK_SIZE);
-        
+
         if (block_num >= storage.get_block_count())
             return false;
 
         uint32_t seq_index = (uint32_t)(seq_num % GRADIDO_BLOCK_SIZE);
 
         typename StorageType::ExitCode ec;
-        typename StorageType::Record* rec = 
+        typename StorageType::Record* rec =
             storage.get_block(block_num, ec) + seq_index;
 
         if (rec->type == StorageType::RecordType::EMPTY)
