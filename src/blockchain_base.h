@@ -38,7 +38,6 @@ class BlockchainBase : public Parent,
  public:
 
     virtual void on_transaction(ConsensusTopicResponse& transaction) {
-        std::cerr << "hiperboloids: " << transaction.DebugString() << std::endl;
         gf->push_task(new PushTransactionsTask<T>(this, transaction));
     }
     virtual void on_block_record(grpr::BlockRecord br) {
