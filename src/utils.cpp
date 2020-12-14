@@ -306,10 +306,17 @@ void dump_transaction_in_json(const GradidoRecord& t, std::ostream& out) {
             const Signature* s = t.signature + i;
             if (s->pubkey[0] == 0)
                 break;
+
+            char buff[1024];
+            dump_in_hex((char*)s->pubkey, buff, PUB_KEY_LENGTH);
+            std::string pubkey(buff);
+            dump_in_hex((char*)s->signature, buff, SIGNATURE_LENGTH);
+            std::string signature(buff);
+
             out << "  \"signature\": [" << std::endl;
             out << "    {" << std::endl;
-            out << "      \"pubkey\": \"" << std::string((char*)s->pubkey, PUB_KEY_LENGTH) << "\", " << std::endl;
-            out << "      \"signature\": \"" << std::string((char*)s->signature, SIGNATURE_LENGTH) << "\"" << std::endl;
+            out << "      \"pubkey\": \"" << pubkey << "\", " << std::endl;
+            out << "      \"signature\": \"" << signature << "\"" << std::endl;
             out << "    }" << std::endl;
             out << "  ]" << std::endl;
         }
