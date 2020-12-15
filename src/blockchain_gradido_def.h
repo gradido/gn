@@ -20,7 +20,7 @@ namespace gradido {
 
 // not flexible; would take some more adjustments when changing this
 #define SIGNATURES_IN_MAIN_PART 1
-    
+
 #define NON_SIGNATURE_PARTS 2
 #define SIGNATURE_PARTS (MAX_RECORD_PARTS - NON_SIGNATURE_PARTS)
 #define MINIMUM_SIGNATURE_COUNT 1
@@ -73,7 +73,7 @@ struct HederaTimestamp {
     int32_t nanos;
 
     bool operator<(const HederaTimestamp& ts) const {
-        return ts.seconds > seconds || (ts.seconds == seconds && 
+        return ts.seconds > seconds || (ts.seconds == seconds &&
                                         ts.nanos > nanos);
     }
     bool operator==(const HederaTimestamp& ts) const {
@@ -136,7 +136,7 @@ struct FriendUpdate {
 };
 
 // first transaction is ADD_USER with user_id of group's creator
-struct AddUser : public User {}; 
+struct AddUser : public User {};
 struct MoveUser : public User, PairedTransaction, UserState {};
 
 enum TransactionResult {
@@ -147,7 +147,7 @@ enum TransactionResult {
 
     // transfer not possible, sender doesn't have enough funds
     NOT_ENOUGH_GRADIDOS,
-    
+
     // user has to be in local group
     UNKNOWN_LOCAL_USER,
 
@@ -157,7 +157,7 @@ enum TransactionResult {
     // group has to be in list of friends
     UNKNOWN_GROUP,
 
-    // not possible to finish inbound transaction, as outbound 
+    // not possible to finish inbound transaction, as outbound
     // transaction failed
     OUTBOUND_TRANSACTION_FAILED,
 
@@ -169,18 +169,20 @@ enum TransactionResult {
     GROUP_IS_NOT_FRIEND
 };
 
-struct GradidoCreation : public UserTransfer, AbstractTransferOp {};
+struct GradidoCreation : public UserTransfer, AbstractTransferOp {
+    uint32_t target_date_seconds;
+};
 
 struct TransactionCommonHeader {
     // starts with 1; it may affect the way how transaction is parsed and
-    // validated; version_number is the same for all parts of single 
-    // transaction; for structurally_bad_message it may be 0, if 
+    // validated; version_number is the same for all parts of single
+    // transaction; for structurally_bad_message it may be 0, if
     // version number cannot be obtained from data
     uint8_t version_number;
 
     // other parts may follow this record; if not, then parts == 1;
     // cannot be larger than MAX_RECORD_PARTS for structurally validated
-    // transaction (one which is therefore translated); for 
+    // transaction (one which is therefore translated); for
     // structurally_bad_message it is unlimited
     uint8_t parts;
 
@@ -207,7 +209,7 @@ struct Transaction : public TransactionCommonHeader {
     };
 
     uint8_t result; // enum TransactionResult
-    
+
 
     // first part of memo, to avoid multi-parts, if possible (assuming,
     // usually memos are small); has to be null-terminated string;
@@ -241,7 +243,7 @@ enum StructurallyBadMessageResult {
 
     // transaction is too large to be expressed by number of parts
     // less or equal to MAX_RECORD_PARTS; other way to get this is to
-    // provide too large byte buffer in message (such as alias, memo, 
+    // provide too large byte buffer in message (such as alias, memo,
     // etc.) - reason is that such message cannot be saved in blockchain
     // and later validated; this shoud not happen, transaction sender
     // has to validate data before sending

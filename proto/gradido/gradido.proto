@@ -20,7 +20,7 @@ message SignatureMap {
 
 message Amount {
 	bytes pubkey = 1;
-	double amount = 2;
+	sint64 amount = 2;
 }
 
 message LocalTransfer {
@@ -72,6 +72,7 @@ message GroupMemberUpdate {
 
 message GradidoCreation {
     Amount receiver = 1; 
+    .proto.TimestampSeconds target_date = 3;
 }
 
 message DebugResetBlockchainMark {

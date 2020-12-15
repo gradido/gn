@@ -34,7 +34,7 @@ sodium_bin2hex(char *const hex, const size_t hex_maxlen,
 }
 
 void dump_in_hex(const char* in, char* out, size_t in_len) {
-   
+
     sodium_bin2hex(out, 1024, (const unsigned char*)in, in_len);
     return;
     size_t i = 0;
@@ -160,7 +160,7 @@ void dump_transaction_in_json(const GradidoRecord& t, std::ostream& out) {
         dump_in_hex((char*)u.signature.signature, buff, SIGNATURE_LENGTH);
         std::string sig_sig(buff);
 
-        std::string memo = u.memo[MEMO_MAIN_SIZE - 1] == 0 ? 
+        std::string memo = u.memo[MEMO_MAIN_SIZE - 1] == 0 ?
             std::string((char*)u.memo) : std::string((char*)u.memo, MEMO_MAIN_SIZE);
 
         out << "  \"transaction\": {" << std::endl;
@@ -193,6 +193,7 @@ void dump_transaction_in_json(const GradidoRecord& t, std::ostream& out) {
             out << "      \"user\": \"" << user << "\", " << std::endl;
             out << "      \"new_balance\": " << v.new_balance << ", " << std::endl;
             out << "      \"prev_transfer_rec_num\": " << v.prev_transfer_rec_num << ", " << std::endl;
+            out << "      \"target_date\": " << v.target_date_seconds << ", " << std::endl;
             out << "      \"amount\": " << v.amount << std::endl;
             out << "    }," << std::endl;
             break;
@@ -220,7 +221,7 @@ void dump_transaction_in_json(const GradidoRecord& t, std::ostream& out) {
             break;
         }
         case MOVE_USER_INBOUND: {
-            dump_in_hex((char*)u.move_user_inbound.user, buff, 
+            dump_in_hex((char*)u.move_user_inbound.user, buff,
                         PUB_KEY_LENGTH);
             std::string user(buff);
             std::string other_group((char*)u.move_user_inbound.other_group);
@@ -236,7 +237,7 @@ void dump_transaction_in_json(const GradidoRecord& t, std::ostream& out) {
             break;
         }
         case MOVE_USER_OUTBOUND: {
-            dump_in_hex((char*)u.move_user_outbound.user, buff, 
+            dump_in_hex((char*)u.move_user_outbound.user, buff,
                         PUB_KEY_LENGTH);
             std::string user(buff);
             std::string other_group((char*)u.move_user_outbound.other_group);
@@ -253,10 +254,10 @@ void dump_transaction_in_json(const GradidoRecord& t, std::ostream& out) {
         }
         case LOCAL_TRANSFER: {
             const LocalTransfer& tt = u.local_transfer;
-            dump_in_hex((char*)tt.sender.user, buff, 
+            dump_in_hex((char*)tt.sender.user, buff,
                         PUB_KEY_LENGTH);
             std::string sender(buff);
-            dump_in_hex((char*)tt.receiver.user, buff, 
+            dump_in_hex((char*)tt.receiver.user, buff,
                         PUB_KEY_LENGTH);
             std::string receiver(buff);
 
@@ -277,10 +278,10 @@ void dump_transaction_in_json(const GradidoRecord& t, std::ostream& out) {
         }
         case INBOUND_TRANSFER: {
             const InboundTransfer& tt = u.inbound_transfer;
-            dump_in_hex((char*)tt.sender.user, buff, 
+            dump_in_hex((char*)tt.sender.user, buff,
                         PUB_KEY_LENGTH);
             std::string sender(buff);
-            dump_in_hex((char*)tt.receiver.user, buff, 
+            dump_in_hex((char*)tt.receiver.user, buff,
                         PUB_KEY_LENGTH);
             std::string receiver(buff);
 
@@ -299,10 +300,10 @@ void dump_transaction_in_json(const GradidoRecord& t, std::ostream& out) {
         }
         case OUTBOUND_TRANSFER: {
             const OutboundTransfer& tt = u.outbound_transfer;
-            dump_in_hex((char*)tt.sender.user, buff, 
+            dump_in_hex((char*)tt.sender.user, buff,
                         PUB_KEY_LENGTH);
             std::string sender(buff);
-            dump_in_hex((char*)tt.receiver.user, buff, 
+            dump_in_hex((char*)tt.receiver.user, buff,
                         PUB_KEY_LENGTH);
             std::string receiver(buff);
 
@@ -325,7 +326,7 @@ void dump_transaction_in_json(const GradidoRecord& t, std::ostream& out) {
 
         out << "    \"result\": \"" << result_str << "\", " << std::endl;
         out << "    \"parts\": " << (int)u.parts << ", " << std::endl;
-        out << "    \"memo\": \"" << memo << "\"" << std::endl;        
+        out << "    \"memo\": \"" << memo << "\"" << std::endl;
         out << "  }" << std::endl;
         break;
     }
@@ -374,7 +375,7 @@ void dump_transaction_in_json(const GradidoRecord& t, std::ostream& out) {
             << "      \"sequenceNumber\": " << u.hedera_transaction.sequenceNumber << ", " << std::endl
             << "      \"runningHashVersion\": " << u.hedera_transaction.runningHashVersion << std::endl;
         out << "    }" << std::endl;
-        
+
         break;
     }
     }
@@ -386,7 +387,7 @@ bool ends_with(std::string const & value, std::string const & ending) {
     return std::equal(ending.rbegin(), ending.rend(), value.rbegin());
 }
 
-    
+
 void dump_transaction_in_json(const GroupRegisterRecord& t, std::ostream& out) {
     const GroupRecord& u = t.group_record;
     char buff[1024];
@@ -434,7 +435,7 @@ void dump_transaction_in_json(const GroupRegisterRecord& t, std::ostream& out) {
     out << "    } " << std::endl;
 
     out << "}" << std::endl;
-    
+
 }
 
 }
