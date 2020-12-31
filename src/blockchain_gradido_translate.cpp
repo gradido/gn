@@ -184,7 +184,7 @@ namespace gradido {
                 return;
             } else if (tb.has_creation()) {
                 tt->transaction_type = (uint8_t)GRADIDO_CREATION;
-                tt->gradido_creation.amount = 
+                tt->gradido_creation.amount.amount = 
                     tb.creation().receiver().amount();
                 memcpy(tt->gradido_creation.user, 
                        tb.creation().receiver().pubkey().c_str(), 
@@ -231,7 +231,7 @@ namespace gradido {
                 grpr::GradidoTransfer g2 = tb.transfer();
                 if (g2.has_local()) {
                     tt->transaction_type = (uint8_t)LOCAL_TRANSFER;
-                    tt->local_transfer.amount = g2.local().sender().amount();
+                    tt->local_transfer.amount.amount = g2.local().sender().amount();
                     memcpy(tt->local_transfer.sender.user, 
                            g2.local().sender().pubkey().c_str(), 
                            PUB_KEY_LENGTH);
@@ -240,8 +240,8 @@ namespace gradido {
                            PUB_KEY_LENGTH);
                 } else if (g2.has_inbound()) {
                     tt->transaction_type = (uint8_t)INBOUND_TRANSFER;
-                    tt->inbound_transfer.amount = g2.inbound().sender().
-                        amount();
+                    tt->inbound_transfer.amount.amount = g2.inbound().
+                        sender().amount();
                     memcpy(tt->inbound_transfer.sender.user, 
                            g2.inbound().sender().pubkey().c_str(), 
                            PUB_KEY_LENGTH);
@@ -256,8 +256,8 @@ namespace gradido {
                            group.c_str(), group.size());
                 } else if (g2.has_outbound()) {
                     tt->transaction_type = (uint8_t)OUTBOUND_TRANSFER;
-                    tt->outbound_transfer.amount = g2.outbound().sender().
-                        amount();
+                    tt->outbound_transfer.amount.amount =
+                        g2.outbound().sender().amount();
                     memcpy(tt->outbound_transfer.sender.user, 
                            g2.outbound().sender().pubkey().c_str(), 
                            PUB_KEY_LENGTH);

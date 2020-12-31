@@ -1,5 +1,5 @@
-#include "blockchain_gradido.h"
 #include <Poco/File.h>
+#include "blockchain_gradido.h"
 
 
 namespace gradido {
@@ -10,6 +10,9 @@ namespace gradido {
         return true;
     }
 
+    BlockchainGradido::~BlockchainGradido() {
+        mpfr_clear(decay_factor);
+    }
 
     bool BlockchainGradido::add_index_data() {
 
@@ -37,7 +40,12 @@ namespace gradido {
                                                        (char*)tr.gradido_creation.user, 
                                                        PUB_KEY_LENGTH);
                         auto urec = user_index.find(user);
-                        urec->second.current_balance += tr.gradido_creation.amount;
+                        urec->second.current_balance = 
+                            tr.gradido_creation.new_balance;
+                        urec->second.last_record_with_balance = 
+                            rec_num;
+                        urec->second.timestamp_of_last_balance = 
+                            tr.hedera_transaction.consensusTimestamp;
                         break;
                     }
                     case ADD_GROUP_FRIEND: {
@@ -52,14 +60,16 @@ namespace gradido {
                         break;
                     }
                     case ADD_USER: {
-                        UserInfo ui = {0};
-                        ui.last_record_with_balance = storage.get_rec_count();
+                        UserInfo ui;
+                        ui.last_record_with_balance = rec_num;
+                        ui.timestamp_of_last_balance = 
+                            tr.hedera_transaction.consensusTimestamp;
                         user_index.insert({std::string((char*)tr.add_user.user, 
                                                        PUB_KEY_LENGTH), ui});
                         break;
                     }
                     case MOVE_USER_INBOUND: {
-                        UserInfo ui = {0};
+                        UserInfo ui;
                         ui.current_balance = tr.move_user_inbound.new_balance;
                         ui.last_record_with_balance = i * GRADIDO_BLOCK_SIZE + j;
                         user_index.insert(
@@ -82,35 +92,59 @@ namespace gradido {
                                                            (char*)tr.local_transfer.sender.user, 
                                                            PUB_KEY_LENGTH);
                             auto urec = user_index.find(user);
-                            urec->second.current_balance = tr.local_transfer.sender.new_balance;
+                            urec->second.current_balance = 
+                                tr.local_transfer.sender.new_balance;
+                            urec->second.timestamp_of_last_balance =
+                                tr.hedera_transaction.consensusTimestamp;
+                            urec->second.last_record_with_balance =
+                                rec_num;
                         }
                         {
                             std::string user = std::string(
                                                            (char*)tr.local_transfer.receiver.user, 
                                                            PUB_KEY_LENGTH);
                             auto urec = user_index.find(user);
-                            urec->second.current_balance = tr.local_transfer.receiver.new_balance;
+                            urec->second.current_balance = 
+                                tr.local_transfer.receiver.new_balance;
+                            urec->second.timestamp_of_last_balance =
+                                tr.hedera_transaction.consensusTimestamp;
+                            urec->second.last_record_with_balance =
+                                rec_num;
                         }
                         break;
                     }            
                     case INBOUND_TRANSFER: {
                         {
-                            std::string user = std::string(
-                                                           (char*)tr.inbound_transfer.receiver.user, 
-                                                           PUB_KEY_LENGTH);
+                            std::string user = 
+                                std::string(
+                                            (char*)tr.inbound_transfer.receiver.user, 
+                                            PUB_KEY_LENGTH);
                             auto urec = user_index.find(user);
-                            urec->second.current_balance = tr.inbound_transfer.receiver.new_balance;
+                            urec->second.current_balance = 
+                                tr.inbound_transfer.receiver.new_balance;
+                            urec->second.timestamp_of_last_balance =
+                                tr.hedera_transaction.consensusTimestamp;
+                            urec->second.last_record_with_balance =
+                                rec_num;
                         }
                         break;
                     }
                     case OUTBOUND_TRANSFER: {
                         {
                             std::string user = std::string(
-                                                           (char*)tr.outbound_transfer.sender.user, 
-                                                           PUB_KEY_LENGTH);
+                                 (char*)tr.outbound_transfer.sender.user, 
+                                 PUB_KEY_LENGTH);
                             auto urec = user_index.find(user);
-                            urec->second.current_balance = tr.outbound_transfer.sender.new_balance;
-                            outbound_transactions.insert({tr.outbound_transfer.paired_transaction_id, rec_num});
+                            urec->second.current_balance = 
+                                tr.outbound_transfer.sender.new_balance;
+                            urec->second.timestamp_of_last_balance =
+                                tr.hedera_transaction.consensusTimestamp;
+                            urec->second.last_record_with_balance =
+                                rec_num;
+                            outbound_transactions.insert({
+                                    tr.outbound_transfer.
+                                        paired_transaction_id, 
+                                        rec_num});
                         }
                         break;
                     }
@@ -138,8 +172,10 @@ namespace gradido {
                                          IGradidoFacade* gf,
                                          HederaTopicID topic_id) : 
         Parent(name, root_folder, gf, topic_id), 
-        waiting_for_paired(false) {}
-
+        waiting_for_paired(false) {
+        mpfr_init(decay_factor); 
+        calculateDecayFactor(decay_factor, 365);
+    }
 
 
     bool BlockchainGradido::get_transaction_id(uint64_t& res, 
@@ -168,9 +204,13 @@ namespace gradido {
             auto urec = user_index.find(user);
             if (urec == user_index.end())
                 tr.result = UNKNOWN_LOCAL_USER;
-            else if (tr.gradido_creation.amount < 0) 
-                tr.result = NEGATIVE_AMOUNT;
             else {
+                urec->second.current_balance = 
+                    calc_deflation(
+                         urec->second.timestamp_of_last_balance,
+                         tr.hedera_transaction.consensusTimestamp,
+                         urec->second.current_balance);
+
                 tr.gradido_creation.new_balance = 
                     urec->second.current_balance + 
                     tr.gradido_creation.amount;
@@ -178,8 +218,11 @@ namespace gradido {
                     urec->second.last_record_with_balance;
                 tr.result = SUCCESS;
 
-                auto urec = user_index.find(user);
                 urec->second.current_balance += tr.gradido_creation.amount;
+                urec->second.last_record_with_balance = 
+                    storage.get_rec_count();
+                urec->second.timestamp_of_last_balance =
+                    tr.hedera_transaction.consensusTimestamp;
             }
             break;
         }
@@ -215,8 +258,10 @@ namespace gradido {
                 tr.result = USER_ALREADY_EXISTS;
             } else {
                 tr.result = SUCCESS;
-                UserInfo ui = {0};
+                UserInfo ui;
                 ui.last_record_with_balance = storage.get_rec_count();
+                ui.timestamp_of_last_balance = 
+                    tr.hedera_transaction.consensusTimestamp;
                 user_index.insert({std::string((char*)tr.add_user.user, 
                                                PUB_KEY_LENGTH), ui});
 
@@ -278,9 +323,11 @@ namespace gradido {
                         } else {
                             tr.result = SUCCESS;
 
-                            UserInfo ui = {0};
+                            UserInfo ui;
                             ui.current_balance = tr.move_user_inbound.new_balance;
                             ui.last_record_with_balance = storage.get_rec_count();
+                            ui.timestamp_of_last_balance = 
+                                tr.hedera_transaction.consensusTimestamp;
                             user_index.insert(
                                               {std::string((char*)tr.move_user_inbound.user, 
                                                            PUB_KEY_LENGTH), ui});
@@ -313,6 +360,11 @@ namespace gradido {
                                (char*)lt.sender.user, 
                                PUB_KEY_LENGTH);
             auto r_sender = user_index.find(sender);
+            GradidoValue sender_amount = 
+                calc_deflation(
+                         r_sender->second.timestamp_of_last_balance,
+                         tr.hedera_transaction.consensusTimestamp,
+                         r_sender->second.current_balance);
 
             std::string receiver = std::string(
                                (char*)lt.receiver.user, 
@@ -322,15 +374,17 @@ namespace gradido {
             if (r_sender == user_index.end() || 
                 r_receiver == user_index.end()) {
                 tr.result = UNKNOWN_LOCAL_USER;
-            } else if (lt.amount < 0) {
-                tr.result = NEGATIVE_AMOUNT;
-            } else if (r_sender->second.current_balance < 
-                       lt.amount) {
+            } else if (sender_amount < lt.amount) {
                 tr.result = NOT_ENOUGH_GRADIDOS;
             } else {
-                lt.sender.new_balance = 
-                    r_sender->second.current_balance - 
-                    lt.amount;
+                r_sender->second.current_balance = sender_amount;
+                r_receiver->second.current_balance = 
+                    calc_deflation(
+                         r_receiver->second.timestamp_of_last_balance,
+                         tr.hedera_transaction.consensusTimestamp,
+                         r_receiver->second.current_balance);
+
+                lt.sender.new_balance = sender_amount - lt.amount;
                 lt.receiver.new_balance = 
                     r_receiver->second.current_balance +
                     lt.amount;
@@ -338,16 +392,16 @@ namespace gradido {
                     r_sender->second.last_record_with_balance;
                 lt.receiver.prev_transfer_rec_num = 
                     r_receiver->second.last_record_with_balance;
-                tr.result = SUCCESS;
-                {
-                    auto urec = user_index.find(sender);
-                    urec->second.current_balance = tr.local_transfer.sender.new_balance;
-                }
-                {
-                    auto urec = user_index.find(receiver);
-                    urec->second.current_balance = tr.local_transfer.receiver.new_balance;
-                }
+                r_sender->second.timestamp_of_last_balance =
+                    tr.hedera_transaction.consensusTimestamp;
+                r_receiver->second.timestamp_of_last_balance =
+                    tr.hedera_transaction.consensusTimestamp;
+                r_sender->second.last_record_with_balance =
+                    storage.get_rec_count();
+                r_receiver->second.last_record_with_balance =
+                    storage.get_rec_count();
 
+                tr.result = SUCCESS;
             }
             break;
         }            
@@ -409,20 +463,23 @@ namespace gradido {
                         if (tt.result != SUCCESS) {
                             tr.result = OUTBOUND_TRANSACTION_FAILED;
                         } else {
+                            r_receiver->second.current_balance = 
+                            calc_deflation(
+                            r_receiver->second.timestamp_of_last_balance,
+                            tr.hedera_transaction.consensusTimestamp,
+                            r_receiver->second.current_balance);
+
                             lt.receiver.new_balance = 
                                 r_receiver->second.current_balance +
                                 lt.amount;
                             lt.receiver.prev_transfer_rec_num = 
                                 r_receiver->second.last_record_with_balance;
-                            tr.result = SUCCESS;
-                            {
-                                std::string user = std::string(
-                                                               (char*)tr.inbound_transfer.receiver.user, 
-                                                               PUB_KEY_LENGTH);
-                                auto urec = user_index.find(user);
-                                urec->second.current_balance = tr.inbound_transfer.receiver.new_balance;
-                            }
+                            r_receiver->second.timestamp_of_last_balance =
+                                tr.hedera_transaction.consensusTimestamp;
+                            r_receiver->second.last_record_with_balance =
+                                storage.get_rec_count();
 
+                            tr.result = SUCCESS;
                         }
                     }
                 }
@@ -430,7 +487,6 @@ namespace gradido {
             break;
         }
         case OUTBOUND_TRANSFER: {
-            std::cerr << name << " + insert + " << storage.get_rec_count() << std::endl;
             outbound_transactions.insert({tr.outbound_transfer.paired_transaction_id, storage.get_rec_count() - 1});
 
             OutboundTransfer& lt = tr.outbound_transfer;
@@ -438,28 +494,29 @@ namespace gradido {
                                (char*)lt.sender.user, 
                                PUB_KEY_LENGTH);
             auto r_sender = user_index.find(sender);
+            GradidoValue sender_amount = 
+                calc_deflation(
+                         r_sender->second.timestamp_of_last_balance,
+                         tr.hedera_transaction.consensusTimestamp,
+                         r_sender->second.current_balance);
 
             if (r_sender == user_index.end()) {
                 tr.result = UNKNOWN_LOCAL_USER;
-            } else if (lt.amount < 0) {
-                tr.result = NEGATIVE_AMOUNT;
-            } else if (r_sender->second.current_balance < 
-                       lt.amount) {
+            } else if (sender_amount < lt.amount) {
                 tr.result = NOT_ENOUGH_GRADIDOS;
             } else {
-                lt.sender.new_balance = 
+                r_sender->second.current_balance = sender_amount;
+
+                lt.sender.new_balance =
                     r_sender->second.current_balance - 
                     lt.amount;
                 lt.sender.prev_transfer_rec_num = 
                     r_sender->second.last_record_with_balance;
+                r_sender->second.timestamp_of_last_balance =
+                    tr.hedera_transaction.consensusTimestamp;
+                r_sender->second.last_record_with_balance =
+                    storage.get_rec_count();
                 tr.result = SUCCESS;
-                {
-                    std::string user = std::string(
-                                                   (char*)tr.outbound_transfer.sender.user, 
-                                                   PUB_KEY_LENGTH);
-                    auto urec = user_index.find(user);
-                    urec->second.current_balance = tr.outbound_transfer.sender.new_balance;
-                }
             }
             break;
         }
@@ -487,8 +544,6 @@ namespace gradido {
             return false;
 
         seq_num = pt->second;
-
-        std::cerr << name << " fetch2 " << seq_num << std::endl;
 
         return true;
     }
@@ -530,6 +585,24 @@ namespace gradido {
             res.push_back(i.first);
         return res;
     }
+
+    GradidoValue BlockchainGradido::calc_deflation(
+                 HederaTimestamp t0, HederaTimestamp t1,
+                 GradidoValue val0) {
+        HederaTimestamp d = t1 - t0;
+
+        GradidoWithDecimal gradidos;
+        gradidos.gradido = val0.amount;
+        gradidos.decimal = val0.decimal_amount;
+        gradidos = calculateDecay(gradidos, d.seconds, decay_factor);
+        
+        GradidoValue res;
+        res.amount = gradidos.gradido;
+        res.decimal_amount = gradidos.decimal;
+
+        return res;
+    }
+
 
 
 }

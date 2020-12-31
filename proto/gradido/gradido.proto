@@ -4,6 +4,20 @@ package com.gradido.proto;
 
 import "BasicTypes.proto";
 import "Timestamp.proto";
+import "Transaction.proto";
+
+message Ack {
+    bool success = 1;
+}
+
+message PubkeyEntity {
+    bytes pub_key = 1;
+}
+
+message DateMonth {
+    uint32 year = 1;
+    uint32 month = 2;
+}
 
 message SignaturePair {
     bytes pub_key = 1;  
@@ -72,22 +86,37 @@ message GroupMemberUpdate {
 
 message GradidoCreation {
     Amount receiver = 1; 
+    DateMonth target_date = 2;
 }
 
 message DebugResetBlockchainMark {
     bool do_reset = 1;
 }
 
+message GradidoHeader {
+    string alias = 1;
+    repeated bytes ca_chain = 2;
+    bytes ordering_node = 3;
+}
+
 message TransactionBody {
 	string memo = 1; // max 150 chars
-	uint64 version_number = 2;
+	uint64 version_number = 2; // deprecated
 
 	oneof data {
         GradidoTransfer transfer = 3;
 		GradidoCreation creation = 4;
         GroupFriendsUpdate group_friends_update = 5;
         GroupMemberUpdate group_member_update = 6;
-        DebugResetBlockchainMark debug_reset_blockchain_mark = 7;
+
+        DebugResetBlockchainMark debug_reset_blockchain_mark = 7; // deprecated
+
+        GradidoHeader header = 8;
+        PubkeyEntity add_admin = 9;
+        PubkeyEntity remove_admin = 10;
+        PubkeyEntity add_node = 11;
+        PubkeyEntity remove_node = 12;
+        Ack initialization_done = 13;
 	}
 }
 
@@ -105,6 +134,42 @@ message GradidoTransaction {
 	bytes body_bytes = 2; // TransactionBody
 }
 
+message AddAdmin {
+    bytes pub_key = 1;
+    string name = 2;
+    string email = 3;
+}
+
+message NodeBlockchain {
+    bytes node_pub_key = 1;
+    bytes blockchain_pub_key = 2;
+}
+
+message AddNode {
+    string type = 1;
+    bytes pub_key = 2;
+}
+
+message AddBlockchain {
+    bytes pub_key = 1;
+    string alias = 2;    
+}
+
+message SbTransaction {
+    string memo = 1;
+    oneof data {
+        AddAdmin add_admin = 2;
+        PubkeyEntity disable_admin = 3;
+        PubkeyEntity enable_admin = 4;
+        AddNode add_node = 5;
+        PubkeyEntity disable_node = 6;
+        PubkeyEntity enable_node = 7;
+
+        AddBlockchain add_blockchain = 8;
+        NodeBlockchain add_node_to_blockchain = 9;
+        NodeBlockchain remove_node_from_blockchain = 10;
+    }
+}
 
 message AddGroupToRegister {
     bytes alias = 1;
@@ -112,47 +177,6 @@ message AddGroupToRegister {
     bool reset_group_register = 3; // for debugging purposes only
 }
 
-/*
-// copyed from hedera topic id
-message HederaID {
-    int64 shardNum = 1; // The shard number (nonnegative)
-    int64 realmNum = 2; // The realm number (nonnegative)
-    int64 topicNum = 3; // Unique topic identifier within a realm (nonnegative).
-}
-
-message ManageNodeGroupAdd {
-    string   group_name = 1;
-	string   group_alias = 2;
-	HederaID hedera_topic_id = 3;
-	//string parent_group_alias = 4; 
-}
-
-message ManageNodeBody {
-    uint64 version_number = 1;
-	
-	oneof data {
-        ManageNodeGroupAdd group_add = 3;
-	}
-}
-
-//	used for controlling node server by login-server
-//	same signature strategy like transactions
-message ManageNodeRequest {
-    SignatureMap sig_map = 1;
-	bytes body_bytes = 2; // ManageNodeBody
-}
-
-message ManageNodeResponse {
-	bool success = 1;
-	enum ErrorCode {
-		INVALID_BODY = 0;
-		INVALID_SIGNATURE = 1;
-		SIGNER_NOT_KNOWN = 2;
-		GROUP_ALIAS_ALREADY_EXIST = 3;
-	}
-	ErrorCode error = 2;
-}
-*/
 message ManageGroupRequest {
     enum Action {
          ADD_GROUP = 0;
@@ -162,16 +186,12 @@ message ManageGroupRequest {
     bytes group = 2;
 }
 
-message ManageGroupResponse {
-    bool success = 1;    
-}
-
-message GroupDescriptor {
-    bytes group = 1;
+message BlockchainId {
+    bytes pub_key = 1;
 }
 
 message BlockDescriptor {
-    GroupDescriptor group = 1;
+    BlockchainId blockchain_id = 1;
     uint32 block_id = 2;        
 }
 
@@ -193,10 +213,6 @@ message ManageNodeNetwork {
     }
     Action action = 1;
     bytes endpoint = 2;
-}
-
-message ManageNodeNetworkResponse {
-    bool success = 1;
 }
 
 message OutboundTransactionDescriptor {
@@ -246,20 +262,127 @@ message UserBalance {
     Amount amount = 2;
 }
 
+message Handshake0 {
+    .proto.Timestamp transaction_id = 1;
+    string starter_endpoint = 2;
+}
+
+message Handshake1 {
+    .proto.Timestamp transaction_id = 1; // should match one from h0
+    bytes pub_key = 2; // newly made key pair's pub key
+}
+
+message Handshake2 {
+    .proto.Timestamp transaction_id = 1;
+    bytes pub_key = 2;    
+}
+
+message Handshake3 {
+    .proto.Timestamp transaction_id = 1; // should match one from h2
+    bytes sb_transaction = 2; // should be signed and sent to sb
+                              // ordering node
+}
+
+message HandshakeOrdering3 {
+    .proto.Timestamp transaction_id = 1; // should match one from h2
+    bytes sb_transaction = 2; // should be signed and sent to sb
+                              // ordering node
+    bytes sb_contents = 3; 
+}
+
+
+message BlockchainSubscription {
+    bytes blockchain_pub_key = 1;
+}
+
+message LogEvent {
+    string source = 1;
+    .proto.Timestamp ts = 2;
+    string message = 3;
+    bytes data = 4;   
+}
+
+message LogResponse {
+    .proto.Timestamp ts = 1; // should match request's ts
+}
+
+message OrderingRequest {
+    .proto.Timestamp transaction_id = 1;
+    string blockchain_pub_key = 2;
+    // currently, SbTransaction or TransactionBody
+    bytes data = 3; 
+}
+
+message OrderingRequestResponse {
+    .proto.Timestamp transaction_id = 1;
+}
+
+message OrderedBlockchainEvent {
+    .proto.Timestamp consensus_timestamp = 1;
+    uint64 seq_num = 2;
+    bytes running_hash = 3;
+    string blockchain_pub_key = 4;
+    bytes data = 5; // OrderingRequest as it is
+}
+
+message Transaction {
+    // if another Transaction object is wrapped, version_number values
+    // have to match
+	uint64 version_number = 1;
+    bytes body_bytes = 2;
+    bool success = 3; // is ignored when Transaction is request
+    SignatureMap sigMap = 4; // signing material is body_bytes + 
+                             // version_number + success
+}
+
+message Ping {
+   .proto.Timestamp ts = 1;
+}
+
+message Pong {
+    .proto.Timestamp ts = 1; // should match request's ts
+}
+
+
+// each node type supports its own set of rpcs; for sake of simplicity,
+// all are presented here in a single collection
+//
+// a common convention is to refer those methods by exactly the same
+// name in various handlers and wrappers
 service GradidoNodeService {
+
+    // Handshake0 -> Handshake1
+    rpc create_node_handshake0 (Transaction) returns (stream Transaction);
+    // Handshake2 -> Handshake3
+    rpc create_node_handshake2 (Transaction) returns (stream Transaction);
+    // Handshake2 -> HandshakeOrdering3
+    rpc create_ordering_node_handshake2 (Transaction) returns (stream Transaction);
+
+    // OrderingRequest -> OrderingRequestResponse
+    rpc submit_message (Transaction) returns (stream Transaction);
+
+    // BlockchainSubscription -> OrderedBlockchainEvent
+    rpc subscribe_to_blockchain (Transaction) returns (stream Transaction);
+
+    // LogEvent -> LogEventResponse
+    rpc submit_log_message (Transaction) returns (stream Transaction);
+    // Ping -> Pong
+    rpc ping (Transaction) returns (stream Transaction);
+
+    // TODO: signatures
     rpc subscribe_to_blocks (BlockDescriptor) returns (stream BlockRecord);
-    rpc subscribe_to_block_checksums (GroupDescriptor) returns (stream BlockChecksum);
+    rpc subscribe_to_block_checksums (BlockchainId) returns (stream BlockChecksum);
     // having stream as response for simplicity; should be non-stream; on
     // the other hand, stream with just one message of success=0 means
     // "no data", which is useful with protobuf (stream should always 
     // end with success=0; last message contents is disregarded) 
-    rpc manage_group (ManageGroupRequest) returns (stream ManageGroupResponse);
-    rpc manage_node_network (ManageNodeNetwork) returns (stream ManageNodeNetworkResponse);
+    rpc manage_group (ManageGroupRequest) returns (stream Ack);
+    rpc manage_node_network (ManageNodeNetwork) returns (stream Ack);
     rpc get_outbound_transaction (OutboundTransactionDescriptor) returns (stream OutboundTransaction);
 
     rpc get_balance (UserDescriptor) returns (stream UserBalance);
     rpc get_transactions (TransactionRangeDescriptor) returns (stream TransactionData);
     rpc get_transactions_by_index (TransactionRangeDescriptor) returns (stream TransactionData);
     rpc get_creation_sum (CreationSumRangeDescriptor) returns (stream CreationSumData);
-    rpc get_users (GroupDescriptor) returns (stream UserData);
+    rpc get_users (BlockchainId) returns (stream UserData);
 }

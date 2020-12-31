@@ -26,6 +26,36 @@
 #include "worker_pool.h"
 #include "json_rpc/JsonRequestHandlerFactory.h"
 
+#define GCOMM_CALL_DATA_CLASS(Name, ReqType, ReplType, RpcName) \
+    class Name :                                                \
+    public TemplatedCallData<ReqType,                           \
+        ReplType, Name> {                                       \
+    public:                                                     \
+        using Parent = TemplatedCallData<ReqType,               \
+            ReplType, Name>;                                    \
+    Name(grpr::GradidoNodeService::AsyncService* service,       \
+         grpc::ServerCompletionQueue* cq,                       \
+         IGradidoFacade* gf,                                    \
+         ICommunicationLayer::HandlerFactory* hf) :             \
+        Parent(service, cq, gf, hf) {                           \
+            proceed();                                          \
+        }                                                       \
+                                                                \
+        virtual void finish_create() {                          \
+            service_->Request##RpcName(&ctx_,                   \
+                                       &request_,               \
+                                       &responder_,             \
+                                       cq_, cq_,                \
+                                       this);                   \
+        }                                                       \
+        virtual ITask* get_handler() {                          \
+            return hf->RpcName(&request_,                       \
+                               &reply_,                         \
+                               this);                           \
+        }                                                       \
+    };
+
+#define GCOMM_SUBCLUSTER_CALL_DATA_CLASS(Name, RpcName) GCOMM_CALL_DATA_CLASS(Name, grpr::Transaction, grpr::Transaction, RpcName)
 
 
 namespace gradido {
@@ -115,11 +145,11 @@ private:
         BlockChecksumReceiver* bcr;
         std::unique_ptr< ::grpc::ClientAsyncReader<grpr::BlockChecksum>> stream;
         std::unique_ptr<grpr::GradidoNodeService::Stub> stub;
-        grpr::GroupDescriptor gd;
+        grpr::BlockchainId gd;
         grpr::BlockChecksum bc;
     public:
         BlockChecksumSubscriber(std::string endpoint,
-                                grpr::GroupDescriptor gd,
+                                grpr::BlockchainId gd,
                                 BlockChecksumReceiver* bcr);
 
         virtual bool got_data();
@@ -194,8 +224,11 @@ private:
             if (done)
                 return false;
             ITask* handler = get_handler();
-            gf->push_task(handler);
-            return true;
+            if (handler) {
+                gf->push_task(handler);
+                return true;
+            } else
+                return false;
         }
 
 
@@ -220,257 +253,44 @@ private:
         }
     };
 
-    class BlockCallData : public TemplatedCallData<grpr::BlockDescriptor,
-        grpr::BlockRecord, BlockCallData> {
-    public:
-        using Parent = TemplatedCallData<grpr::BlockDescriptor,
-            grpr::BlockRecord, BlockCallData>;
-        BlockCallData(grpr::GradidoNodeService::AsyncService* service, 
-                      grpc::ServerCompletionQueue* cq,
-                      IGradidoFacade* gf,
-                      ICommunicationLayer::HandlerFactory* hf) :
-        Parent(service, cq, gf, hf) {
-            proceed();
-        }
+    GCOMM_CALL_DATA_CLASS(BlockCallData, grpr::BlockDescriptor,
+                          grpr::BlockRecord, subscribe_to_blocks);
+    GCOMM_CALL_DATA_CLASS(ChecksumCallData, grpr::BlockchainId,
+                          grpr::BlockChecksum, 
+                          subscribe_to_block_checksums);
+    GCOMM_CALL_DATA_CLASS(ManageGroupCallData, grpr::ManageGroupRequest,
+                          grpr::Ack, manage_group);
+    GCOMM_CALL_DATA_CLASS(ManageNodeCallData, grpr::ManageNodeNetwork,
+                          grpr::Ack, manage_node_network);
+    GCOMM_CALL_DATA_CLASS(OutboundTransactionCallData, 
+                          grpr::OutboundTransactionDescriptor,
+                          grpr::OutboundTransaction, 
+                          get_outbound_transaction);
+    GCOMM_CALL_DATA_CLASS(GetBalanceCallData, grpr::UserDescriptor,
+                          grpr::UserBalance, get_balance);
+    GCOMM_CALL_DATA_CLASS(GetTransactionsCallData, 
+                          grpr::TransactionRangeDescriptor,
+                          grpr::TransactionData, get_transactions);
+    GCOMM_CALL_DATA_CLASS(GetCreationSumCallData, 
+                          grpr::CreationSumRangeDescriptor,
+                          grpr::CreationSumData, get_creation_sum);
+    GCOMM_CALL_DATA_CLASS(GetUserCallData, grpr::BlockchainId,
+                          grpr::UserData, get_users);
 
-        virtual void finish_create() {
-            service_->Requestsubscribe_to_blocks(&ctx_, 
-                                                 &request_, 
-                                                 &responder_, 
-                                                 cq_, cq_,
-                                                 this);
-        }
-        virtual ITask* get_handler() {
-            return hf->subscribe_to_blocks(&request_, 
-                                           &reply_,
-                                           this);
-        }
-    };
-
-    class ChecksumCallData : 
-        public TemplatedCallData<grpr::GroupDescriptor,
-        grpr::BlockChecksum, ChecksumCallData> {
-    public:
-        using Parent = TemplatedCallData<grpr::GroupDescriptor,
-            grpr::BlockChecksum, ChecksumCallData>;
-        ChecksumCallData(grpr::GradidoNodeService::AsyncService* service, 
-                         grpc::ServerCompletionQueue* cq,
-                         IGradidoFacade* gf,
-                         ICommunicationLayer::HandlerFactory* hf) :
-        Parent(service, cq, gf, hf) {
-            proceed();
-        }
-
-        virtual void finish_create() {
-            service_->Requestsubscribe_to_block_checksums(&ctx_, 
-                                                          &request_, 
-                                                          &responder_, 
-                                                          cq_, cq_,
-                                                          this);
-        }
-        virtual ITask* get_handler() {
-            return hf->subscribe_to_block_checksums(&request_, 
-                                                    &reply_,
-                                                    this);
-        }
-    };
-
-    class ManageGroupCallData : 
-        public TemplatedCallData<grpr::ManageGroupRequest,
-        grpr::ManageGroupResponse, ManageGroupCallData> {
-    public:
-        using Parent = TemplatedCallData<grpr::ManageGroupRequest,
-            grpr::ManageGroupResponse, ManageGroupCallData>;
-        ManageGroupCallData(grpr::GradidoNodeService::AsyncService* service, 
-                            grpc::ServerCompletionQueue* cq,
-                            IGradidoFacade* gf,
-                            ICommunicationLayer::HandlerFactory* hf) :
-        Parent(service, cq, gf, hf) {
-            proceed();
-        }
-
-        virtual void finish_create() {
-            service_->Requestmanage_group(&ctx_, 
-                                          &request_, 
-                                          &responder_, 
-                                          cq_, cq_,
-                                          this);
-        }
-        virtual ITask* get_handler() {
-            return hf->manage_group(&request_, 
-                                    &reply_,
-                                    this);
-        }
-    };
-
-    class ManageNodeCallData : 
-        public TemplatedCallData<grpr::ManageNodeNetwork,
-        grpr::ManageNodeNetworkResponse, ManageNodeCallData> {
-    public:
-        using Parent = TemplatedCallData<grpr::ManageNodeNetwork,
-            grpr::ManageNodeNetworkResponse, ManageNodeCallData>;
-        ManageNodeCallData(grpr::GradidoNodeService::AsyncService* service, 
-                           grpc::ServerCompletionQueue* cq,
-                           IGradidoFacade* gf,
-                           ICommunicationLayer::HandlerFactory* hf) :
-        Parent(service, cq, gf, hf) {
-            proceed();
-        }
-
-        virtual void finish_create() {
-            service_->Requestmanage_node_network(&ctx_, 
-                                                 &request_, 
-                                                 &responder_, 
-                                                 cq_, cq_,
-                                                 this);
-        }
-        virtual ITask* get_handler() {
-            return hf->manage_node_network(&request_, 
-                                           &reply_,
-                                           this);
-        }
-    };
-
-    class OutboundTransactionCallData : 
-        public TemplatedCallData<grpr::OutboundTransactionDescriptor,
-        grpr::OutboundTransaction, OutboundTransactionCallData> {
-    public:
-        using Parent = TemplatedCallData<grpr::OutboundTransactionDescriptor,
-            grpr::OutboundTransaction, OutboundTransactionCallData>;
-        OutboundTransactionCallData(grpr::GradidoNodeService::AsyncService* service, 
-                                    grpc::ServerCompletionQueue* cq,
-                                    IGradidoFacade* gf,
-                                    ICommunicationLayer::HandlerFactory* hf) :
-        Parent(service, cq, gf, hf) {
-            proceed();
-        }
-
-        virtual void finish_create() {
-            service_->Requestget_outbound_transaction(&ctx_, 
-                                                      &request_, 
-                                                      &responder_, 
-                                                      cq_, cq_,
-                                                      this);
-        }
-        virtual ITask* get_handler() {
-            return hf->get_outbound_transaction(&request_, 
-                                                &reply_,
-                                                this);
-        }
-    };
-
-    class GetBalanceCallData : 
-        public TemplatedCallData<grpr::UserDescriptor,
-        grpr::UserBalance, GetBalanceCallData> {
-    public:
-        using Parent = TemplatedCallData<grpr::UserDescriptor,
-            grpr::UserBalance, GetBalanceCallData>;
-        GetBalanceCallData(grpr::GradidoNodeService::AsyncService* service, 
-                                    grpc::ServerCompletionQueue* cq,
-                                    IGradidoFacade* gf,
-                                    ICommunicationLayer::HandlerFactory* hf) :
-        Parent(service, cq, gf, hf) {
-            proceed();
-        }
-
-        virtual void finish_create() {
-            service_->Requestget_balance(&ctx_, 
-                                         &request_, 
-                                         &responder_, 
-                                         cq_, cq_,
-                                         this);
-        }
-        virtual ITask* get_handler() {
-            return hf->get_balance(&request_, 
-                                   &reply_,
-                                   this);
-        }
-    };
-
-
-    class GetTransactionsCallData : 
-        public TemplatedCallData<grpr::TransactionRangeDescriptor,
-        grpr::TransactionData, GetTransactionsCallData> {
-    public:
-        using Parent = TemplatedCallData<grpr::TransactionRangeDescriptor,
-            grpr::TransactionData, GetTransactionsCallData>;
-        GetTransactionsCallData(grpr::GradidoNodeService::AsyncService* service, 
-                                    grpc::ServerCompletionQueue* cq,
-                                    IGradidoFacade* gf,
-                                    ICommunicationLayer::HandlerFactory* hf) :
-        Parent(service, cq, gf, hf) {
-            proceed();
-        }
-
-        virtual void finish_create() {
-            service_->Requestget_transactions(&ctx_, 
-                                              &request_, 
-                                              &responder_, 
-                                              cq_, cq_,
-                                              this);
-        }
-        virtual ITask* get_handler() {
-            return hf->get_transactions(&request_, 
-                                        &reply_,
-                                        this);
-        }
-    };
-
-    class GetCreationSumCallData : 
-        public TemplatedCallData<grpr::CreationSumRangeDescriptor,
-        grpr::CreationSumData, GetCreationSumCallData> {
-    public:
-        using Parent = TemplatedCallData<grpr::CreationSumRangeDescriptor,
-            grpr::CreationSumData, GetCreationSumCallData>;
-        GetCreationSumCallData(grpr::GradidoNodeService::AsyncService* service, 
-                                    grpc::ServerCompletionQueue* cq,
-                                    IGradidoFacade* gf,
-                                    ICommunicationLayer::HandlerFactory* hf) :
-        Parent(service, cq, gf, hf) {
-            proceed();
-        }
-
-        virtual void finish_create() {
-            service_->Requestget_creation_sum(&ctx_, 
-                                              &request_, 
-                                              &responder_, 
-                                              cq_, cq_,
-                                              this);
-        }
-        virtual ITask* get_handler() {
-            return hf->get_creation_sum(&request_, 
-                                        &reply_,
-                                        this);
-        }
-    };
-
-    class GetUserCallData : 
-        public TemplatedCallData<grpr::GroupDescriptor,
-        grpr::UserData, GetUserCallData> {
-    public:
-        using Parent = TemplatedCallData<grpr::GroupDescriptor,
-            grpr::UserData, GetUserCallData>;
-        GetUserCallData(grpr::GradidoNodeService::AsyncService* service, 
-                        grpc::ServerCompletionQueue* cq,
-                        IGradidoFacade* gf,
-                        ICommunicationLayer::HandlerFactory* hf) :
-        Parent(service, cq, gf, hf) {
-            proceed();
-        }
-
-        virtual void finish_create() {
-            service_->Requestget_users(&ctx_, 
-                                       &request_, 
-                                       &responder_, 
-                                       cq_, cq_,
-                                       this);
-        }
-        virtual ITask* get_handler() {
-            return hf->get_users(&request_, 
-                                 &reply_,
-                                 this);
-        }
-    };
+    GCOMM_SUBCLUSTER_CALL_DATA_CLASS(CreateNodeHandshake0CallData, 
+                                     create_node_handshake0);
+    GCOMM_SUBCLUSTER_CALL_DATA_CLASS(CreateNodeHandshake2CallData, 
+                                     create_node_handshake2);
+    GCOMM_SUBCLUSTER_CALL_DATA_CLASS(CreateOrderingNodeHandshake2CallData, 
+                                     create_ordering_node_handshake2);
+    GCOMM_SUBCLUSTER_CALL_DATA_CLASS(SubmitMessageCallData, 
+                                     submit_message);
+    GCOMM_SUBCLUSTER_CALL_DATA_CLASS(SubscribeToBlockchainCallData, 
+                                     subscribe_to_blockchain);
+    GCOMM_SUBCLUSTER_CALL_DATA_CLASS(SubmitLogMessageCallData, 
+                                     submit_log_message);
+    GCOMM_SUBCLUSTER_CALL_DATA_CLASS(PingCallData, 
+                                     ping);
 
     class RpcsService : public ITask {
     private:
@@ -515,18 +335,33 @@ public:
     virtual void receive_hedera_transactions(std::string endpoint,
                                              HederaTopicID topic_id,
                                              TransactionListener* tl);
+    virtual void receive_grpr_transactions(
+                              std::string endpoint,
+                              std::string blockchain_name,
+                              GrprTransactionListener* tl);
+
     virtual void stop_receiving_gradido_transactions(HederaTopicID topic_id);
 
     virtual void require_block_data(std::string endpoint,
                                     grpr::BlockDescriptor brd, 
                                     BlockRecordReceiver* rr);
     virtual void require_block_checksums(std::string endpoint,
-                                         grpr::GroupDescriptor brd, 
+                                         grpr::BlockchainId brd, 
                                          BlockChecksumReceiver* rr);
     virtual void require_outbound_transaction(
                          std::string endpoint,
                          grpr::OutboundTransactionDescriptor otd,
                          PairedTransactionReceiver* rr);
+    virtual void send_global_log_message(std::string endpoint,
+                                         std::string msg);
+    virtual void send_handshake2(std::string endpoint,
+                                 grpr::Transaction req,
+                                 ICommunicationLayer::GrprTransactionListener* listener);
+
+    virtual bool submit_to_blockchain(std::string endpoint,
+                                      grpr::Transaction req,
+                                      ICommunicationLayer::GrprTransactionListener* listener);
+
 };
 
 }

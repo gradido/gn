@@ -164,7 +164,7 @@ namespace gradido {
                       ICommunicationLayer::HandlerCb* cb) : 
         gf(gf), req(req), reply(reply), cb(cb) {
             if (!cb->get_ctx()) {
-                std::string alias = req->group().group();
+                std::string alias = req->blockchain_id().pub_key();
                 cb->set_ctx(new BlockProviderContext(alias));
             }
         }
@@ -190,7 +190,7 @@ namespace gradido {
     class ChecksumProvider : public ITask {
     private:
         IGradidoFacade* gf;
-        grpr::GroupDescriptor* req;
+        grpr::BlockchainId* req;
         grpr::BlockChecksum* reply;
         ICommunicationLayer::HandlerCb* cb;
 
@@ -207,12 +207,12 @@ namespace gradido {
 
     public:
         ChecksumProvider(IGradidoFacade* gf,
-                         grpr::GroupDescriptor* req,
+                         grpr::BlockchainId* req,
                          grpr::BlockChecksum* reply, 
                          ICommunicationLayer::HandlerCb* cb) : 
         gf(gf), req(req), reply(reply), cb(cb) {
             if (!cb->get_ctx()) {
-                std::string alias = req->group();
+                std::string alias = req->pub_key();
                 IAbstractBlockchain* ab = gf->get_any_blockchain(alias);
                 ChecksumProviderContext* ctx = 
                     new ChecksumProviderContext(alias);
@@ -278,13 +278,13 @@ namespace gradido {
     private:
         IGradidoFacade* gf;
         grpr::ManageGroupRequest* req;
-        grpr::ManageGroupResponse* reply;
+        grpr::Ack* reply;
         ICommunicationLayer::HandlerCb* cb;
 
     public:
         ManageGroupProvider(IGradidoFacade* gf,
                             grpr::ManageGroupRequest* req,
-                            grpr::ManageGroupResponse* reply, 
+                            grpr::Ack* reply, 
                             ICommunicationLayer::HandlerCb* cb) : 
         gf(gf), req(req), reply(reply), cb(cb) {}
 
@@ -318,7 +318,7 @@ namespace gradido {
     class UsersProvider : public ITask {
     private:
         IGradidoFacade* gf;
-        grpr::GroupDescriptor* req;
+        grpr::BlockchainId* req;
         grpr::UserData* reply;
         ICommunicationLayer::HandlerCb* cb;
 
@@ -330,12 +330,12 @@ namespace gradido {
 
     public:
         UsersProvider(IGradidoFacade* gf,
-                            grpr::GroupDescriptor* req,
+                            grpr::BlockchainId* req,
                             grpr::UserData* reply, 
                             ICommunicationLayer::HandlerCb* cb) : 
         gf(gf), req(req), reply(reply), cb(cb) {
             if (!cb->get_ctx()) {
-                IBlockchain* ab = gf->get_group_blockchain(req->group());
+                IBlockchain* ab = gf->get_group_blockchain(req->pub_key());
                 if (ab) {
                     UsersProviderContext* ctx = new UsersProviderContext();
                     ctx->users = ab->get_users();
@@ -357,6 +357,228 @@ namespace gradido {
         }
     };
 
+    class TransactionReceiver : public ITask {
+    protected:
+        IGradidoFacade* gf;
+        grpr::Transaction* req;
+        grpr::Transaction* reply;
+        ICommunicationLayer::HandlerCb* cb;
+
+        // shouldn't throw exceptions, both of those
+        virtual bool validate_sig(IVersioned* ve, 
+                                  IHandshakeHandler* hh) = 0;
+        virtual void process_transaction(IVersioned* ve,
+                                         IHandshakeHandler* hh) = 0;
+
+        virtual void do_run(bool log_verbose, bool global_log_verbose,
+                            bool handshake_expected) {
+            reply->set_success(false);
+            IVersioned* ve = 0;
+
+            if (req->success()) {
+                IHandshakeHandler* hh = gf->get_handshake_handler();
+                if (handshake_expected == (hh != 0)) {
+                    ve = gf->get_versioned(req->version_number());
+
+                    if (ve) {
+                        if (validate_sig(ve, hh)) {
+                            process_transaction(ve, hh);
+                        } else {
+                            std::string msg = 
+                                "cannot validate signature for " + 
+                                req->DebugString();
+                            if (log_verbose)
+                                LOG(msg);
+                            if (global_log_verbose)
+                                gf->global_log(msg);
+                        }
+                    } else {
+                        std::string msg = 
+                            "unsupported version_number: " + 
+                            req->DebugString();
+                        if (log_verbose)
+                            LOG(msg);
+                        if (global_log_verbose)
+                            gf->global_log(msg);
+                    }
+                } else {
+                    std::string msg = handshake_expected ? 
+                        "handshake not ongoing" : "handshake ongoing";
+                    msg += " " + req->DebugString();
+                    if (log_verbose)
+                        LOG(msg);
+                    if (global_log_verbose)
+                        gf->global_log(msg);
+                }
+            } else {
+                std::string msg = 
+                    "success == false in a request: " + 
+                    req->DebugString();
+                if (log_verbose)
+                    LOG(msg);
+                if (global_log_verbose)
+                    gf->global_log(msg);
+            }
+            if (ve)
+                ve->sign(reply);
+            cb->write_ready();
+        }
+
+    public:
+        TransactionReceiver(IGradidoFacade* gf,
+                            grpr::Transaction* req,
+                            grpr::Transaction* reply, 
+                            ICommunicationLayer::HandlerCb* cb) : 
+        gf(gf), req(req), reply(reply), cb(cb) {}
+
+    };
+
+    class Handshake0Receiver : public TransactionReceiver {
+    protected:
+        virtual bool validate_sig(IVersioned* ve,
+                                  IHandshakeHandler* hh) {
+            if (cb->get_writes_done() == 0)
+                return ve->get_request_sig_validator()->
+                    create_node_handshake0(*req);
+            return true;
+        }
+        virtual void process_transaction(IVersioned* ve,
+                                         IHandshakeHandler* hh) {
+            if (hh && cb->get_writes_done() == 0)
+                *reply = hh->get_response_h0(*req, ve);
+        }
+
+    public:
+        Handshake0Receiver(IGradidoFacade* gf,
+                           grpr::Transaction* req,
+                           grpr::Transaction* reply, 
+                           ICommunicationLayer::HandlerCb* cb) : 
+        TransactionReceiver(gf, req, reply, cb) {}
+
+        virtual void run() {
+            do_run(true, false, true);
+        }
+    };
+
+    class LogMessageReceiver : public TransactionReceiver {
+    protected:
+        virtual bool validate_sig(IVersioned* ve,
+                                  IHandshakeHandler* hh) {
+            if (cb->get_writes_done() == 0)
+                return ve->get_request_sig_validator()->
+                    submit_log_message(*req);
+            else 
+                return true;
+        }
+        virtual void process_transaction(IVersioned* ve,
+                                         IHandshakeHandler* hh) {
+            if (cb->get_writes_done() == 0) {
+                std::string msg;
+                ve->translate_log_message(*req, msg);
+                LOG("---" << msg);
+                reply->set_success(true);
+            }
+        }
+
+    public:
+        LogMessageReceiver(IGradidoFacade* gf,
+                           grpr::Transaction* req,
+                           grpr::Transaction* reply, 
+                           ICommunicationLayer::HandlerCb* cb) : 
+        TransactionReceiver(gf, req, reply, cb) {}
+
+        virtual void run() {
+            do_run(false, false, false);
+        }
+    };
+
+    class OrderingMessageReceiver : public TransactionReceiver {
+    protected:
+        virtual bool validate_sig(IVersioned* ve,
+                                  IHandshakeHandler* hh) {
+            // TODO: move outter "if" upwards
+            if (cb->get_writes_done() == 0)
+                return ve->get_request_sig_validator()->
+                    submit_message(*req);
+            else 
+                return true;
+        }
+        virtual void process_transaction(IVersioned* ve,
+                                         IHandshakeHandler* hh) {
+            if (!hh) {
+                grpr::OrderingRequest ore;
+                if (ve->translate(*req, ore)) {
+                    grpr::Transaction t;
+                    t.set_success(true);
+                    t.set_version_number(req->version_number());
+
+                    OrderedBlockchainEvent obe;
+
+                    // TODO: set fields
+                    
+
+                    t.set_body_bytes(obe.SerializeToString());
+                    ve->sign(t);
+                    // TODO: send
+
+                } else {
+                    LOG("cannot translate into OrderingRequest");
+                }
+            }
+        }
+
+    public:
+        OrderingMessageReceiver(IGradidoFacade* gf,
+                                grpr::Transaction* req,
+                                grpr::Transaction* reply, 
+                                ICommunicationLayer::HandlerCb* cb) : 
+        TransactionReceiver(gf, req, reply, cb) {}
+
+        virtual void run() {
+            do_run(false, false, false);
+        }
+    };
+
+    class PingReceiver : public ITask {
+    private:
+        IGradidoFacade* gf;
+        grpr::Transaction* req;
+        grpr::Transaction* reply;
+        ICommunicationLayer::HandlerCb* cb;
+
+    public:
+        PingReceiver(IGradidoFacade* gf,
+                     grpr::Transaction* req,
+                     grpr::Transaction* reply, 
+                     ICommunicationLayer::HandlerCb* cb) : 
+        gf(gf), req(req), reply(reply), cb(cb) {}
+
+        virtual void run() {
+            // TODO: send to stderr
+            reply->set_success(cb->get_writes_done() == 0);
+            cb->write_ready();
+        }
+    };
+
+    class SendH2 : public ITask {
+    private:
+        IGradidoFacade* gf;
+        std::string starter_endpoint;
+        grpr::Transaction h2;
+        ICommunicationLayer::GrprTransactionListener* tl;
+    public:
+        SendH2(IGradidoFacade* gf, std::string starter_endpoint,
+               grpr::Transaction h2,
+               ICommunicationLayer::GrprTransactionListener* tl) : gf(gf),
+            starter_endpoint(starter_endpoint), h2(h2), tl(tl) {}
+        virtual void run() {
+            gf->get_communications()->send_handshake2(starter_endpoint,
+                                                      h2,
+                                                      tl);
+        }        
+    };
+
+
     ///////////////////////////// abstract blockchain
 
     template<typename T>
@@ -371,6 +593,29 @@ namespace gradido {
         virtual void run() {
             Batch<T> batch;
             TransactionUtils::translate_from_ctr(transaction, batch);
+            b->add_transaction(batch);
+
+            // TODO: stop transmission if bad
+        }
+    };
+
+    template<typename T>
+    class PushGrprTransactionsTask : public ITask {
+    private:
+        IGradidoFacade* gf;
+        ITypedBlockchain<T>* b;
+        grpr::Transaction transaction;
+    public:
+        PushGrprTransactionsTask(IGradidoFacade* gf,
+                                 ITypedBlockchain<T>* b, 
+                                 const grpr::Transaction& transaction) : 
+        gf(gf), b(b), transaction(transaction) {}
+        virtual void run() {
+            Batch<T> batch;
+
+            IVersioned* ve = gf->get_versioned(
+                             transaction.version_number());
+            ve->translate(transaction, batch);
             b->add_transaction(batch);
 
             // TODO: stop transmission if bad
@@ -425,6 +670,16 @@ namespace gradido {
         ContinueFacadeInit(IGradidoFacade* gf) : gf(gf) {}
         virtual void run() {
             gf->continue_init_after_group_register_done();
+        }
+    };
+
+    class ContinueFacadeInitAfterSbDone : public ITask {
+    private:
+        IGradidoFacade* gf;
+    public:
+        ContinueFacadeInitAfterSbDone(IGradidoFacade* gf) : gf(gf) {}
+        virtual void run() {
+            gf->continue_init_after_sb_done();
         }
     };
 

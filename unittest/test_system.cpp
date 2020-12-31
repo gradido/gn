@@ -1,5 +1,5 @@
 #include "test_common.h"
-#include "gradido_facade.h"
+#include "facades_impl.h"
 
 #define NODE_0_FOLDER "/tmp/test-system/node-0"
 #define NODE_1_FOLDER "/tmp/test-system/node-1"
@@ -70,7 +70,7 @@ TEST(GradidoSystem, smoke) {
     // checking if group contents is properly fetched from another node
     prepare_system_folders(NODE_0_FOLDER, 13000, 
                            std::vector<std::string>());
-    GradidoFacade gf0;
+    GradidoNodeDeprecated gf0;
     {    
         std::vector<std::string> params;
         params.push_back("unneeded param");
@@ -87,7 +87,7 @@ TEST(GradidoSystem, smoke) {
     std::vector<std::string> siblings1;
     siblings1.push_back("0.0.0.0:" + std::to_string(13000));
     prepare_system_folders(NODE_1_FOLDER, 13001, siblings1);
-    GradidoFacade gf1;
+    GradidoNodeDeprecated gf1;
     {    
         std::vector<std::string> params;
         params.push_back("unneeded param");

@@ -43,5 +43,15 @@ std::string get_time() {
     return std::string(buff);
 }
 
+proto::Timestamp get_current_time() {
+    struct timespec t;
+    timespec_get(&t, TIME_UTC);
+    proto::Timestamp res;
+    res.set_seconds(t.tv_sec);
+    res.set_nanos(t.tv_nsec);
+    return res;
+}
+
+
     
 }

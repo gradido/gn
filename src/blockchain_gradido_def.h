@@ -26,7 +26,9 @@ namespace gradido {
 #define MINIMUM_SIGNATURE_COUNT 1
 #define MAXIMUM_SIGNATURE_COUNT (SIGNATURES_PER_RECORD * (MAX_RECORD_PARTS - NON_SIGNATURE_PARTS) + SIGNATURES_IN_MAIN_PART)
 
-#define PUB_KEY_LENGTH 32
+#define PUB_KEY_LENGTH ed25519_pubkey_SIZE
+#define PRIV_KEY_LENGTH ed25519_privkey_SIZE
+
 #define SIGNATURE_LENGTH 64
 
 #define MEMO_MAIN_SIZE 16
@@ -40,17 +42,85 @@ namespace gradido {
 // have null-terminated string as well
 #define GROUP_ALIAS_LENGTH 16
 
-typedef double GradidoValue;
+// this is GRADIDO_DECIMAL_CONVERSION_FACTOR; gradidomath.h not included
+// to keep things separated
+#define GRADIDO_VALUE_DECIMAL_AMOUNT_MAX 1000000
+
+#define SB_MEMO_LENGTH 256
+#define SB_SUBCLUSTER_NAME_LENGTH 64
+#define SB_CA_CHAIN_PER_RECORD 1
+
+#define SB_ADMIN_NAME_LENGTH 64
+#define SB_EMAIL_LENGTH 64
+#define SB_SIGNATURES_PER_RECORD (int)(SB_MEMO_LENGTH / sizeof(Signature))
+
+// current version is set to this by default and incremented as per sb
+#define DEFAULT_VERSION_NUMBER 1
+
+
+// ca chain is mentioned only once per blockchain, just after header 
+// record; no need to pack them tightly
+#define CA_CHAIN_PER_RECORD 1
+
+struct PubKeyEntity {
+    uint8_t pub_key[PUB_KEY_LENGTH];
+};
+
+
+
+struct GradidoValue {
+    uint64_t amount;
+    uint32_t decimal_amount;
+    GradidoValue() : amount(0), decimal_amount(0) {}
+    GradidoValue operator+(const GradidoValue& v) {
+        GradidoValue res;
+        res.amount = amount + v.amount;
+        res.decimal_amount = decimal_amount + v.decimal_amount;
+        if (res.decimal_amount > GRADIDO_VALUE_DECIMAL_AMOUNT_MAX) {
+            res.decimal_amount -= GRADIDO_VALUE_DECIMAL_AMOUNT_MAX;
+            res.amount++;    
+        }
+        return res;
+    }
+    GradidoValue operator-(const GradidoValue& v) {
+        GradidoValue res;
+        if (*this < v)
+            throw std::runtime_error("GradidoValue less than zero");
+        res.amount = amount - v.amount;
+        if (decimal_amount >= v.decimal_amount) {
+            res.decimal_amount = decimal_amount - v.decimal_amount;
+        } else {
+            res.decimal_amount = GRADIDO_VALUE_DECIMAL_AMOUNT_MAX -
+                (v.decimal_amount - decimal_amount);
+            res.amount--;
+        }
+        return res;
+    }
+    GradidoValue operator+=(const GradidoValue& v) {
+        return *this + v;
+    }
+
+    bool operator<(uint64_t v) {
+        return amount < v;
+    }
+    bool operator<(const GradidoValue& v) {
+        return amount < v.amount || (amount == v.amount && 
+                                     decimal_amount < v.decimal_amount);
+    }
+};
 
 struct User {
     uint8_t user[PUB_KEY_LENGTH];
 };
 
 struct UserState {
+    // these fields are updated only if transaction is successful
     GradidoValue new_balance;
     uint64_t prev_transfer_rec_num;
 };
 
+#define SIGNATURE_RECORD_LENGTH PUB_KEY_LENGTH + SIGNATURE_LENGTH
+// don't add more members without updating macro
 struct Signature {
     uint8_t pubkey[PUB_KEY_LENGTH];
     uint8_t signature[SIGNATURE_LENGTH];
@@ -65,7 +135,14 @@ enum TransactionType {
     MOVE_USER_OUTBOUND,
     LOCAL_TRANSFER,
     INBOUND_TRANSFER,
-    OUTBOUND_TRANSFER
+    OUTBOUND_TRANSFER,
+    
+    HEADER,
+    ADD_ADMIN,
+    REMOVE_ADMIN,
+    ADD_NODE,
+    REMOVE_NODE,
+    INITIALIZATION_DONE
 };
 
 struct HederaTimestamp {
@@ -78,6 +155,18 @@ struct HederaTimestamp {
     }
     bool operator==(const HederaTimestamp& ts) const {
         return ts.seconds == seconds && ts.nanos == nanos;
+    }
+    HederaTimestamp operator-(const HederaTimestamp& v) {
+        
+        HederaTimestamp res;
+        res.seconds = seconds - v.seconds;
+        if (nanos >= v.nanos) {
+            res.nanos = nanos - v.nanos;
+        } else {
+            res.nanos = 1000000000 - (v.nanos - nanos);
+            res.seconds--;
+        }
+        return res;
     }
 
 };
@@ -103,6 +192,8 @@ struct HederaTransaction {
     HederaTimestamp consensusTimestamp;
     uint8_t runningHash[HEDERA_RUNNING_HASH_LENGTH];
     uint64_t sequenceNumber;
+
+    // TODO: remove, along with renaming Hedera
     uint64_t runningHashVersion;
 };
 
@@ -176,7 +267,7 @@ struct TransactionCommonHeader {
     // validated; version_number is the same for all parts of single 
     // transaction; for structurally_bad_message it may be 0, if 
     // version number cannot be obtained from data
-    uint8_t version_number;
+    uint32_t version_number;
 
     // other parts may follow this record; if not, then parts == 1;
     // cannot be larger than MAX_RECORD_PARTS for structurally validated
@@ -185,6 +276,12 @@ struct TransactionCommonHeader {
     uint8_t parts;
 
     HederaTransaction hedera_transaction;
+};
+
+struct GradidoHeader {
+    uint8_t alias[GROUP_ALIAS_LENGTH];
+    uint8_t chain_length;
+    uint8_t ordering_node_pub_key[PUB_KEY_LENGTH];
 };
 
 struct Transaction : public TransactionCommonHeader {
@@ -204,6 +301,13 @@ struct Transaction : public TransactionCommonHeader {
         LocalTransfer local_transfer;
         InboundTransfer inbound_transfer;
         OutboundTransfer outbound_transfer;
+
+        GradidoHeader header;
+        PubKeyEntity add_admin;
+        PubKeyEntity remove_admin;
+        PubKeyEntity add_node;
+        PubKeyEntity remove_node;
+        PubKeyEntity ca_chain[CA_CHAIN_PER_RECORD];
     };
 
     uint8_t result; // enum TransactionResult
@@ -214,6 +318,8 @@ struct Transaction : public TransactionCommonHeader {
     // memo is first of possible parts; if this->memo doesn't end with
     // \0, then it is considered multi-part memo
     uint8_t memo[MEMO_MAIN_SIZE];
+
+    Transaction() {}
 };
 
 #define MEMO_PART_SIZE (int)fmax(sizeof(Transaction), MEMO_FULL_SIZE - MEMO_MAIN_SIZE)
@@ -279,6 +385,7 @@ struct GradidoRecord {
         StructurallyBadMessage structurally_bad_message;
         uint8_t raw_message[RAW_MESSAGE_PART_SIZE];
     };
+    GradidoRecord() {}
 };
 
 struct GroupRecord {
@@ -290,6 +397,7 @@ struct GroupRecord {
 };
 
 enum GroupRegisterRecordType {
+    // TODO: 1
     GROUP_RECORD=0,
     GR_STRUCTURALLY_BAD_MESSAGE,
     GR_RAW_MESSAGE
@@ -303,6 +411,91 @@ struct GroupRegisterRecord {
         uint8_t raw_message[RAW_MESSAGE_PART_SIZE];
     };
 };
+
+enum class SbRecordType {
+    SB_HEADER=1,
+    SB_ADD_ADMIN,
+    SB_ADD_NODE,
+    ENABLE_ADMIN,
+    DISABLE_ADMIN,
+    ENABLE_NODE,
+    DISABLE_NODE,
+    ADD_BLOCKCHAIN,
+    ADD_NODE_TO_BLOCKCHAIN,
+    REMOVE_NODE_FROM_BLOCKCHAIN,
+    SIGNATURES
+};
+
+enum class SbNodeType {
+    ORDERING=1,
+    GRADIDO,
+    LOGIN,
+    BACKUP,
+    LOGGER,
+    PINGER
+};
+
+enum class SbInitialKeyType {
+    SELF_SIGNED=1,
+    CA_SIGNED
+};
+
+struct SbHeader {
+    uint8_t subcluster_name[SB_SUBCLUSTER_NAME_LENGTH];
+    SbInitialKeyType initial_key_type;
+    uint8_t pub_key[PUB_KEY_LENGTH];
+    uint8_t ca_pub_key_chain_length; // including pub_key
+};
+
+struct SbAdmin {
+    uint8_t pub_key[PUB_KEY_LENGTH];
+    uint8_t name[SB_ADMIN_NAME_LENGTH];
+    uint8_t email[SB_EMAIL_LENGTH];
+};
+
+struct SbNode {
+    SbNodeType node_type;
+    uint8_t pub_key[PUB_KEY_LENGTH];
+};
+
+struct SbNodeBlockchain {
+    uint8_t node_pub_key[PUB_KEY_LENGTH];
+    uint8_t blockchain_pub_key[PUB_KEY_LENGTH];
+    uint8_t alias[GROUP_ALIAS_LENGTH];
+};
+
+enum class SbTransactionResult {
+    SUCCESS = 0,
+    DUPLICATE_PUB_KEY,
+    BAD_ADMIN_SIGNATURE,
+    NON_MAJORITY,
+    DUPLICATE_ALIAS,
+    NODE_ALREADY_ADDED_TO_BLOCKCHAIN
+};
+
+struct SbRecord {
+    uint32_t version_number;
+    HederaTransaction hedera_transaction;
+    uint8_t record_type; // enum SbRecordType
+    uint8_t memo[SB_MEMO_LENGTH];
+    uint8_t signature_count;
+    uint8_t result; // enum SbTransactionResult
+    union {
+        SbHeader header;
+        PubKeyEntity ca_chain[SB_CA_CHAIN_PER_RECORD];
+        SbAdmin admin;
+        PubKeyEntity disable_admin;
+        PubKeyEntity enable_admin;
+        SbNode add_node;
+        PubKeyEntity disable_node;
+        PubKeyEntity enable_node;
+        PubKeyEntity add_blockchain;
+        SbNodeBlockchain add_node_to_blockchain;
+        SbNodeBlockchain remove_node_from_blockchain;
+        Signature signatures[SB_SIGNATURES_PER_RECORD];
+    };
+};
+
 
 }
 

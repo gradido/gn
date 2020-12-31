@@ -1,5 +1,12 @@
 #include "utils.h"
 #include <time.h>
+#include <string>
+#include <fstream>
+#include <streambuf>
+#include <Poco/File.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+
 
 namespace gradido {
 
@@ -33,14 +40,32 @@ sodium_bin2hex(char *const hex, const size_t hex_maxlen,
     return hex;
 }
 
+bool is_hex(std::string str) {
+    for (int i = 0; i < str.length(); i++) {
+        if (!((str[i] >= '0' && str[i] <= '9') ||
+              (str[i] >= 'a' && str[i] <= 'f') ||
+              (str[i] >= 'A' && str[i] <= 'F')))
+            return false;
+    }
+    return true;
+}
+
 void dump_in_hex(const char* in, char* out, size_t in_len) {
    
     sodium_bin2hex(out, 1024, (const unsigned char*)in, in_len);
     return;
-    size_t i = 0;
-    for (i = 0; i < in_len; i++)
+    /*
+    for (size_t i = 0; i < in_len; i++)
         sprintf(out + (i * 2), "%02X", in[i]);
-    out[i * 2 + 1] = 0;
+    out[in_len * 2] = 0;
+    */
+}
+
+void dump_in_hex(const char* in, std::string& out, size_t in_len) {
+    char buff[in_len * 2 + 1];
+    dump_in_hex(in, buff, in_len);
+    buff[in_len * 2] = 0;
+    out = std::string(buff);
 }
 
 std::string get_as_str(TransactionType r) {
@@ -191,9 +216,15 @@ void dump_transaction_in_json(const GradidoRecord& t, std::ostream& out) {
             std::string user(buff);
             out << "    \"gradido_creation\": {" << std::endl;
             out << "      \"user\": \"" << user << "\", " << std::endl;
-            out << "      \"new_balance\": " << v.new_balance << ", " << std::endl;
+            out << "      \"new_balance\": {" << std::endl;
+            out << "        \"amount\": " << v.new_balance.amount << ", " << std::endl;
+            out << "        \"decimal_amount\": " << v.new_balance.decimal_amount << ", " << std::endl;
+            out << "      }," << std::endl;
             out << "      \"prev_transfer_rec_num\": " << v.prev_transfer_rec_num << ", " << std::endl;
-            out << "      \"amount\": " << v.amount << std::endl;
+            out << "      \"amount\": {" << std::endl;
+            out << "        \"amount\": " << v.amount.amount << ", " << std::endl;
+            out << "        \"decimal_amount\": " << v.amount.decimal_amount << ", " << std::endl;
+            out << "      }" << std::endl;
             out << "    }," << std::endl;
             break;
         }
@@ -263,15 +294,26 @@ void dump_transaction_in_json(const GradidoRecord& t, std::ostream& out) {
             out << "    \"local_transfer\": {" << std::endl;
             out << "      \"sender\": {" << std::endl;
             out << "        \"user\": \"" << sender << "\", " << std::endl;
-            out << "        \"new_balance\": " << tt.sender.new_balance << ", " << std::endl;
+            out << "        \"new_balance\": {" << std::endl;
+            out << "          \"amount\": " << tt.sender.new_balance.amount << ", " << std::endl;
+            out << "          \"decimal_amount\": " << tt.sender.new_balance.decimal_amount << ", " << std::endl;
+            out << "        }," << std::endl;
+
             out << "        \"prev_transfer_rec_num\": " << tt.sender.prev_transfer_rec_num << std::endl;
             out << "      }," << std::endl;
             out << "      \"receiver\": {" << std::endl;
             out << "        \"user\": \"" << receiver << "\", " << std::endl;
-            out << "        \"new_balance\": " << tt.receiver.new_balance << ", " << std::endl;
+            out << "        \"new_balance\": {" << std::endl;
+            out << "          \"amount\": " << tt.receiver.new_balance.amount << ", " << std::endl;
+            out << "          \"decimal_amount\": " << tt.receiver.new_balance.decimal_amount << ", " << std::endl;
+            out << "        }," << std::endl;
+
             out << "        \"prev_transfer_rec_num\": " << tt.receiver.prev_transfer_rec_num << std::endl;
             out << "      }," << std::endl;
-            out << "      \"amount\": " << tt.amount << std::endl;
+            out << "      \"amount\": {" << std::endl;
+            out << "        \"amount\": " << tt.amount.amount << ", " << std::endl;
+            out << "        \"decimal_amount\": " << tt.amount.decimal_amount << ", " << std::endl;
+            out << "      }" << std::endl;
             out << "    }," << std::endl;
             break;
         }
@@ -290,10 +332,17 @@ void dump_transaction_in_json(const GradidoRecord& t, std::ostream& out) {
             out << "      }," << std::endl;
             out << "      \"receiver\": {" << std::endl;
             out << "        \"user\": \"" << receiver << "\", " << std::endl;
-            out << "        \"new_balance\": " << tt.receiver.new_balance << ", " << std::endl;
+            out << "        \"new_balance\": {" << std::endl;
+            out << "          \"amount\": " << tt.receiver.new_balance.amount << ", " << std::endl;
+            out << "          \"decimal_amount\": " << tt.receiver.new_balance.decimal_amount << ", " << std::endl;
+            out << "        }," << std::endl;
+
             out << "        \"prev_transfer_rec_num\": " << tt.receiver.prev_transfer_rec_num << std::endl;
             out << "      }," << std::endl;
-            out << "      \"amount\": " << tt.amount << std::endl;
+            out << "      \"amount\": {" << std::endl;
+            out << "        \"amount\": " << tt.amount.amount << ", " << std::endl;
+            out << "        \"decimal_amount\": " << tt.amount.decimal_amount << ", " << std::endl;
+            out << "      }" << std::endl;
             out << "    }," << std::endl;
             break;
         }
@@ -309,13 +358,19 @@ void dump_transaction_in_json(const GradidoRecord& t, std::ostream& out) {
             out << "    \"outbound_transfer\": {" << std::endl;
             out << "      \"sender\": {" << std::endl;
             out << "        \"user\": \"" << sender << "\", " << std::endl;
-            out << "        \"new_balance\": " << tt.sender.new_balance << ", " << std::endl;
+            out << "        \"new_balance\": {" << std::endl;
+            out << "          \"amount\": " << tt.sender.new_balance.amount << ", " << std::endl;
+            out << "          \"decimal_amount\": " << tt.sender.new_balance.decimal_amount << ", " << std::endl;
+            out << "        }," << std::endl;
             out << "        \"prev_transfer_rec_num\": " << tt.sender.prev_transfer_rec_num << std::endl;
             out << "      }," << std::endl;
             out << "      \"receiver\": {" << std::endl;
             out << "        \"user\": \"" << receiver << "\"" << std::endl;
             out << "      }," << std::endl;
-            out << "      \"amount\": " << tt.amount << std::endl;
+            out << "      \"amount\": {" << std::endl;
+            out << "        \"amount\": " << tt.amount.amount << ", " << std::endl;
+            out << "        \"decimal_amount\": " << tt.amount.decimal_amount << ", " << std::endl;
+            out << "      }" << std::endl;
             out << "    }," << std::endl;
             break;
         }
@@ -436,5 +491,42 @@ void dump_transaction_in_json(const GroupRegisterRecord& t, std::ostream& out) {
     out << "}" << std::endl;
     
 }
+
+std::string read_key_from_file(std::string file_name) {
+    std::ifstream t(file_name);
+    std::string str((std::istreambuf_iterator<char>(t)),
+                    std::istreambuf_iterator<char>());    
+    if (str.length() != KEY_LENGTH_HEX || !is_hex(str))
+        throw std::runtime_error("cannot read, not a key: " + file_name);
+}
+
+void save_key_to_file(std::string key, std::string file_name, bool set_permissions) {
+    if (key.length() != KEY_LENGTH_HEX || !is_hex(key))
+        throw std::runtime_error("cannot write, not a key: " + key);
+
+    Poco::File pk(file_name);
+    // not overwriting for safety; key files have to be removed manually
+    if (pk.exists())
+        throw std::runtime_error("cannot write, key exists " + 
+                                 file_name);
+
+    std::ofstream ofs(file_name, std::ofstream::trunc);
+    ofs << key;
+    ofs.close();
+
+    if (set_permissions)
+        chmod(file_name.c_str(), S_IRUSR);
+}
+
+bool create_kp_identity(std::string& priv, std::string& pub) {
+    private_key_t sk;
+    public_key_t pk;
+    if (ed25519_create_keypair(&sk, &pk) == 0) {
+        dump_in_hex((char*)sk.data, priv, ed25519_pubkey_SIZE);
+        dump_in_hex((char*)pk.data, pub, ed25519_privkey_SIZE);
+        return true;
+    } else return false;
+}
+
 
 }

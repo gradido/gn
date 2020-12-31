@@ -136,12 +136,21 @@ namespace gradido {
         start_rpc<GetTransactionsCallData>();
         start_rpc<GetCreationSumCallData>();
         start_rpc<GetUserCallData>();
+        start_rpc<CreateNodeHandshake0CallData>();
+        start_rpc<CreateNodeHandshake2CallData>();
+        start_rpc<CreateOrderingNodeHandshake2CallData>();
+        start_rpc<SubmitMessageCallData>();
+        start_rpc<SubscribeToBlockchainCallData>();
+        start_rpc<SubmitLogMessageCallData>();
+        start_rpc<PingCallData>();
 
-        jsonrpc_svs = new Poco::Net::ServerSocket(json_rpc_port);
-		jsonrpc_srv = new Poco::Net::HTTPServer(
-                      new JsonRequestHandlerFactory(gf), 
-                      *jsonrpc_svs, new Poco::Net::HTTPServerParams);
-		jsonrpc_srv->start();
+        if (json_rpc_port) {
+            jsonrpc_svs = new Poco::Net::ServerSocket(json_rpc_port);
+            jsonrpc_srv = new Poco::Net::HTTPServer(
+                          new JsonRequestHandlerFactory(gf), 
+                          *jsonrpc_svs, new Poco::Net::HTTPServerParams);
+            jsonrpc_srv->start();
+        }
     }
 
     CommunicationLayer::~CommunicationLayer() {
@@ -173,6 +182,14 @@ namespace gradido {
         TopicSubscriber* ts = new TopicSubscriber(endpoint, topic_id, tl);
         ps->add_client(ts);
     }
+
+    void CommunicationLayer::receive_grpr_transactions(
+                              std::string endpoint,
+                              std::string blockchain_name,
+                              GrprTransactionListener* tl) {
+        // TODO
+    }
+
     void CommunicationLayer::stop_receiving_gradido_transactions(HederaTopicID topic_id) {
         MLock lock(main_lock); 
         // TODO
@@ -186,9 +203,10 @@ namespace gradido {
         BlockSubscriber* bs = new BlockSubscriber(endpoint, brd, rr);
         ps->add_client(bs);
     }
-    void CommunicationLayer::require_block_checksums(std::string endpoint,
-                                                     grpr::GroupDescriptor brd, 
-                                                     BlockChecksumReceiver* rr) {
+    void CommunicationLayer::require_block_checksums(
+                             std::string endpoint,
+                             grpr::BlockchainId brd, 
+                             BlockChecksumReceiver* rr) {
         MLock lock(main_lock); 
         PollService* ps = get_poll_service();
         BlockChecksumSubscriber* bs = 
@@ -320,7 +338,7 @@ namespace gradido {
 
     CommunicationLayer::BlockChecksumSubscriber::BlockChecksumSubscriber(
                         std::string endpoint,
-                        grpr::GroupDescriptor gd,
+                        grpr::BlockchainId gd,
                         BlockChecksumReceiver* bcr) : 
         AbstractSubscriber(endpoint), bcr(bcr), gd(gd) {}
 
@@ -390,6 +408,26 @@ namespace gradido {
         stream = stub->PrepareAsyncget_outbound_transaction(&ctx, otd, &cq);
         stream->StartCall((void*)this);
     }
+
+    void CommunicationLayer::send_global_log_message(
+                             std::string endpoint,
+                             std::string msg) {
+        // TODO
+    }
+
+    void CommunicationLayer::send_handshake2(
+                             std::string endpoint,
+                             grpr::Transaction req,
+                             GrprTransactionListener* listener) {
+        // TODO
+    }
+
+    bool CommunicationLayer::submit_to_blockchain(std::string endpoint,
+                                                  grpr::Transaction req,
+                                                  ICommunicationLayer::GrprTransactionListener* listener) {
+    }
+    
+
 
 
 

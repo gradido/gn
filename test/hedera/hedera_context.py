@@ -35,12 +35,11 @@ from proto_gen.gradido.gradido_pb2 import GroupMemberUpdate
 from proto_gen.gradido.gradido_pb2 import GradidoCreation
 from proto_gen.gradido.gradido_pb2 import TransactionBody as gradido_TransactionBody
 from proto_gen.gradido.gradido_pb2 import ManageGroupRequest
-from proto_gen.gradido.gradido_pb2 import ManageGroupResponse
+from proto_gen.gradido.gradido_pb2 import Ack
 from proto_gen.gradido.gradido_pb2 import BlockDescriptor
-from proto_gen.gradido.gradido_pb2 import GroupDescriptor
+from proto_gen.gradido.gradido_pb2 import BlockchainId
 from proto_gen.gradido.gradido_pb2 import BlockRecord
 from proto_gen.gradido.gradido_pb2 import ManageNodeNetwork
-from proto_gen.gradido.gradido_pb2 import ManageNodeNetworkResponse
 from proto_gen.gradido.gradido_pb2 import GradidoTransaction
 from proto_gen.gradido.gradido_pb2 import DebugResetBlockchainMark
 from proto_gen.gradido.gradido_pb2 import AddGroupToRegister
@@ -289,7 +288,7 @@ class HederaContext(object):
     def rpc_get_users(self, endpoint, group):
         with grpc.insecure_channel(endpoint) as channel:
             stub = GradidoNodeServiceStub(channel)
-            req = GroupDescriptor(group=group)
+            req = BlockchainId(group=group)
             res = []
             for i in stub.get_users(request=req):
                 if i.success:

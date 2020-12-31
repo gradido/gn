@@ -2,11 +2,11 @@
 #define GROUP_REGISTER_H
 
 #include "gradido_interfaces.h"
-#include "blockchain_base.h"
+#include "blockchain_base_deprecated.h"
 
 namespace gradido {
 
-class TransactionCompare {
+class GroupRegisterTransactionCompare {
 public:
     bool operator()(const Batch<GroupRegisterRecord>& lhs, 
                     const Batch<GroupRegisterRecord>& rhs) const {
@@ -16,19 +16,19 @@ public:
     }
 };
     
- class GroupRegister :
-     public BlockchainBase<
+class GroupRegister :
+     public BlockchainBaseDeprecated<
      GroupRegisterRecord, GroupRegister, IGroupRegisterBlockchain, 
-     TransactionCompare> {
+     GroupRegisterTransactionCompare> {
 
- public:
-    using Parent = BlockchainBase<
+public:
+    using Parent = BlockchainBaseDeprecated<
         GroupRegisterRecord, GroupRegister, IGroupRegisterBlockchain, 
-        TransactionCompare>;
+        GroupRegisterTransactionCompare>;
 
     bool is_valid(const GroupRegisterRecord* rec, uint32_t count);
 
- protected:
+protected:
 
     virtual bool get_latest_transaction_id(uint64_t& res);
     virtual bool get_transaction_id(uint64_t& res, 
@@ -39,14 +39,14 @@ public:
     virtual void on_blockchain_ready();
     virtual bool add_index_data();
 
- private:
+private:
 
     // facade's continue_init_after_group_register_done() should be
     // called only once; but there can be revalidations during the
     // lifetime of this object
     bool first_good_validation;
     std::map<std::string, GroupRecord> aliases;
- public:
+public:
     GroupRegister(Poco::Path root_folder,
                   IGradidoFacade* gf,
                   HederaTopicID topic_id);

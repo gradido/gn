@@ -1,9 +1,9 @@
-#ifndef BLOCKCHAIN_BASE_H
-#define BLOCKCHAIN_BASE_H
+#ifndef BLOCKCHAIN_BASE_DEPRECATED_H
+#define BLOCKCHAIN_BASE_DEPRECATED_H
 
+#include <Poco/Path.h>
 #include <pthread.h>
 #include <queue>
-#include <Poco/Path.h>
 #include <Poco/File.h>
 #include "gradido_events.h"
 #include "utils.h"
@@ -26,26 +26,25 @@ namespace gradido {
 //   to contain only operator(lhs, rhs)
 template<typename T, typename Child, typename Parent, 
     typename TransactionComparator>
-class BlockchainBase : public Parent,
-    public ICommunicationLayer::BlockChecksumReceiver,
-    public ICommunicationLayer::BlockRecordReceiver,
-    public ICommunicationLayer::GrprTransactionListener {
+class BlockchainBaseDeprecated : public Parent,
+    ICommunicationLayer::BlockChecksumReceiver,
+    ICommunicationLayer::BlockRecordReceiver,
+    ICommunicationLayer::TransactionListener {
  public:
 
     using RecordType = typename BlockchainTypes<T>::RecordType;
     using Record = typename BlockchainTypes<T>::Record;
 
  public:
-    virtual void on_transaction(grpr::Transaction& transaction) {
-        gf->push_task(new PushGrprTransactionsTask<T>(gf, 
-                                                      this, 
-                                                      transaction));
+
+    virtual void on_transaction(ConsensusTopicResponse& transaction) {
+        gf->push_task(new PushTransactionsTask<T>(this, transaction));
     }
     virtual void on_block_record(grpr::BlockRecord br) {
         MLock lock(main_lock);
 
         if (state != FETCHING_BLOCKS)
-            throw std::runtime_error(name + " on_block_record(): wrong state");
+            throw std::runtime_error("group register on_block_record(): wrong state");
         if (!br.success()) {
 
             bool last_block = block_to_fetch == fetched_checksums.size();
@@ -123,25 +122,26 @@ class BlockchainBase : public Parent,
     State state;
     IGradidoFacade* gf;
     std::string name;
-    std::string pub_key;
-    std::string ordering_node_endpoint;
-    std::string ordering_node_pub_key;
+    HederaTopicID topic_id;
     typedef ValidatedMultipartBlockchain<T, Child, GRADIDO_BLOCK_SIZE> StorageType; 
 
     std::string data_storage_root;
     StorageType storage;
 
     static std::string ensure_blockchain_folder(const Poco::Path& sr,
-                                                std::string name) {
+                                                std::string name,
+                                                HederaTopicID topic_id) {
         Poco::Path p0(sr);
-        std::string blockchain_folder = name + ".bc";
+        std::string blockchain_folder = GroupInfo::get_directory_name(
+                                        name,
+                                        topic_id);
         p0.append(blockchain_folder);
 
         Poco::File srf(p0.absolute());
         if (!srf.exists())
             srf.createDirectories();
         if (!srf.exists() || !srf.isDirectory())
-            throw std::runtime_error(name + ": cannot create folder");
+            throw std::runtime_error("group register: cannot create folder");
         return p0.absolute().toString();
     }
 
@@ -204,17 +204,9 @@ class BlockchainBase : public Parent,
     std::priority_queue<Batch<T>, std::vector<Batch<T>>, 
         TransactionComparator> inbound;
     int batch_size;
+    bool topic_reset_allowed;
 
  protected:
-    virtual std::string get_ordering_node_endpoint() {
-        return ordering_node_endpoint;
-    }
-    virtual std::string get_ordering_node_pub_key() {
-        return ordering_node_pub_key;
-    }
-
-    virtual bool get_fetch_endpoint(std::string& res) = 0;
-
     virtual bool get_latest_transaction_id(uint64_t& res) = 0;
     virtual bool get_transaction_id(uint64_t& res, 
                                     const Batch<T>& rec) = 0;
@@ -230,27 +222,34 @@ class BlockchainBase : public Parent,
     virtual void on_blockchain_ready() {}
 
  public:
-    // name: name of blockchain (for example, subcluster-blockchain)
+    // name: name of blockchain (for example, group-register)
     // root_folder: where blockchain data folder will be created
-    BlockchainBase(std::string name,
-                   std::string pub_key,
-                   std::string ordering_node_endpoint,
-                   std::string ordering_node_pub_key,
-                   Poco::Path root_folder,
-                   IGradidoFacade* gf) :
-        state(INITIAL), gf(gf), 
-        name(pub_key),
-        pub_key(pub_key), 
-        ordering_node_endpoint(ordering_node_endpoint),
-        ordering_node_pub_key(ordering_node_pub_key),
-        data_storage_root(ensure_blockchain_folder(root_folder, pub_key)),
+    // topic_id: each blockchain has exactly one associated
+    BlockchainBaseDeprecated(std::string name,
+                Poco::Path root_folder,
+                IGradidoFacade* gf,
+                HederaTopicID topic_id) :
+    state(INITIAL), gf(gf), name(name),
+        topic_id(topic_id),
+        data_storage_root(ensure_blockchain_folder(root_folder, name, 
+                                                   topic_id)),
         storage(name, data_storage_root, 100, 100, *((Child*)this)),
         fetched_record_count(0), block_to_fetch(0), 
         fetched_data_count(0), indexed_blocks(0),  
         batch_size(gf->get_conf()->
-                   get_blockchain_append_batch_size()) {
+                   get_blockchain_append_batch_size()),
+        topic_reset_allowed(gf->get_conf()->is_topic_reset_allowed()) {
 
         SAFE_PT(pthread_mutex_init(&main_lock, 0));
+    }
+
+
+    virtual void init() {
+        LOG(name + " init()");
+        std::string endpoint = gf->get_conf()->get_hedera_mirror_endpoint();
+        gf->get_communications()->receive_hedera_transactions(endpoint,
+                                                              topic_id,
+                                                              this);
     }
 
     virtual void continue_validation() {
@@ -264,7 +263,7 @@ class BlockchainBase : public Parent,
                 clear_indexes();
                 indexed_blocks = 0;
                 gf->push_task(new ContinueValidationTask<T>(this));
-            } else if (get_fetch_endpoint(fetch_endpoint)) {
+            } else if (gf->get_random_sibling_endpoint(fetch_endpoint)) {
                 state = FETCHING_CHECKSUMS;
                 LOG(name + " blockchain fetches checksums from " + 
                     fetch_endpoint);
@@ -306,36 +305,47 @@ class BlockchainBase : public Parent,
 
             // TODO: stucturally bad message
 
-            if (batch.size < 1 || !batch.buff)
-                throw std::runtime_error("empty batch");
-
-            uint64_t seq_num;
-            bool has_latest = get_latest_transaction_id(seq_num);
-            uint64_t curr_seq_num;
-            get_transaction_id(curr_seq_num, batch);
-
-            if (has_latest && curr_seq_num == seq_num + 1) {
-                if (calc_fields_and_update_indexes_for(batch)) {
-                    typename StorageType::ExitCode ec;
-                    storage.append(batch.buff, batch.size, ec);
+            if (batch.reset_blockchain) {
+                if (!topic_reset_allowed)
+                    throw std::runtime_error("cannot reset topic");
+                storage.truncate(0);
+                indexed_blocks = 0;
+                clear_indexes();
+                if (batch.buff)
                     delete [] batch.buff;
-                } else {
-                    inbound.push(batch);
-                    return;
-                }
+                LOG(name + " blockchain reset done");
             } else {
-                if (has_latest && curr_seq_num <= seq_num) {
-                    // omitting; we have record already
-                    // TODO: maybe should do verification with newly
-                    // received running_hash
-                    delete [] batch.buff;
-                    continue;
+                if (batch.size < 1 || !batch.buff)
+                    throw std::runtime_error("empty batch");
+
+                uint64_t seq_num;
+                bool has_latest = get_latest_transaction_id(seq_num);
+                uint64_t curr_seq_num;
+                get_transaction_id(curr_seq_num, batch);
+
+                if ((has_latest && curr_seq_num == seq_num + 1) ||
+                    (!has_latest && (topic_reset_allowed || 
+                                     curr_seq_num == 1))) {
+                    if (calc_fields_and_update_indexes_for(batch)) {
+                        typename StorageType::ExitCode ec;
+                        storage.append(batch.buff, batch.size, ec);
+                        delete [] batch.buff;
+                    } else {
+                        inbound.push(batch);
+                        return;
+                    }
                 } else {
-                    // TODO: more elaborate; need just some 
-                    // records, not all of them
-                    inbound.push(batch);
-                    reset_validation("hole in seq_num");
-                    return;
+                    if (has_latest && curr_seq_num <= seq_num) {
+                        // omitting
+                        delete [] batch.buff;
+                        continue;
+                    } else {
+                        // TODO: more elaborate; need just some 
+                        // records, not all of them
+                        inbound.push(batch);
+                        reset_validation("hole in seq_num");
+                        return;
+                    }
                 }
             }
         }

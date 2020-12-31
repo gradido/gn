@@ -8,6 +8,13 @@
 #include "blockchain_gradido_def.h"
 #include "blockchain.h"
 
+#define KEY_LENGTH_HEX PUB_KEY_LENGTH * 2
+#if PUB_KEY_LENGTH != PRIV_KEY_LENGTH
+#error check usages of priv key
+#endif
+
+#define KP_IDENTITY_PRIV_NAME "identity-priv.conf"
+#define KP_IDENTITY_PUB_NAME "identity-pub.conf"
 
 namespace gradido {
 
@@ -26,6 +33,7 @@ public:
 bool ends_with(std::string const & value, std::string const & ending);
 
 void dump_in_hex(const char* in, char* out, size_t in_len);
+void dump_in_hex(const char* in, std::string& out, size_t in_len);
 
 
 template<typename T>
@@ -50,7 +58,12 @@ void dump_transaction_in_json(const typename BlockchainTypes<T>::Record& r, std:
 void dump_transaction_in_json(const GradidoRecord& t, std::ostream& out);
 void dump_transaction_in_json(const GroupRegisterRecord& t, std::ostream& out);
 
- 
+std::string read_key_from_file(std::string file_name); 
+void save_key_to_file(std::string key, std::string file_name, 
+                      bool set_permissions); 
+
+bool create_kp_identity(std::string& priv, std::string& pub);
+
 }
 
 #endif

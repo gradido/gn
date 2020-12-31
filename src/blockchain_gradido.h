@@ -2,8 +2,9 @@
 #define BLOCKCHAIN_GRADIDO_H
 
 #include <map>
+#include "gradidomath.h"
 #include "gradido_interfaces.h"
-#include "blockchain_base.h"
+#include "blockchain_base_deprecated.h"
 
 namespace gradido {
 
@@ -19,7 +20,7 @@ public:
 };
 
 class BlockchainGradido :
-     public BlockchainBase<
+     public BlockchainBaseDeprecated<
      GradidoRecord, BlockchainGradido, IBlockchain, 
      BlockchainTransactionCompare>,
      IGradidoFacade::PairedTransactionListener {
@@ -27,7 +28,7 @@ class BlockchainGradido :
     virtual void on_paired_transaction_done(Transaction t);
 
  public:
-    using Parent = BlockchainBase<
+    using Parent = BlockchainBaseDeprecated<
         GradidoRecord, BlockchainGradido, IBlockchain, 
         BlockchainTransactionCompare>;
 
@@ -44,9 +45,13 @@ class BlockchainGradido :
     virtual bool add_index_data();
 
  private:
+	mpfr_t decay_factor;
+
     struct UserInfo {
         GradidoValue current_balance;
         uint64_t last_record_with_balance;
+        HederaTimestamp timestamp_of_last_balance;
+        UserInfo() : last_record_with_balance(0) {}
     };
 
     struct FriendGroupInfo {
@@ -62,11 +67,15 @@ class BlockchainGradido :
     
     bool waiting_for_paired;
 
+    GradidoValue calc_deflation(HederaTimestamp t0, HederaTimestamp t1,
+                                GradidoValue val0);
+
  public:
     BlockchainGradido(std::string name,
                       Poco::Path root_folder,
                       IGradidoFacade* gf,
                       HederaTopicID topic_id);
+    virtual ~BlockchainGradido();
 
     virtual bool get_paired_transaction(HederaTimestamp hti, 
                                         uint64_t& seq_num);
