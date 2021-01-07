@@ -107,7 +107,7 @@ namespace timer_pool
     class TimespecComparator
     {
     public:
-        bool operator()(const timespec t, const timespec c)
+        bool operator()(const timespec t, const timespec c) const
         {    
             return (c.tv_sec > t.tv_sec) ||
                 (c.tv_sec == t.tv_sec && c.tv_nsec > t.tv_nsec);
