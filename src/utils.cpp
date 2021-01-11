@@ -6,6 +6,8 @@
 #include <Poco/File.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <Poco/Random.h>
+#include <ed25519/ed25519/ed25519.h>
 
 
 namespace gradido {
@@ -13,7 +15,7 @@ namespace gradido {
 // copied from libsodium: https://github.com/jedisct1/libsodium
 
 char *
-sodium_bin2hex(char *const hex, const size_t hex_maxlen,
+sodium_bin2hex(char* hex, const size_t hex_maxlen,
                const unsigned char *const bin, const size_t bin_len)
 {
     size_t       i = (size_t) 0U;
@@ -51,20 +53,17 @@ bool is_hex(std::string str) {
 }
 
 void dump_in_hex(const char* in, char* out, size_t in_len) {
-   
-    sodium_bin2hex(out, 1024, (const unsigned char*)in, in_len);
-    return;
-    /*
+    //sodium_bin2hex(out, in_len * 2, (const unsigned char*)in, in_len);
     for (size_t i = 0; i < in_len; i++)
         sprintf(out + (i * 2), "%02X", in[i]);
     out[in_len * 2] = 0;
-    */
 }
 
 void dump_in_hex(const char* in, std::string& out, size_t in_len) {
-    char buff[in_len * 2 + 1];
+    int blen = in_len * 2 + 1;
+    char buff[blen];
+    memset(buff, 0, blen);
     dump_in_hex(in, buff, in_len);
-    buff[in_len * 2] = 0;
     out = std::string(buff);
 }
 
@@ -218,12 +217,12 @@ void dump_transaction_in_json(const GradidoRecord& t, std::ostream& out) {
             out << "      \"user\": \"" << user << "\", " << std::endl;
             out << "      \"new_balance\": {" << std::endl;
             out << "        \"amount\": " << v.new_balance.amount << ", " << std::endl;
-            out << "        \"decimal_amount\": " << v.new_balance.decimal_amount << ", " << std::endl;
+            out << "        \"decimal_amount\": " << v.new_balance.decimal_amount << std::endl;
             out << "      }," << std::endl;
             out << "      \"prev_transfer_rec_num\": " << v.prev_transfer_rec_num << ", " << std::endl;
             out << "      \"amount\": {" << std::endl;
             out << "        \"amount\": " << v.amount.amount << ", " << std::endl;
-            out << "        \"decimal_amount\": " << v.amount.decimal_amount << ", " << std::endl;
+            out << "        \"decimal_amount\": " << v.amount.decimal_amount << std::endl;
             out << "      }" << std::endl;
             out << "    }," << std::endl;
             break;
@@ -296,7 +295,7 @@ void dump_transaction_in_json(const GradidoRecord& t, std::ostream& out) {
             out << "        \"user\": \"" << sender << "\", " << std::endl;
             out << "        \"new_balance\": {" << std::endl;
             out << "          \"amount\": " << tt.sender.new_balance.amount << ", " << std::endl;
-            out << "          \"decimal_amount\": " << tt.sender.new_balance.decimal_amount << ", " << std::endl;
+            out << "          \"decimal_amount\": " << tt.sender.new_balance.decimal_amount << std::endl;
             out << "        }," << std::endl;
 
             out << "        \"prev_transfer_rec_num\": " << tt.sender.prev_transfer_rec_num << std::endl;
@@ -305,14 +304,14 @@ void dump_transaction_in_json(const GradidoRecord& t, std::ostream& out) {
             out << "        \"user\": \"" << receiver << "\", " << std::endl;
             out << "        \"new_balance\": {" << std::endl;
             out << "          \"amount\": " << tt.receiver.new_balance.amount << ", " << std::endl;
-            out << "          \"decimal_amount\": " << tt.receiver.new_balance.decimal_amount << ", " << std::endl;
+            out << "          \"decimal_amount\": " << tt.receiver.new_balance.decimal_amount << std::endl;
             out << "        }," << std::endl;
 
             out << "        \"prev_transfer_rec_num\": " << tt.receiver.prev_transfer_rec_num << std::endl;
             out << "      }," << std::endl;
             out << "      \"amount\": {" << std::endl;
             out << "        \"amount\": " << tt.amount.amount << ", " << std::endl;
-            out << "        \"decimal_amount\": " << tt.amount.decimal_amount << ", " << std::endl;
+            out << "        \"decimal_amount\": " << tt.amount.decimal_amount << std::endl;
             out << "      }" << std::endl;
             out << "    }," << std::endl;
             break;
@@ -334,14 +333,14 @@ void dump_transaction_in_json(const GradidoRecord& t, std::ostream& out) {
             out << "        \"user\": \"" << receiver << "\", " << std::endl;
             out << "        \"new_balance\": {" << std::endl;
             out << "          \"amount\": " << tt.receiver.new_balance.amount << ", " << std::endl;
-            out << "          \"decimal_amount\": " << tt.receiver.new_balance.decimal_amount << ", " << std::endl;
+            out << "          \"decimal_amount\": " << tt.receiver.new_balance.decimal_amount << std::endl;
             out << "        }," << std::endl;
 
             out << "        \"prev_transfer_rec_num\": " << tt.receiver.prev_transfer_rec_num << std::endl;
             out << "      }," << std::endl;
             out << "      \"amount\": {" << std::endl;
             out << "        \"amount\": " << tt.amount.amount << ", " << std::endl;
-            out << "        \"decimal_amount\": " << tt.amount.decimal_amount << ", " << std::endl;
+            out << "        \"decimal_amount\": " << tt.amount.decimal_amount << std::endl;
             out << "      }" << std::endl;
             out << "    }," << std::endl;
             break;
@@ -360,7 +359,7 @@ void dump_transaction_in_json(const GradidoRecord& t, std::ostream& out) {
             out << "        \"user\": \"" << sender << "\", " << std::endl;
             out << "        \"new_balance\": {" << std::endl;
             out << "          \"amount\": " << tt.sender.new_balance.amount << ", " << std::endl;
-            out << "          \"decimal_amount\": " << tt.sender.new_balance.decimal_amount << ", " << std::endl;
+            out << "          \"decimal_amount\": " << tt.sender.new_balance.decimal_amount << std::endl;
             out << "        }," << std::endl;
             out << "        \"prev_transfer_rec_num\": " << tt.sender.prev_transfer_rec_num << std::endl;
             out << "      }," << std::endl;
@@ -369,7 +368,7 @@ void dump_transaction_in_json(const GradidoRecord& t, std::ostream& out) {
             out << "      }," << std::endl;
             out << "      \"amount\": {" << std::endl;
             out << "        \"amount\": " << tt.amount.amount << ", " << std::endl;
-            out << "        \"decimal_amount\": " << tt.amount.decimal_amount << ", " << std::endl;
+            out << "        \"decimal_amount\": " << tt.amount.decimal_amount << std::endl;
             out << "      }" << std::endl;
             out << "    }," << std::endl;
             break;
@@ -498,6 +497,7 @@ std::string read_key_from_file(std::string file_name) {
                     std::istreambuf_iterator<char>());    
     if (str.length() != KEY_LENGTH_HEX || !is_hex(str))
         throw std::runtime_error("cannot read, not a key: " + file_name);
+    return str;
 }
 
 void save_key_to_file(std::string key, std::string file_name, bool set_permissions) {
@@ -519,14 +519,25 @@ void save_key_to_file(std::string key, std::string file_name, bool set_permissio
 }
 
 bool create_kp_identity(std::string& priv, std::string& pub) {
-    private_key_t sk;
-    public_key_t pk;
-    if (ed25519_create_keypair(&sk, &pk) == 0) {
+    private_key_t sk = {0};
+    public_key_t pk = {0};
+    if (create_keypair(&sk, &pk) != 0) {
         dump_in_hex((char*)sk.data, priv, ed25519_pubkey_SIZE);
         dump_in_hex((char*)pk.data, pub, ed25519_privkey_SIZE);
         return true;
     } else return false;
 }
+
+int create_keypair(private_key_t *sk, public_key_t *pk) {
+    Poco::Random rng;
+    // TODO: consider cryptographical safety
+    char* csk = (char*)sk;
+    for (int i = 0; i < ed25519_privkey_SIZE; i++)
+        csk[i] = rng.nextChar();
+    ed25519_derive_public_key(sk, pk);
+    return ED25519_SUCCESS;
+}
+
 
 
 }

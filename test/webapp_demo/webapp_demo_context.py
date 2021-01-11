@@ -530,6 +530,7 @@ class WebappDemoFull(object):
             bchain = subprocess.check_output(["../build/%s" % dumper, 
                                               folder], 
                                              stderr=subprocess.STDOUT)
+            print "pukalito ", bchain
             return json.loads(bchain)
         else:
             return False

@@ -34,10 +34,12 @@ namespace gradido {
         public ICommunicationLayer::GrprTransactionListener {
     private:
         IGradidoFacade* gf;
+        bool h0_complete;
     public:
         virtual void on_transaction(grpr::Transaction& t);
     public:
-        StarterHandshakeHandler(IGradidoFacade* gf) : gf(gf) {}
+        StarterHandshakeHandler(IGradidoFacade* gf) : gf(gf), 
+            h0_complete(false) {}
         virtual grpr::Transaction get_response_h0(grpr::Transaction req,
                                                   IVersioned* ve) {NOT_SUPPORTED;}
         virtual grpr::Transaction get_response_h2(grpr::Transaction req,

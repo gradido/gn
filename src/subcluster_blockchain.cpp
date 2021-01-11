@@ -69,7 +69,7 @@ namespace gradido {
             nodes.insert({std::string((char*)pp->add_node.pub_key, 
                                       PUB_KEY_LENGTH), 
                         pp->add_node});
-            auto z = nodes_by_type.find(pp->add_node.node_type);
+            auto z = nodes_by_type.find((SbNodeType)pp->add_node.node_type);
             z->second.insert({std::string((char*)pp->add_node.pub_key, 
                                           PUB_KEY_LENGTH), 
                         pp->add_node});

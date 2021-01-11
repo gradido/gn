@@ -7,95 +7,95 @@ namespace gradido {
 
     void HandshakeHandler::SbRecordAdded::on_transaction(
                                           grpr::Transaction& t) {
-        if (t.success()) {
+        std::string err_msg;
+
+        do {
+            if (!t.success()) {
+                err_msg = "success == false in a request";
+                break;
+            }
+
             IVersioned* ve = 
                 gf->get_versioned(t.version_number());
-            if (ve) {
-                bool sig_ok = ve->get_response_sig_validator()->
-                    create_node_handshake0(t);
-                if (sig_ok) {
-                    
-                    // TODO: check transaction id
-                    gf->continue_init_after_handshake_done();
-                } else {
-                    std::string msg = 
-                        "cannot validate signature for " + 
-                        t.DebugString();
-                    gf->exit(msg);
-                }
-            } else {
-                std::string msg = 
-                    "unsupported version_number: " + 
-                    t.DebugString();
-                gf->exit(msg);
+            if (!ve) {
+                err_msg = "unsupported version_number";
+                break;
             }
-        } else {
-            std::string msg = 
-                "success == false in a request: " + 
-                t.DebugString();
-            gf->exit(msg);
-        }
+
+            bool sig_ok = ve->get_response_sig_validator()->
+                create_node_handshake0(t);
+            if (!sig_ok) {
+                err_msg = "cannot validate signature";
+                break;
+            }
+
+            // TODO: check transaction id
+            gf->continue_init_after_handshake_done();
+        } while (0);
+
+        if (err_msg.length()) {
+            err_msg += " " + t.DebugString();
+            gf->exit(err_msg);
+        }        
     }
 
     void HandshakeHandler::on_transaction(grpr::Transaction& t) {
-        if (t.success()) {
+        std::string err_msg;
+
+        do {
+            if (!t.success()) {
+                err_msg = "success == false in a request";
+                break;
+            }
+
             IVersioned* ve = 
                 gf->get_versioned(t.version_number());
-            if (ve) {
-                bool sig_ok = ve->get_response_sig_validator()->
-                    create_node_handshake0(t);
-                if (sig_ok) {
-                    grpr::Handshake3 h3;
-                    if (ve->translate(t, h3)) {
-                        if (h3.transaction_id().seconds() == 
-                            h3_ts.seconds() &&
-                            h3.transaction_id().nanos() == 
-                            h3_ts.nanos()) {
-                            grpr::Transaction t;
-                            if (ve->translate_sb_transaction(
-                                           h3.sb_transaction(), t)) {
-                                ve->sign(&t);
-                                ICommunicationLayer* c = 
-                                    gf->get_communications();
-                                std::string ep = 
-                                    gf->get_sb_ordering_node_endpoint();
-                                c->submit_to_blockchain(ep, t, &sbra);
-                            } else {
-                                std::string msg = 
-                                    "h3 bytes is not transaction " + 
-                                    t.DebugString();
-                                gf->exit(msg);
-                            }
-                        } else {
-                            std::string msg = 
-                                "h3 ts doesn't match " + 
-                                t.DebugString();
-                            gf->exit(msg);
-                        }
-                    } else {
-                        std::string msg = 
-                            "cannot acquire Handshake3 from " + 
-                            t.DebugString();
-                        gf->exit(msg);
-                    }
-                } else {
-                    std::string msg = 
-                        "cannot validate signature for " + 
-                        t.DebugString();
-                    gf->exit(msg);
-                }
-            } else {
-                std::string msg = 
-                    "unsupported version_number: " + 
-                    t.DebugString();
-                gf->exit(msg);
+            if (!ve) {
+                err_msg = "unsupported version_number";
+                break;
             }
-        } else {
-            std::string msg = 
-                "success == false in a request: " + 
-                t.DebugString();
-            gf->exit(msg);
-        }
+
+            bool sig_ok = ve->get_response_sig_validator()->
+                create_node_handshake2(t);
+            if (!sig_ok) {
+                err_msg = "cannot validate signature";
+                break;
+            }
+
+            grpr::Handshake3 h3;
+            if (!ve->translate(t, h3)) {
+                err_msg = "cannot acquire Handshake3";
+                break;
+            }
+
+            if (!(h3.transaction_id().seconds() == 
+                  h3_ts.seconds() &&
+                  h3.transaction_id().nanos() == 
+                  h3_ts.nanos())) {
+                err_msg = "h3 ts doesn't match";
+                break;
+            }
+
+            grpr::Transaction t2;
+            if (!ve->translate_sb_transaction(h3.sb_transaction(), 
+                                              t2)) {
+                err_msg = "h3 bytes is not transaction";
+                break;
+            }
+            
+            ve->sign(&t);
+            ICommunicationLayer* c = 
+                gf->get_communications();
+            std::string ep = 
+                gf->get_sb_ordering_node_endpoint();
+            c->submit_to_blockchain(ep, t2, &sbra);
+
+        } while (0);
+
+        if (err_msg.length()) {
+            err_msg += " " + t.DebugString();
+            gf->exit(err_msg);
+        }        
     }
 
     grpr::Transaction HandshakeHandler::get_response_h0(
@@ -113,7 +113,8 @@ namespace gradido {
         grpr::Transaction t2;
         std::string starter_endpoint = h0.starter_endpoint();
         h3_ts = get_current_time();
-        if (!ve->prepare_h2(h3_ts, t2))
+        std::string type = gf->get_node_type_str();
+        if (!ve->prepare_h2(h3_ts, type, t2))
             gf->exit("cannot prepare h2");
         ve->sign(&t2);
 
@@ -124,32 +125,70 @@ namespace gradido {
     }
 
     void StarterHandshakeHandler::on_transaction(grpr::Transaction& t) {
-        
+        std::string err_msg;
+
+        do {
+            if (!t.success()) {
+                err_msg = "success == false in a request";
+                break;
+            }
+
+            IVersioned* ve = 
+                gf->get_versioned(t.version_number());
+            if (!ve) {
+                err_msg = "unsupported version_number";
+                break;
+            }
+
+            bool sig_ok = ve->get_response_sig_validator()->
+                create_node_handshake0(t);
+            if (!sig_ok) {
+                err_msg = "cannot validate signature";
+                break;
+            }
+
+            grpr::Handshake1 h1;
+            if (!ve->translate(t, h1)) {
+                err_msg = "cannot acquire Handshake1";
+                break;
+            }
+
+            // TODO: check if transaction_id is equal
+            // TODO: check if pub_key is contained in sig_map
+            h0_complete = true;
+
+        } while (0);
+
+        if (err_msg.length()) {
+            err_msg += " " + t.DebugString();
+            gf->exit(err_msg);
+        }        
     }
 
     grpr::Transaction StarterHandshakeHandler::get_response_h2(
                       grpr::Transaction req,
                       IVersioned* ve) {
-        grpr::Transaction res;
-        grpr::Handshake0 h0;
-        if (!ve->translate(req, h0))
-            gf->exit("cannot translate h0");
-        if (!ve->prepare_h1(h0.transaction_id(), res))
-            gf->exit("cannot prepare h1");
 
-        ve->sign(&res);
+        if (!h0_complete)
+            gf->exit("h0 not yet completed");
+
+        grpr::Handshake2 h2;
+        if (!ve->translate(req, h2))
+            gf->exit("cannot translate h2");
+
+        grpr::Transaction sb_transaction;
+        if (!ve->prepare_add_node(h2.transaction_id(),
+                                  h2.type(),
+                                  sb_transaction))
+            gf->exit("cannot prepare sb_transaction");
+        ve->sign(&sb_transaction);
 
         grpr::Transaction t2;
-        proto::Timestamp ts = get_current_time();
-        std::string starter_endpoint = h0.starter_endpoint();
-        if (!ve->prepare_h2(ts, t2))
-            gf->exit("cannot prepare h2");
+        if (!ve->prepare_h3(h2.transaction_id(), sb_transaction, t2))
+            gf->exit("cannot prepare h3");
         ve->sign(&t2);
 
-        gf->push_task(new SendH2(gf, starter_endpoint, t2, this),
-                      H1_H2_SETTLE_TIME_SECONDS);
-
-        return res;
+        return t2;
     }
 
 }

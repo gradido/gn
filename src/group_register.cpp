@@ -28,8 +28,9 @@ namespace gradido {
                     // TODO: check false negatives
 
                     std::string alias((char*)pp->group_record.alias);
-                    if (aliases.find(alias) != aliases.end())
+                    if (aliases.find(alias) != aliases.end()) {
                         return false;
+                    }
                     aliases.insert({alias, pp->group_record});
                 }
             }

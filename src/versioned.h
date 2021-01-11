@@ -13,6 +13,8 @@ public:
     virtual bool translate_log_message(grpr::Transaction t, 
                                        std::string& out) {NOT_SUPPORTED;}
     virtual bool translate(grpr::Transaction t, grpr::Handshake0& out) {NOT_SUPPORTED;}
+    virtual bool translate(grpr::Transaction t, grpr::Handshake1& out) {NOT_SUPPORTED;}
+    virtual bool translate(grpr::Transaction t, grpr::Handshake2& out) {NOT_SUPPORTED;}
     virtual bool translate(grpr::Transaction t, grpr::Handshake3& out) {NOT_SUPPORTED;}
     virtual bool translate(grpr::Transaction t, 
                            Batch<SbRecord>& out) {NOT_SUPPORTED;}
@@ -21,13 +23,19 @@ public:
                                           grpr::Transaction& out) {NOT_SUPPORTED;}
 
 
+    virtual bool prepare_h0(proto::Timestamp ts,
+                            grpr::Transaction& out) {NOT_SUPPORTED;}
     virtual bool prepare_h1(proto::Timestamp ts,
                             grpr::Transaction& out) {NOT_SUPPORTED;}
     virtual bool prepare_h2(proto::Timestamp ts, 
+                            std::string type,
+                            grpr::Transaction& out) {NOT_SUPPORTED;}
+    virtual bool prepare_h3(proto::Timestamp ts, 
+                            grpr::Transaction sb,
                             grpr::Transaction& out) {NOT_SUPPORTED;}
 };
 
-class RequestSigValidator_1 : IVersionedGrpc {
+class RequestSigValidator_1 : public IVersionedGrpc {
 private:
     IGradidoFacade* gf;
 public:
@@ -41,7 +49,7 @@ public:
     virtual bool ping(grpr::Transaction t);
 };
 
-class ResponseSigValidator_1 : IVersionedGrpc {
+class ResponseSigValidator_1 : public IVersionedGrpc {
 private:
     IGradidoFacade* gf;
 public:
@@ -61,7 +69,7 @@ private:
     IGradidoFacade* gf;
     RequestSigValidator_1 req_val;
     ResponseSigValidator_1 resp_val;
-
+    const int vnum = 1;
 public:
     Versioned_1(IGradidoFacade* gf) : gf(gf), req_val(gf), 
         resp_val(gf) {}
@@ -71,6 +79,8 @@ public:
     virtual bool translate_log_message(grpr::Transaction t, 
                                        std::string& out);
     virtual bool translate(grpr::Transaction t, grpr::Handshake0& out);
+    virtual bool translate(grpr::Transaction t, grpr::Handshake1& out);
+    virtual bool translate(grpr::Transaction t, grpr::Handshake2& out);
     virtual bool translate(grpr::Transaction t, grpr::Handshake3& out);
     virtual bool translate(grpr::Transaction t, 
                            Batch<SbRecord>& out);
@@ -80,11 +90,20 @@ public:
     virtual bool translate_sb_transaction(std::string bytes,
                                           grpr::Transaction& out);
 
-
+    virtual bool prepare_h0(proto::Timestamp ts,
+                            grpr::Transaction& out);
     virtual bool prepare_h1(proto::Timestamp ts,
                             grpr::Transaction& out);
     virtual bool prepare_h2(proto::Timestamp ts, 
+                            std::string type,
                             grpr::Transaction& out);
+    virtual bool prepare_h3(proto::Timestamp ts, 
+                            grpr::Transaction sb,
+                            grpr::Transaction& out);
+    virtual bool prepare_add_node(proto::Timestamp ts, 
+                                  std::string type,
+                                  grpr::Transaction& out);
+
 };
 }
 

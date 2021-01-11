@@ -6,7 +6,6 @@
 #include "blockchain_gradido.h"
 #include "group_register.h"
 #include "timer_pool.h"
-#include "versioned.h"
 #include "subcluster_blockchain.h"
 
 namespace gradido {
@@ -115,6 +114,7 @@ namespace gradido {
     void NodeFacade::start_sb() {
         if (sb)
             return;
+        LOG("preparing subcluster blockchain");
         IGradidoConfig* conf = gf->get_conf();
         Poco::Path root_folder(conf->get_data_root_folder());
         if (conf->is_sb_host())
@@ -147,6 +147,7 @@ namespace gradido {
                 throw std::runtime_error("cannot create kp identity");
             conf->kp_store(priv, pub);
             handshake_ongoing = true;
+            LOG("waiting for handshake");
         } else {
             if (!conf->kp_identity_has())
                 throw std::runtime_error("no identity; provide launch token");
@@ -160,7 +161,7 @@ namespace gradido {
             return conf->get_grpc_endpoint();
         else return conf->get_sb_ordering_node_endpoint();
     }
-    
+
     void NodeFacade::continue_init_after_handshake_done() {
         MLock lock(main_lock);
         handshake_ongoing = false;
@@ -196,11 +197,13 @@ namespace gradido {
     }
 
     void GroupRegisterFacade::init() {
+        LOG("starting group register");
         IGradidoConfig* config = gf->get_conf();
         group_register = new GroupRegister(
                          config->get_data_root_folder(),
                          gf,
                          config->get_group_register_topic_id());
+        gf->push_task(new InitGroupRegister(gf));
     }
 
     GroupRegisterFacade::~GroupRegisterFacade() {
@@ -369,36 +372,36 @@ namespace gradido {
     }
 
 
-    void AbstractNode::init(const std::vector<std::string>& params,
+    void Executable::init(const std::vector<std::string>& params,
                             ICommunicationLayer::HandlerFactory* hf,
                             IConfigFactory* config_factory) {
         af.init(params, hf, config_factory);
     }
-    void AbstractNode::join() {
+    void Executable::join() {
         af.join();
     }
-    void AbstractNode::push_task(ITask* task) {
+    void Executable::push_task(ITask* task) {
         af.push_task(task);
     }
-    void AbstractNode::push_task(ITask* task, uint32_t after_seconds) {
+    void Executable::push_task(ITask* task, uint32_t after_seconds) {
         af.push_task(task, after_seconds);
     }
-    void AbstractNode::push_task_and_join(ITask* task) {
+    void Executable::push_task_and_join(ITask* task) {
         af.push_task_and_join(task);
     }
-    IGradidoConfig* AbstractNode::get_conf() {
+    IGradidoConfig* Executable::get_conf() {
         return af.get_conf();
     }
-    ICommunicationLayer* AbstractNode::get_communications() {
+    ICommunicationLayer* Executable::get_communications() {
         return af.get_communications();
     }
-    void AbstractNode::exit(int ret_val) {
+    void Executable::exit(int ret_val) {
         af.exit(ret_val);
     }
-    void AbstractNode::exit(std::string msg) {
+    void Executable::exit(std::string msg) {
         af.exit(msg);
     }
-    void AbstractNode::reload_config() {
+    void Executable::reload_config() {
         af.reload_config();
     }
 
@@ -432,13 +435,13 @@ namespace gradido {
     ITask* NodeHandlerFactoryDeprecated::get_users(grpr::BlockchainId* req, 
                      grpr::UserData* reply, 
                      ICommunicationLayer::HandlerCb* cb) { 
-        return new UsersProvider(gf, req, reply, cb); 
+        return new UsersProviderDeprecated(gf, req, reply, cb); 
     }
 
 
     void GradidoNodeDeprecated::init(
          const std::vector<std::string>& params) {
-        AbstractNode::init(params, &handler_factory_impl, 
+        Executable::init(params, &handler_factory_impl, 
                            &config_factory);
         grf.init();
         gbf.init();
@@ -494,37 +497,42 @@ namespace gradido {
         gbf.get_random_sibling_endpoint(res);
     }
 
-    void NodeExt::init(const std::vector<std::string>& params) {
-        AbstractNode::init(params, get_handler_factory(), 
+    void NodeBase::init(const std::vector<std::string>& params) {
+        Executable::init(params, get_handler_factory(), 
                            get_config_factory());
         nf.init();
     }
-    void NodeExt::continue_init_after_sb_done() {
+    void NodeBase::continue_init_after_sb_done() {
         nf.continue_init_after_sb_done();
     }
-    void NodeExt::continue_init_after_handshake_done() {
+    void NodeBase::continue_init_after_handshake_done() {
         nf.continue_init_after_handshake_done();
     }
 
-    IVersioned* NodeExt::get_versioned(int version_number) {
+    IVersioned* NodeBase::get_versioned(int version_number) {
         return nf.get_versioned(version_number);
     }
 
-    IVersioned* NodeExt::get_current_versioned() {
+    IVersioned* NodeBase::get_current_versioned() {
         return nf.get_current_versioned();
     }
 
-    void NodeExt::global_log(std::string message) {
+    void NodeBase::global_log(std::string message) {
         // ignoring; although could send to other nodes
     }
 
-    ISubclusterBlockchain* NodeExt::get_subcluster_blockchain() {
+    ISubclusterBlockchain* NodeBase::get_subcluster_blockchain() {
         return nf.get_subcluster_blockchain();
     }
     
-    std::string NodeExt::get_sb_ordering_node_endpoint() {
+    std::string NodeBase::get_sb_ordering_node_endpoint() {
         return nf.get_sb_ordering_node_endpoint();
     }
+
+    IHandshakeHandler* NodeBase::get_handshake_handler() {
+        return nf.get_handshake_handler();
+    }
+
 
     ICommunicationLayer::HandlerFactory* 
     LoggerNode::get_handler_factory() {
@@ -565,6 +573,36 @@ namespace gradido {
     IGradidoConfig* PingerNode::create() {
         return new PingerConfig();
     }
+
+    IGradidoConfig* NodeLauncher::create() {
+        return new NodeLauncherConfig();
+    }
+
+    void NodeLauncher::init(const std::vector<std::string>& params) {
+        Executable::init(params, &handler_factory, this);
+        push_task(new SendH0(this, 
+                             get_conf()->get_launch_node_endpoint(), 
+                             &hh));
+    }
+
+    IVersioned* NodeLauncher::get_versioned(int version_number) {
+        if (version_number != DEFAULT_VERSION_NUMBER)
+            exit("wrong version number " + 
+                 std::to_string(version_number));
+        return versioned;
+    }
+
+    NodeLauncher::~NodeLauncher() {
+        if (versioned) {
+            delete versioned;
+            versioned = 0;
+        }
+    }
+
+    IHandshakeHandler* NodeLauncher::get_handshake_handler() {
+        return &hh;
+    }
+
 
     
 }

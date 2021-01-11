@@ -189,17 +189,16 @@ class BlockchainBaseDeprecated : public Parent,
             if (!res)
                 reset_validation("cannot validate_next_checksum()");
             else {
-                if (add_index_data())
+                if (add_index_data()) {
                     gf->push_task(new ContinueValidationTask<T>(this));
-                else
+                    indexed_blocks++;
+                } else
                     reset_validation("cannot add_index_data()");
             }
         }
     }
     
-    // TODO: remove
     uint64_t indexed_blocks;
-
 
     std::priority_queue<Batch<T>, std::vector<Batch<T>>, 
         TransactionComparator> inbound;
@@ -239,7 +238,6 @@ class BlockchainBaseDeprecated : public Parent,
         batch_size(gf->get_conf()->
                    get_blockchain_append_batch_size()),
         topic_reset_allowed(gf->get_conf()->is_topic_reset_allowed()) {
-
         SAFE_PT(pthread_mutex_init(&main_lock, 0));
     }
 
@@ -288,7 +286,9 @@ class BlockchainBaseDeprecated : public Parent,
         case FETCHING_CHECKSUMS:
         case FETCHING_BLOCKS:
         case READY:
-            throw std::runtime_error(name + " init(): wrong state");
+            throw std::runtime_error(
+                  name + " continue_validation(): wrong state " + 
+                  std::to_string((int)state));
         }
     }    
 
@@ -296,7 +296,6 @@ class BlockchainBaseDeprecated : public Parent,
         MLock lock(main_lock);
         if (state != READY)
             return;
-
         for (int i = 0; i < batch_size; i++) {
             if (inbound.size() == 0)
                 break;
@@ -317,7 +316,6 @@ class BlockchainBaseDeprecated : public Parent,
             } else {
                 if (batch.size < 1 || !batch.buff)
                     throw std::runtime_error("empty batch");
-
                 uint64_t seq_num;
                 bool has_latest = get_latest_transaction_id(seq_num);
                 uint64_t curr_seq_num;

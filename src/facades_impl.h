@@ -11,6 +11,8 @@
 #include "communications.h"
 #include "gradido_events.h"
 #include "handshake_handler.h"
+#include "versioned.h"
+
 
 namespace gradido {
 
@@ -34,6 +36,7 @@ public:
     virtual void continue_init_after_sb_done() {NOT_SUPPORTED;}
     virtual void continue_init_after_handshake_done() {NOT_SUPPORTED;}
     virtual std::string get_sb_ordering_node_endpoint() {NOT_SUPPORTED;}
+    virtual std::string get_node_type_str() {NOT_SUPPORTED;}
     virtual ISubclusterBlockchain* get_subcluster_blockchain() {NOT_SUPPORTED;}
     virtual void global_log(std::string message) {NOT_SUPPORTED;}
     virtual IHandshakeHandler* get_handshake_handler() {NOT_SUPPORTED;}
@@ -66,7 +69,7 @@ private:
 
 public:
     AbstractFacade(IGradidoFacade* gf) : 
-        config(0), worker_pool(gf), communication_layer(gf) {}
+        config(0), worker_pool(gf, "main"), communication_layer(gf) {}
     virtual ~AbstractFacade();
     virtual void init(const std::vector<std::string>& params,
                       ICommunicationLayer::HandlerFactory* hf,
@@ -168,11 +171,11 @@ public:
 
 // almost any executable needs this, extracting as a separate class
 // to reduce repetition
-class AbstractNode : public EmptyFacade {
+class Executable : public EmptyFacade {
 private:
     AbstractFacade af;
 public:
-    AbstractNode() : af(this) {}
+    Executable() : af(this) {}
     virtual void init(const std::vector<std::string>& params,
                       ICommunicationLayer::HandlerFactory* hf,
                       IConfigFactory* config_factory);
@@ -284,7 +287,7 @@ public:
                              ICommunicationLayer::HandlerCb* cb);
 };
 
-class GradidoNodeDeprecated : public AbstractNode {
+class GradidoNodeDeprecated : public Executable {
 private:
     GroupRegisterFacade grf;
     GroupBlockchainFacade gbf;
@@ -323,6 +326,7 @@ public:
 
 };
 
+// implements just INodeFacade; note, that it needs IGradidoFacade
 class NodeFacade : public INodeFacade {
 private:
     IGradidoFacade* gf;
@@ -368,13 +372,12 @@ public:
     virtual ISubclusterBlockchain* get_subcluster_blockchain();
     virtual void continue_init_after_sb_done();
     virtual std::string get_sb_ordering_node_endpoint();
+    virtual std::string get_node_type_str() {NOT_SUPPORTED;}
 
-
-    // get_private / public key
 };
 
-// refers functionaly added together with subcluster concept
-class NodeExt : public AbstractNode {
+// nodes can inherit this 
+class NodeBase : public Executable {
 protected:
     NodeFacade nf;
     class HandlerFactory : public NodeFacade::HandlerFactory {
@@ -393,7 +396,7 @@ protected:
         get_handler_factory() = 0;
     virtual IConfigFactory* get_config_factory() = 0;
 public:
-    NodeExt() : nf(this) {}
+    NodeBase() : nf(this) {}
     virtual void init(const std::vector<std::string>& params);
     virtual void init(const std::vector<std::string>& params,
                       IConfigFactory* config_factory) {NOT_SUPPORTED;}
@@ -406,20 +409,19 @@ public:
     virtual void continue_init_after_handshake_done();
     virtual ISubclusterBlockchain* get_subcluster_blockchain();
     virtual std::string get_sb_ordering_node_endpoint();
+    virtual IHandshakeHandler* get_handshake_handler();
 };
 
 
-class LoggerNode : public NodeExt, public IConfigFactory {
-private:
-    HandlerFactory handler_factory;
+class LoggerNode : public NodeBase, public IConfigFactory {
 public:
     virtual IGradidoConfig* create();
     
 protected:
-    class HandlerFactory : public NodeExt::HandlerFactory {
+    class HandlerFactory : public NodeBase::HandlerFactory {
     public:
         HandlerFactory(IGradidoFacade* gf) : 
-            NodeExt::HandlerFactory(gf) {}
+            NodeBase::HandlerFactory(gf) {}
         virtual ITask* submit_log_message(
                        grpr::Transaction* req, 
                        grpr::Transaction* reply, 
@@ -429,21 +431,22 @@ protected:
     };
     virtual ICommunicationLayer::HandlerFactory* get_handler_factory();
     virtual IConfigFactory* get_config_factory();
-public:
-    LoggerNode() : handler_factory(this) {}
-};
-
-class OrderingNode : public NodeExt, public IConfigFactory {
 private:
     HandlerFactory handler_factory;
+public:
+    LoggerNode() : handler_factory(this) {}
+    virtual std::string get_node_type_str() { return "LOGGER"; }
+};
+
+class OrderingNode : public NodeBase, public IConfigFactory {
 public:
     virtual IGradidoConfig* create();
     
 protected:
-    class HandlerFactory : public NodeExt::HandlerFactory {
+    class HandlerFactory : public NodeBase::HandlerFactory {
     public:
         HandlerFactory(IGradidoFacade* gf) : 
-            NodeExt::HandlerFactory(gf) {}
+            NodeBase::HandlerFactory(gf) {}
         virtual ITask* submit_message(
                        grpr::Transaction* req, 
                        grpr::Transaction* reply, 
@@ -453,28 +456,63 @@ protected:
     };
     virtual ICommunicationLayer::HandlerFactory* get_handler_factory();
     virtual IConfigFactory* get_config_factory();
+private:
+    HandlerFactory handler_factory;
 public:
     OrderingNode() : handler_factory(this) {}
     
 };
 
-class PingerNode : public NodeExt, public IConfigFactory {
-private:
-    HandlerFactory handler_factory;
+class PingerNode : public NodeBase, public IConfigFactory {
 public:
     virtual IGradidoConfig* create();
     
 protected:
-    class HandlerFactory : public NodeExt::HandlerFactory {
+    class HandlerFactory : public NodeBase::HandlerFactory {
     public:
         HandlerFactory(IGradidoFacade* gf) : 
-            NodeExt::HandlerFactory(gf) {}
+            NodeBase::HandlerFactory(gf) {}
     };
     virtual ICommunicationLayer::HandlerFactory* get_handler_factory();
     virtual IConfigFactory* get_config_factory();
+private:
+    HandlerFactory handler_factory;
 public:
     PingerNode() : handler_factory(this) {}
     
+};
+
+class NodeLauncher : public Executable, public IConfigFactory {
+public:
+    virtual IGradidoConfig* create();
+    
+protected:
+    class HandlerFactory : public EmptyHandlerFactoryImpl {
+    public:
+        HandlerFactory(IGradidoFacade* gf) : 
+            EmptyHandlerFactoryImpl(gf) {}
+        virtual ITask* create_node_handshake2(
+                                 grpr::Transaction* req, 
+                                 grpr::Transaction* reply, 
+                                 ICommunicationLayer::HandlerCb* cb) {
+            return new Handshake2Receiver(gf, req, reply, cb);
+        }
+    };
+private:
+    HandlerFactory handler_factory;
+    StarterHandshakeHandler hh;
+    IVersioned* versioned;
+public:
+    NodeLauncher() : handler_factory(this), hh(this), 
+        versioned(new Versioned_1(this)) {}
+    virtual ~NodeLauncher();
+    virtual void init(const std::vector<std::string>& params);
+    virtual IVersioned* get_versioned(int version_number);
+    virtual IHandshakeHandler* get_handshake_handler();
+};
+
+class DemoLoginNode : public EmptyFacade {
+
 };
 
 

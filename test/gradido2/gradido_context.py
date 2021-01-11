@@ -32,10 +32,10 @@ class GradidoContext(object):
         self.remove_proc(pro.pid)
 
     def restart_gradido_node(self, instance_root, instance_name):
-        conf_file = os.path.join(instance_root, "gradido.conf")
         err_file = os.path.join(instance_root, "err-output.txt")
-        cmd = "../build/gradido_node %s 2> %s" % (conf_file, err_file)
+        cmd = "../../../build/gradido_deprecated 2>> %s" % err_file
         pro = subprocess.Popen(cmd, stdout=subprocess.PIPE, 
+                               cwd=instance_root,
                                shell=True, preexec_fn=os.setsid) 
         self.add_proc(pro.pid)
         self.procs[instance_name] = (instance_root, pro, err_file)
@@ -69,8 +69,9 @@ class GradidoContext(object):
                 f.write("1")
 
         err_file = os.path.join(instance_root, "err-output.txt")
-        cmd = "../build/gradido_node %s 2> %s" % (conf_file, err_file)
+        cmd = "../../../build/gradido_deprecated 2>> %s" % err_file
         pro = subprocess.Popen(cmd, stdout=subprocess.PIPE, 
+                               cwd=instance_root,
                                shell=True, preexec_fn=os.setsid) 
         self.add_proc(pro.pid)
         self.procs[instance_name] = (instance_root, pro, err_file)

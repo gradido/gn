@@ -64,7 +64,7 @@ T min(T a, T b) {
 
 std::string get_time();
 extern pthread_mutex_t gradido_logger_lock;
-#define LOG(msg) pthread_mutex_lock(&gradido_logger_lock); std::cerr << __FILE__ << ":" << __LINE__ << ":#" << (uint64_t)pthread_self() << ":" << get_time() << ": " << msg << std::endl; pthread_mutex_unlock(&gradido_logger_lock);
+#define LOG(msg) pthread_mutex_lock(&gradido_logger_lock); std::cerr << __FILE__ << ":" << __LINE__ << ":#" << (uint64_t)pthread_self() << ":" << get_time() << ": "; try { std::cerr << msg; } catch (...) { std::cerr << "log message expression throws exception"; }; std::cerr << std::endl; pthread_mutex_unlock(&gradido_logger_lock);
 
 proto::Timestamp get_current_time();
 
@@ -160,6 +160,8 @@ struct GroupInfo {
     HederaTopicID topic_id;
     // used as id and to name blockchain folder
     char alias[GROUP_ALIAS_LENGTH];
+
+    GroupInfo() { memset(this, 0, sizeof(this)); }
 
     std::string get_directory_name() {
         std::stringstream ss;
@@ -287,6 +289,8 @@ class IGradidoConfig {
     virtual std::string kp_get_priv_key() = 0;
     virtual std::string kp_get_pub_key() = 0;
     virtual void kp_store(std::string priv_key, std::string pub_key) = 0;
+
+    virtual std::string get_launch_node_endpoint() = 0;
 };
 
 class IConfigFactory {
@@ -447,6 +451,9 @@ public:
     virtual void send_global_log_message(std::string endpoint,
                                          std::string msg) = 0;
 
+    virtual void send_handshake0(std::string endpoint,
+                                 grpr::Transaction req,
+                                 GrprTransactionListener* listener) = 0;
     virtual void send_handshake2(std::string endpoint,
                                  grpr::Transaction req,
                                  GrprTransactionListener* listener) = 0;
@@ -487,6 +494,8 @@ public:
 
     virtual bool translate_log_message(grpr::Transaction t, std::string& out) = 0;
     virtual bool translate(grpr::Transaction t, grpr::Handshake0& out) = 0;
+    virtual bool translate(grpr::Transaction t, grpr::Handshake1& out) = 0;
+    virtual bool translate(grpr::Transaction t, grpr::Handshake2& out) = 0;
     virtual bool translate(grpr::Transaction t, grpr::Handshake3& out) = 0;
     virtual bool translate(grpr::Transaction t, 
                            Batch<SbRecord>& out) = 0;
@@ -498,11 +507,19 @@ public:
                                           grpr::Transaction& out) = 0;
 
 
+    virtual bool prepare_h0(proto::Timestamp ts,
+                            grpr::Transaction& out) = 0;
     virtual bool prepare_h1(proto::Timestamp ts,
                             grpr::Transaction& out) = 0;
     virtual bool prepare_h2(proto::Timestamp ts, 
+                            std::string type,
                             grpr::Transaction& out) = 0;
-
+    virtual bool prepare_h3(proto::Timestamp ts, 
+                            grpr::Transaction sb,
+                            grpr::Transaction& out) = 0;
+    virtual bool prepare_add_node(proto::Timestamp ts, 
+                                  std::string type,
+                                  grpr::Transaction& out) = 0;
 };
 
 class IOrderer {
@@ -580,6 +597,7 @@ public:
     virtual void continue_init_after_handshake_done() = 0;
 
     virtual std::string get_sb_ordering_node_endpoint() = 0;
+    virtual std::string get_node_type_str() = 0;
 };
 
 // this is to support deprecated group register blockchain

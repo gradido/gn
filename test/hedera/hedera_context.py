@@ -245,7 +245,7 @@ class HederaContext(object):
                     raise Exception("pass limit exceeded at step %d" % ii)
                 kw = {}
                 self.gather_kw(arg, kw)
-                print "8988988989898  ", arg, kw, stub, method, endpoint
+                #print "8988988989898  ", arg, kw, stub, method, endpoint
                 res.append(getattr(stub, method)(**kw))
         # should extract data explicitly with _output: field_name: method_to_call
         return res

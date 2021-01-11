@@ -26,12 +26,9 @@ namespace gradido {
     }
     
     void FileConfig::init(const std::vector<std::string>& params) {
-
         try {
-            std::string conf_file = "gradido.conf";
-            if (params.size() > 1)
-                conf_file = params[1];
-            pfc = new Poco::Util::PropertyFileConfiguration(conf_file);
+            pfc = new Poco::Util::PropertyFileConfiguration(
+                                  config_file_name);
         } catch (std::exception& e) {
             throw std::runtime_error("Couldn't open configuration file: " + std::string(e.what()));
         }
@@ -98,7 +95,7 @@ namespace gradido {
                     std::string fname = it.path().getFileName();
                     std::vector<std::string> ss;
                     if (re.split(fname, ss)) {
-                        GroupInfo gi = {0};
+                        GroupInfo gi;
                         if (ss[1].size() >= GROUP_ALIAS_LENGTH - 1)
                             throw std::runtime_error("blockchain name too long: " + ss[1]);
                         memcpy(gi.alias, ss[1].c_str(), ss[1].size());
@@ -406,5 +403,46 @@ namespace gradido {
     int PingerConfig::get_json_rpc_port() {
         return 0;
     }
+
+    int NodeLauncherConfig::get_worker_count() {
+        return 1;
+    }
+
+    int NodeLauncherConfig::get_io_worker_count() {
+        return 1;
+    }
+
+    int NodeLauncherConfig::get_json_rpc_port() {
+        return 0;
+    }
+
+    void NodeLauncherConfig::init(
+         const std::vector<std::string>& params) {
+        kp.init(params);
+        if (!kp.kp_identity_has())
+            throw std::runtime_error("need key pair identity");
+        if (params.size() > 1 && params[1].length() > 0 &&
+            params[2].length() > 0) {
+            own_endpoint = params[1];
+            endpoint = params[2];
+        } else
+            throw std::runtime_error("required parameters: own_endpoint target_endpoint");
+    }
+
+    std::string NodeLauncherConfig::get_launch_node_endpoint() {
+        return endpoint;
+    }
+
+    std::string NodeLauncherConfig::kp_get_priv_key() {
+        return kp.kp_get_priv_key();
+    }
+    std::string NodeLauncherConfig::kp_get_pub_key() {
+        return kp.kp_get_pub_key();
+    }
+
+    std::string NodeLauncherConfig::get_grpc_endpoint() {
+        return own_endpoint;
+    }
+
     
 }

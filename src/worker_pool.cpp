@@ -55,8 +55,9 @@ namespace gradido {
                 wp->queue.pop();
                 wp->busy_workers++;
             }
-            try {
+            //            try {
                 task->run();
+                /*
             } catch (std::exception& e) {
                 std::string msg = "error in worker thread: " + 
                     std::string(e.what());
@@ -65,7 +66,7 @@ namespace gradido {
             } catch (...) {
                 LOG("unknown error");
                 wp->gf->exit(1);
-            }
+                }*/
             delete task;
         }
     }

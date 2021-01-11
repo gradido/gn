@@ -172,6 +172,45 @@ private:
         virtual void init(grpc::CompletionQueue& cq);
     };
 
+    class TransactionSubscriber : public AbstractSubscriber {
+    protected:
+        GrprTransactionListener* gtl;
+        std::unique_ptr< ::grpc::ClientAsyncReader<grpr::Transaction>> stream;
+        std::unique_ptr<grpr::GradidoNodeService::Stub> stub;
+        
+        grpr::Transaction req;
+        grpr::Transaction reply;
+
+        virtual void prepare_stream(grpc::CompletionQueue& cq) = 0;
+    public:
+        TransactionSubscriber(std::string endpoint,
+                              grpr::Transaction req,
+                              GrprTransactionListener* gtl);
+
+        virtual bool got_data();
+        virtual void init(grpc::CompletionQueue& cq);
+    };
+
+    class Handshake0Subscriber : public TransactionSubscriber {
+    protected:
+        virtual void prepare_stream(grpc::CompletionQueue& cq);
+
+    public:
+        Handshake0Subscriber(std::string endpoint,
+                             grpr::Transaction req,
+                             GrprTransactionListener* gtl);
+    };
+
+    class Handshake2Subscriber : public TransactionSubscriber {
+    protected:
+        virtual void prepare_stream(grpc::CompletionQueue& cq);
+
+    public:
+        Handshake2Subscriber(std::string endpoint,
+                             grpr::Transaction req,
+                             GrprTransactionListener* gtl);
+    };
+
     class AbstractCallData : public ICommunicationLayer::HandlerCb {
     protected:
         grpr::GradidoNodeService::AsyncService* service_;
@@ -354,6 +393,9 @@ public:
                          PairedTransactionReceiver* rr);
     virtual void send_global_log_message(std::string endpoint,
                                          std::string msg);
+    virtual void send_handshake0(std::string endpoint,
+                                 grpr::Transaction req,
+                                 ICommunicationLayer::GrprTransactionListener* listener);
     virtual void send_handshake2(std::string endpoint,
                                  grpr::Transaction req,
                                  ICommunicationLayer::GrprTransactionListener* listener);

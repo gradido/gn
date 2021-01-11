@@ -41,11 +41,13 @@ namespace gradido {
         virtual std::string kp_get_priv_key() {NOT_SUPPORTED;}
         virtual std::string kp_get_pub_key() {NOT_SUPPORTED;}
         virtual void kp_store(std::string priv_key, std::string pub_key) {NOT_SUPPORTED;}
+        virtual std::string get_launch_node_endpoint() {NOT_SUPPORTED;}
     };
 
     class FileConfig : public EmptyConfig {
     private:
         Poco::AutoPtr<Poco::Util::PropertyFileConfiguration> pfc;
+        const std::string config_file_name = "gradido.conf";
     public:
         virtual void init(const std::vector<std::string>& params);
         virtual int get_worker_count();
@@ -170,6 +172,23 @@ namespace gradido {
     class PingerConfig : public AbstractNodeConfig {
     public:
         virtual int get_json_rpc_port();
+    };
+
+    class NodeLauncherConfig : public EmptyConfig {
+    private:
+        std::string endpoint;
+        std::string own_endpoint;
+        KpIdentity kp;
+    public:
+        virtual void init(const std::vector<std::string>& params);
+        virtual int get_worker_count();
+        virtual int get_io_worker_count();
+        virtual int get_json_rpc_port();
+        virtual std::string get_launch_node_endpoint();
+
+        virtual std::string kp_get_priv_key();
+        virtual std::string kp_get_pub_key();
+        virtual std::string get_grpc_endpoint();
     };
 
 }

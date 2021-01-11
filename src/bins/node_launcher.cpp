@@ -1,7 +1,4 @@
-#include "facades_impl.h"
+#include "main_def.h"
 
-using namespace gradido;                            
-                                                    
-int main(int argc, char** argv) {               
-    return 0;
-}
+GRADIDO_NODE_MAIN(NodeLauncher, node_launcher)
+

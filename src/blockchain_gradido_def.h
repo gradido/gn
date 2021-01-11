@@ -3,12 +3,20 @@
 
 #include <cstdint>
 #include <math.h>
+#include <string.h>
 #include "ed25519/ed25519.h"
 
 
 namespace gradido {
 
 // change with care; blockchain validity depends on those structs
+// 
+// don't add any virtual methods to those classes, as memset() is
+// used to blank them; it should be possible to have them zeroed
+//
+// currently, each struct has such a constructor; if structs are nested,
+// some bytes may be initialized more than one time; having a proper
+// initialization is of higher importance, though
 
 // all structures has to be set to 0 before putting any data in them
 
@@ -44,7 +52,7 @@ namespace gradido {
 
 // this is GRADIDO_DECIMAL_CONVERSION_FACTOR; gradidomath.h not included
 // to keep things separated
-#define GRADIDO_VALUE_DECIMAL_AMOUNT_MAX 1000000
+#define GRADIDO_VALUE_DECIMAL_AMOUNT_BASE 1000000
 
 #define SB_MEMO_LENGTH 256
 #define SB_SUBCLUSTER_NAME_LENGTH 64
@@ -57,27 +65,35 @@ namespace gradido {
 // current version is set to this by default and incremented as per sb
 #define DEFAULT_VERSION_NUMBER 1
 
+#if 0
+// experimental
+#define PACKED_STRUCT __attribute__((__packed__))
+#else
+#define PACKED_STRUCT
+#endif
 
 // ca chain is mentioned only once per blockchain, just after header 
 // record; no need to pack them tightly
 #define CA_CHAIN_PER_RECORD 1
 
-struct PubKeyEntity {
+struct PACKED_STRUCT PubKeyEntity {
     uint8_t pub_key[PUB_KEY_LENGTH];
+    PubKeyEntity() { memset(this, 0, sizeof(this)); }
 };
 
 
 
-struct GradidoValue {
+struct PACKED_STRUCT GradidoValue {
     uint64_t amount;
     uint32_t decimal_amount;
-    GradidoValue() : amount(0), decimal_amount(0) {}
+    GradidoValue() { memset(this, 0, sizeof(this)); }
     GradidoValue operator+(const GradidoValue& v) {
         GradidoValue res;
         res.amount = amount + v.amount;
         res.decimal_amount = decimal_amount + v.decimal_amount;
-        if (res.decimal_amount > GRADIDO_VALUE_DECIMAL_AMOUNT_MAX) {
-            res.decimal_amount -= GRADIDO_VALUE_DECIMAL_AMOUNT_MAX;
+
+        if (res.decimal_amount >= GRADIDO_VALUE_DECIMAL_AMOUNT_BASE) {
+            res.decimal_amount -= GRADIDO_VALUE_DECIMAL_AMOUNT_BASE;
             res.amount++;    
         }
         return res;
@@ -90,14 +106,15 @@ struct GradidoValue {
         if (decimal_amount >= v.decimal_amount) {
             res.decimal_amount = decimal_amount - v.decimal_amount;
         } else {
-            res.decimal_amount = GRADIDO_VALUE_DECIMAL_AMOUNT_MAX -
+            res.decimal_amount = GRADIDO_VALUE_DECIMAL_AMOUNT_BASE -
                 (v.decimal_amount - decimal_amount);
             res.amount--;
         }
         return res;
     }
-    GradidoValue operator+=(const GradidoValue& v) {
-        return *this + v;
+    GradidoValue& operator+=(const GradidoValue& v) {
+        *this = *this + v;
+        return *this;
     }
 
     bool operator<(uint64_t v) {
@@ -109,21 +126,24 @@ struct GradidoValue {
     }
 };
 
-struct User {
+struct PACKED_STRUCT User {
     uint8_t user[PUB_KEY_LENGTH];
+    User() { memset(this, 0, sizeof(this)); }
 };
 
-struct UserState {
+struct PACKED_STRUCT UserState {
     // these fields are updated only if transaction is successful
     GradidoValue new_balance;
     uint64_t prev_transfer_rec_num;
+    UserState() { memset(this, 0, sizeof(this)); }
 };
 
 #define SIGNATURE_RECORD_LENGTH PUB_KEY_LENGTH + SIGNATURE_LENGTH
 // don't add more members without updating macro
-struct Signature {
+struct PACKED_STRUCT Signature {
     uint8_t pubkey[PUB_KEY_LENGTH];
     uint8_t signature[SIGNATURE_LENGTH];
+    Signature() { memset(this, 0, sizeof(this)); }
 };
 
 enum TransactionType {
@@ -145,9 +165,11 @@ enum TransactionType {
     INITIALIZATION_DONE
 };
 
-struct HederaTimestamp {
+struct PACKED_STRUCT HederaTimestamp {
     int64_t seconds;
     int32_t nanos;
+
+    HederaTimestamp() { memset(this, 0, sizeof(this)); }
 
     bool operator<(const HederaTimestamp& ts) const {
         return ts.seconds > seconds || (ts.seconds == seconds && 
@@ -171,64 +193,76 @@ struct HederaTimestamp {
 
 };
 
-struct HederaAccountID {
+struct PACKED_STRUCT HederaAccountID {
     int64_t shardNum;
     int64_t realmNum;
     int64_t accountNum;
+    HederaAccountID() { memset(this, 0, sizeof(this)); }
 };
 
-struct HederaTopicID {
+struct PACKED_STRUCT HederaTopicID {
     int64_t shardNum;
     int64_t realmNum;
     int64_t topicNum;
+    HederaTopicID() { memset(this, 0, sizeof(this)); }
 };
 
-struct HederaTransactionID  {
+struct PACKED_STRUCT HederaTransactionID  {
     HederaTimestamp transactionValidStart;
     HederaAccountID accountID;
+    HederaTransactionID() { memset(this, 0, sizeof(this)); }
 };
 
-struct HederaTransaction {
+struct PACKED_STRUCT HederaTransaction {
     HederaTimestamp consensusTimestamp;
     uint8_t runningHash[HEDERA_RUNNING_HASH_LENGTH];
     uint64_t sequenceNumber;
 
     // TODO: remove, along with renaming Hedera
     uint64_t runningHashVersion;
+    HederaTransaction() { memset(this, 0, sizeof(this)); }
 };
 
-struct AbstractTransferOp {
+struct PACKED_STRUCT AbstractTransferOp {
     GradidoValue amount;
+    AbstractTransferOp() { memset(this, 0, sizeof(this)); }
 };
 
-struct UserTransfer : public User, UserState {};
+struct PACKED_STRUCT UserTransfer : public User, UserState {};
 
-struct LocalTransfer : public AbstractTransferOp {
+struct PACKED_STRUCT LocalTransfer : public AbstractTransferOp {
     UserTransfer sender;
     UserTransfer receiver;
+    LocalTransfer() { memset(this, 0, sizeof(this)); }
 };
 
-struct PairedTransaction {
+struct PACKED_STRUCT PairedTransaction {
     HederaTimestamp paired_transaction_id;
     uint8_t other_group[GROUP_ALIAS_LENGTH];
+    PairedTransaction() { memset(this, 0, sizeof(this)); }
 };
 
-struct InboundTransfer : public AbstractTransferOp, PairedTransaction {
+struct PACKED_STRUCT InboundTransfer : public AbstractTransferOp, 
+    PairedTransaction {
     User sender;
     UserTransfer receiver;
+    InboundTransfer() { memset(this, 0, sizeof(this)); }
 };
-struct OutboundTransfer : public AbstractTransferOp, PairedTransaction {
+struct PACKED_STRUCT OutboundTransfer : public AbstractTransferOp, 
+    PairedTransaction {
     UserTransfer sender;
     User receiver;
+    OutboundTransfer() { memset(this, 0, sizeof(this)); }
 };
 
-struct FriendUpdate {
+struct PACKED_STRUCT FriendUpdate {
     uint8_t group[GROUP_ALIAS_LENGTH];
+    FriendUpdate() { memset(this, 0, sizeof(this)); }
 };
 
 // first transaction is ADD_USER with user_id of group's creator
-struct AddUser : public User {}; 
-struct MoveUser : public User, PairedTransaction, UserState {};
+struct PACKED_STRUCT AddUser : public User {}; 
+struct PACKED_STRUCT MoveUser : public User, PairedTransaction, UserState {};
 
 enum TransactionResult {
     SUCCESS=0,
@@ -260,9 +294,9 @@ enum TransactionResult {
     GROUP_IS_NOT_FRIEND
 };
 
-struct GradidoCreation : public UserTransfer, AbstractTransferOp {};
+struct PACKED_STRUCT GradidoCreation : public UserTransfer, AbstractTransferOp {};
 
-struct TransactionCommonHeader {
+struct PACKED_STRUCT TransactionCommonHeader {
     // starts with 1; it may affect the way how transaction is parsed and
     // validated; version_number is the same for all parts of single 
     // transaction; for structurally_bad_message it may be 0, if 
@@ -276,22 +310,24 @@ struct TransactionCommonHeader {
     uint8_t parts;
 
     HederaTransaction hedera_transaction;
+    TransactionCommonHeader() { memset(this, 0, sizeof(this)); }
 };
 
-struct GradidoHeader {
+struct PACKED_STRUCT GradidoHeader {
     uint8_t alias[GROUP_ALIAS_LENGTH];
     uint8_t chain_length;
     uint8_t ordering_node_pub_key[PUB_KEY_LENGTH];
+    GradidoHeader() { memset(this, 0, sizeof(this)); }
 };
 
-struct Transaction : public TransactionCommonHeader {
+struct PACKED_STRUCT Transaction : public TransactionCommonHeader {
 
     // additional signatures can be stored in more parts
     Signature signature;
     uint8_t signature_count;
 
     uint8_t transaction_type; // enum TransactionType
-    union {
+    union PACKED_STRUCT {
         GradidoCreation gradido_creation;
         FriendUpdate add_group_friend;
         FriendUpdate remove_group_friend;
@@ -319,7 +355,7 @@ struct Transaction : public TransactionCommonHeader {
     // \0, then it is considered multi-part memo
     uint8_t memo[MEMO_MAIN_SIZE];
 
-    Transaction() {}
+    Transaction() { memset(this, 0, sizeof(this)); }
 };
 
 #define MEMO_PART_SIZE (int)fmax(sizeof(Transaction), MEMO_FULL_SIZE - MEMO_MAIN_SIZE)
@@ -366,50 +402,54 @@ enum StructurallyBadMessageResult {
     KEY_SIZE_NOT_CORRECT
 };
 
-struct StructurallyBadMessage : public TransactionCommonHeader {
+struct PACKED_STRUCT StructurallyBadMessage : 
+    public TransactionCommonHeader {
     uint8_t result; // enum StructurallyBadMessageResult
     uint64_t length; // total length of message in bytes; contents is
                      // provided in following parts
     HederaTransaction hedera_transaction;
+    StructurallyBadMessage() { memset(this, 0, sizeof(this)); }
 };
 
 // idea is that most transactions are supposed to be transfers; those
 // will consist of single part (if memo is short enough); size of other
 // types of transactions is less relevant
-struct GradidoRecord {
+struct PACKED_STRUCT GradidoRecord {
     uint8_t record_type; // enum GradidoRecordType
-    union {
+    union PACKED_STRUCT {
         Transaction transaction;
         uint8_t memo[MEMO_PART_SIZE];
         Signature signature[SIGNATURES_PER_RECORD];
         StructurallyBadMessage structurally_bad_message;
         uint8_t raw_message[RAW_MESSAGE_PART_SIZE];
     };
-    GradidoRecord() {}
+    GradidoRecord() { memset(this, 0, sizeof(this)); }
 };
 
-struct GroupRecord {
+struct PACKED_STRUCT GroupRecord {
     uint8_t alias[GROUP_ALIAS_LENGTH];
     HederaTopicID topic_id;
     bool success;
     HederaTransaction hedera_transaction;
     Signature signature;
+    GroupRecord() { memset(this, 0, sizeof(this)); }
 };
 
-enum GroupRegisterRecordType {
+enum PACKED_STRUCT GroupRegisterRecordType {
     // TODO: 1
     GROUP_RECORD=0,
     GR_STRUCTURALLY_BAD_MESSAGE,
     GR_RAW_MESSAGE
 };
 
-struct GroupRegisterRecord {
+struct PACKED_STRUCT GroupRegisterRecord {
     uint8_t record_type; // enum GroupRegisterRecordType
-    union {
+    union PACKED_STRUCT {
         GroupRecord group_record;
         StructurallyBadMessage structurally_bad_message;
         uint8_t raw_message[RAW_MESSAGE_PART_SIZE];
     };
+    GroupRegisterRecord() { memset(this, 0, sizeof(this)); }
 };
 
 enum class SbRecordType {
@@ -440,28 +480,32 @@ enum class SbInitialKeyType {
     CA_SIGNED
 };
 
-struct SbHeader {
+struct PACKED_STRUCT SbHeader {
     uint8_t subcluster_name[SB_SUBCLUSTER_NAME_LENGTH];
-    SbInitialKeyType initial_key_type;
+    uint8_t initial_key_type; // SbInitialKeyType
     uint8_t pub_key[PUB_KEY_LENGTH];
     uint8_t ca_pub_key_chain_length; // including pub_key
+    SbHeader() { memset(this, 0, sizeof(this)); }
 };
 
-struct SbAdmin {
+struct PACKED_STRUCT SbAdmin {
     uint8_t pub_key[PUB_KEY_LENGTH];
     uint8_t name[SB_ADMIN_NAME_LENGTH];
     uint8_t email[SB_EMAIL_LENGTH];
+    SbAdmin() { memset(this, 0, sizeof(this)); }
 };
 
-struct SbNode {
-    SbNodeType node_type;
+struct PACKED_STRUCT SbNode {
+    uint8_t node_type; // SbNodeType 
     uint8_t pub_key[PUB_KEY_LENGTH];
+    SbNode() { memset(this, 0, sizeof(this)); }
 };
 
-struct SbNodeBlockchain {
+struct PACKED_STRUCT SbNodeBlockchain {
     uint8_t node_pub_key[PUB_KEY_LENGTH];
     uint8_t blockchain_pub_key[PUB_KEY_LENGTH];
     uint8_t alias[GROUP_ALIAS_LENGTH];
+    SbNodeBlockchain() { memset(this, 0, sizeof(this)); }
 };
 
 enum class SbTransactionResult {
@@ -473,14 +517,14 @@ enum class SbTransactionResult {
     NODE_ALREADY_ADDED_TO_BLOCKCHAIN
 };
 
-struct SbRecord {
+struct PACKED_STRUCT SbRecord {
     uint32_t version_number;
     HederaTransaction hedera_transaction;
     uint8_t record_type; // enum SbRecordType
     uint8_t memo[SB_MEMO_LENGTH];
     uint8_t signature_count;
     uint8_t result; // enum SbTransactionResult
-    union {
+    union PACKED_STRUCT {
         SbHeader header;
         PubKeyEntity ca_chain[SB_CA_CHAIN_PER_RECORD];
         SbAdmin admin;
@@ -494,6 +538,7 @@ struct SbRecord {
         SbNodeBlockchain remove_node_from_blockchain;
         Signature signatures[SB_SIGNATURES_PER_RECORD];
     };
+    SbRecord() { memset(this, 0, sizeof(this)); }
 };
 
 

@@ -82,11 +82,6 @@ namespace gradido {
         return true;
     }
     void CommunicationLayer::TopicSubscriber::init(grpc::CompletionQueue& cq) {
-        std::string protobuf_version = std::to_string(PROTOBUF_MIN_PROTOC_VERSION);
-        LOG("protobuf min version is " + protobuf_version);
-        std::string grpc_version(grpc_version_string());
-        LOG("grpc version is " + grpc_version);
-
         stub = std::unique_ptr<ConsensusService::Stub>(ConsensusService::NewStub(channel));
             
         proto::TopicID* topicId = query.mutable_topicid();
@@ -110,10 +105,15 @@ namespace gradido {
                                   std::string rpcs_endpoint,
                                   int json_rpc_port,
                                   HandlerFactory* hf) {
-        this->hf = hf;
-
+        LOG("starting communications");
+        std::string protobuf_version = std::to_string(PROTOBUF_MIN_PROTOC_VERSION);
+        LOG("protobuf min version is " + protobuf_version);
+        std::string grpc_version(grpc_version_string());
+        LOG("grpc version is " + grpc_version);
         LOG("rpcs_endpoint: " + rpcs_endpoint);
         LOG("json_rpc_port: " + std::to_string(json_rpc_port));
+
+        this->hf = hf;
 
         // +1 for serving rpcs
         worker_pool.init(worker_count + 1);
@@ -409,22 +409,92 @@ namespace gradido {
         stream->StartCall((void*)this);
     }
 
+    CommunicationLayer::TransactionSubscriber::TransactionSubscriber(
+                             std::string endpoint,
+                             grpr::Transaction req,
+                             GrprTransactionListener* gtl) :
+        AbstractSubscriber(endpoint), req(req), gtl(gtl) {}
+
+    bool CommunicationLayer::TransactionSubscriber::got_data() {
+        if (done) {
+            return false;
+        }
+        stream->Read(&reply, (void*)this);
+
+        if (first_message) {
+            first_message = false;
+        } else {
+            gtl->on_transaction(reply);
+            if (!reply.success())
+                done = true;
+        }
+        return true;
+    }
+
+    void CommunicationLayer::TransactionSubscriber::init(
+                             grpc::CompletionQueue& cq) {
+        stub = std::unique_ptr<grpr::GradidoNodeService::Stub>(
+                               grpr::GradidoNodeService::NewStub(channel));
+        prepare_stream(cq);
+        stream->StartCall((void*)this);
+    }
+
+    CommunicationLayer::Handshake0Subscriber::Handshake0Subscriber(
+                            std::string endpoint,
+                            grpr::Transaction req,
+                            GrprTransactionListener* gtl) : 
+        TransactionSubscriber(endpoint, req, gtl) {}
+
+    void CommunicationLayer::Handshake0Subscriber::prepare_stream(
+                             grpc::CompletionQueue& cq) {
+        stream = stub->PrepareAsynccreate_node_handshake0(&ctx, req, 
+                                                          &cq);
+    }
+
+    CommunicationLayer::Handshake2Subscriber::Handshake2Subscriber(
+                            std::string endpoint,
+                            grpr::Transaction req,
+                            GrprTransactionListener* gtl) : 
+        TransactionSubscriber(endpoint, req, gtl) {}
+
+    void CommunicationLayer::Handshake2Subscriber::prepare_stream(
+                             grpc::CompletionQueue& cq) {
+        stream = stub->PrepareAsynccreate_node_handshake2(&ctx, req, 
+                                                          &cq);
+    }
+
     void CommunicationLayer::send_global_log_message(
                              std::string endpoint,
                              std::string msg) {
         // TODO
     }
 
+    void CommunicationLayer::send_handshake0(std::string endpoint,
+         grpr::Transaction req,
+         ICommunicationLayer::GrprTransactionListener* listener) {
+        MLock lock(main_lock); 
+        PollService* ps = get_poll_service();
+        PollClient* hs = 
+            new Handshake0Subscriber(endpoint, req, listener);
+        ps->add_client(hs);
+    }
+
     void CommunicationLayer::send_handshake2(
                              std::string endpoint,
                              grpr::Transaction req,
                              GrprTransactionListener* listener) {
-        // TODO
+        MLock lock(main_lock); 
+        PollService* ps = get_poll_service();
+        PollClient* hs = 
+            new Handshake2Subscriber(endpoint, req, listener);
+        ps->add_client(hs);
     }
 
-    bool CommunicationLayer::submit_to_blockchain(std::string endpoint,
-                                                  grpr::Transaction req,
-                                                  ICommunicationLayer::GrprTransactionListener* listener) {
+    bool CommunicationLayer::submit_to_blockchain(
+         std::string endpoint,
+         grpr::Transaction req,
+         ICommunicationLayer::GrprTransactionListener* listener) {
+        // TODO
     }
     
 

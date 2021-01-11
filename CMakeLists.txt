@@ -34,9 +34,10 @@ foreach(sourcefile ${APP_SOURCES})
     get_filename_component(file0 ${sourcefile} NAME)
     string(REPLACE ".cpp" "" file ${file0})
     add_executable(${file} ${filename})
-    target_link_libraries(${file} -lgradido_base -lgradido_proto -lmpfr
-      -lgmp -led25519 -lPocoNet -lPocoUtil -lPocoJSON -lPocoFoundation
-      -lPocoData -lPocoNetSSL -lall -ldl -lpthread)
+    target_link_libraries(${file} ${CMAKE_CURRENT_SOURCE_DIR}/build/libgradido_base.a ${CMAKE_CURRENT_SOURCE_DIR}/build/libgradido_proto.a)
+    target_link_libraries(${file} -lmpfr -lgmp -led25519 -lPocoNet 
+      -lPocoUtil -lPocoJSON -lPocoFoundation -lPocoData -lPocoNetSSL 
+      -lall -ldl -lpthread)
     add_dependencies(${file} gradido_proto gradido_base)
 endforeach(sourcefile ${APP_SOURCES})
 
@@ -44,20 +45,22 @@ endforeach(sourcefile ${APP_SOURCES})
 add_executable(dump_blockchain "src/blockchain_gradido_def.h" 
   "src/utils.h" "src/utils.cpp" 
   "src/dump_blockchain/dump_blockchain.cpp")
-target_link_libraries(dump_blockchain -lPocoNet -lPocoUtil -lPocoJSON 
-  -lPocoFoundation -lPocoData -lPocoNetSSL -lpthread)
+target_link_libraries(dump_blockchain -led25519 -lPocoNet -lPocoUtil 
+  -lPocoJSON -lPocoFoundation -lPocoData -lPocoNetSSL -lpthread)
 
 add_executable(dump_group_blockchain "src/blockchain_gradido_def.h" 
   "src/utils.h" "src/utils.cpp" 
   "src/dump_group_blockchain/dump_group_blockchain.cpp")
-target_link_libraries(dump_group_blockchain -lPocoNet -lPocoUtil 
-  -lPocoJSON -lPocoFoundation -lPocoData -lPocoNetSSL -lpthread)
+target_link_libraries(dump_group_blockchain -led25519 -lPocoNet 
+  -lPocoUtil -lPocoJSON -lPocoFoundation -lPocoData -lPocoNetSSL 
+  -lpthread)
 
 ##### unit tests
 add_executable(unit_tests ${LOCAL_SRC} ${JSONRPC} ${UNITTEST_SRC})
-target_link_libraries(unit_tests -lgradido_proto -lmpfr -lgmp -led25519
+target_link_libraries(unit_tests ${CMAKE_CURRENT_SOURCE_DIR}/build/libgradido_base.a ${CMAKE_CURRENT_SOURCE_DIR}/build/libgradido_proto.a)
+target_link_libraries(unit_tests -lmpfr -lgmp -led25519
   -lPocoNet -lPocoUtil -lPocoJSON -lPocoFoundation -lPocoData
   -lPocoNetSSL -lall -ldl -lgmock -lgtest -lgtest_main -lpthread)
-add_dependencies(unit_tests gradido_proto)
+add_dependencies(unit_tests gradido_proto gradido_base)
 
 

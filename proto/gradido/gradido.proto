@@ -187,7 +187,10 @@ message ManageGroupRequest {
 }
 
 message BlockchainId {
-    bytes pub_key = 1;
+    oneof id {
+        bytes pub_key = 1;
+        string group = 2; // deprecated; should use pub_key always
+    }
 }
 
 message BlockDescriptor {
@@ -275,6 +278,7 @@ message Handshake1 {
 message Handshake2 {
     .proto.Timestamp transaction_id = 1;
     bytes pub_key = 2;    
+    string type = 3;
 }
 
 message Handshake3 {

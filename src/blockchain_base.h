@@ -189,9 +189,10 @@ class BlockchainBase : public Parent,
             if (!res)
                 reset_validation("cannot validate_next_checksum()");
             else {
-                if (add_index_data())
+                if (add_index_data()) {
                     gf->push_task(new ContinueValidationTask<T>(this));
-                else
+                    indexed_blocks++;
+                } else
                     reset_validation("cannot add_index_data()");
             }
         }
@@ -289,7 +290,9 @@ class BlockchainBase : public Parent,
         case FETCHING_CHECKSUMS:
         case FETCHING_BLOCKS:
         case READY:
-            throw std::runtime_error(name + " init(): wrong state");
+            throw std::runtime_error(
+                  name + " continue_validation(): wrong state " + 
+                  std::to_string((int)state));
         }
     }    
 

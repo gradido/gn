@@ -581,9 +581,7 @@ public:
         return blockchain.get_block_count();
     }
     uint32_t get_checksum_valid_block_count() {
-        return blockchain.get_block_count();
-        // TODO: finish here
-        //return blockchain.get_checksum_valid_block_count();
+        return blockchain.get_checksum_valid_block_count();
     }
 
     Record* get_block(uint32_t index, ExitCode& ec) {

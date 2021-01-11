@@ -218,7 +218,9 @@ namespace gradido {
                     urec->second.last_record_with_balance;
                 tr.result = SUCCESS;
 
-                urec->second.current_balance += tr.gradido_creation.amount;
+                urec->second.current_balance += 
+                    tr.gradido_creation.amount;
+
                 urec->second.last_record_with_balance = 
                     storage.get_rec_count();
                 urec->second.timestamp_of_last_balance =
@@ -534,10 +536,6 @@ namespace gradido {
                                                    uint64_t& seq_num) {
         //TODO: make reentrant
         //MLock lock(main_lock);
-
-        for (auto i : outbound_transactions) {
-            std::cerr << i.first.seconds << "; " << i.first.nanos << std::endl;
-        }
 
         auto pt = outbound_transactions.find(hti);
         if (pt == outbound_transactions.end()) 

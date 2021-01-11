@@ -63,6 +63,8 @@ void save_key_to_file(std::string key, std::string file_name,
                       bool set_permissions); 
 
 bool create_kp_identity(std::string& priv, std::string& pub);
+int create_keypair(private_key_t *sk, public_key_t *pk);
+
 
 }
 
