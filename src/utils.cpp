@@ -65,7 +65,8 @@ bool is_hex(std::string str) {
 }
 
 void dump_in_hex(const char* in, char* out, size_t in_len) {
-    //sodium_bin2hex(out, in_len * 2, (const unsigned char*)in, in_len);
+    sodium_bin2hex(out, (in_len * 2)+1, (const unsigned char*)in, in_len);
+    return ;
     for (size_t i = 0; i < in_len; i++)
         sprintf(out + (i * 2), "%02X", in[i]);
     out[in_len * 2] = 0;
