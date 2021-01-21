@@ -187,9 +187,9 @@ namespace gradido {
         return get_versioned(current_version_number);
     }
 
-    IHandshakeHandler* NodeFacade::get_handshake_handler() {
+    IHandshakeHandler* NodeFacade::get_handshake_handler(bool force) {
         MLock lock(main_lock);
-        return handshake_ongoing ? &hh : 0;
+        return handshake_ongoing || force ? &hh : 0;
     }
 
     ISubclusterBlockchain* NodeFacade::get_subcluster_blockchain() {
@@ -529,8 +529,8 @@ namespace gradido {
         return nf.get_sb_ordering_node_endpoint();
     }
 
-    IHandshakeHandler* NodeBase::get_handshake_handler() {
-        return nf.get_handshake_handler();
+    IHandshakeHandler* NodeBase::get_handshake_handler(bool force) {
+        return nf.get_handshake_handler(force);
     }
 
 
@@ -559,6 +559,14 @@ namespace gradido {
 
     IGradidoConfig* OrderingNode::create() {
         return new OrderingConfig();
+    }
+
+    void OrderingNode::continue_init_after_sb_done() {
+        if (get_conf()->is_sb_host()) {
+            IHandshakeHandler* hh = get_handshake_handler(true);
+            grpr::Transaction t = hh->get_h3_signed_contents();
+            // TODO: add it to sb
+        }
     }
 
     ICommunicationLayer::HandlerFactory* 
@@ -599,7 +607,7 @@ namespace gradido {
         }
     }
 
-    IHandshakeHandler* NodeLauncher::get_handshake_handler() {
+    IHandshakeHandler* NodeLauncher::get_handshake_handler(bool force) {
         return &hh;
     }
 

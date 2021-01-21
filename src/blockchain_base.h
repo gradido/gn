@@ -3,6 +3,7 @@
 
 #include <pthread.h>
 #include <queue>
+#include <string>
 #include <Poco/Path.h>
 #include <Poco/File.h>
 #include "gradido_events.h"
@@ -14,6 +15,10 @@
 namespace gradido {
 
 #define BLOCKCHAIN_RESET_TIMEOUT_SECONDS 5
+
+std::string ensure_blockchain_folder(const Poco::Path& sr,
+                                     std::string name);
+
 
 // all blockchains have something in common; this is kept here
 // T: record type
@@ -130,20 +135,6 @@ class BlockchainBase : public Parent,
 
     std::string data_storage_root;
     StorageType storage;
-
-    static std::string ensure_blockchain_folder(const Poco::Path& sr,
-                                                std::string name) {
-        Poco::Path p0(sr);
-        std::string blockchain_folder = name + ".bc";
-        p0.append(blockchain_folder);
-
-        Poco::File srf(p0.absolute());
-        if (!srf.exists())
-            srf.createDirectories();
-        if (!srf.exists() || !srf.isDirectory())
-            throw std::runtime_error(name + ": cannot create folder");
-        return p0.absolute().toString();
-    }
 
     pthread_mutex_t main_lock;
     std::string fetch_endpoint;

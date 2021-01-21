@@ -3,6 +3,7 @@
 
 #include "gradido_interfaces.h"
 #include "blockchain_gradido_translate.h"
+#include "utils.h"
 
 namespace gradido {
 
@@ -414,23 +415,27 @@ namespace gradido {
 
         virtual void do_run(bool log_verbose, bool global_log_verbose,
                             bool handshake_expected) {
-            const std::string log_msg = "transaction received";
+            const std::string log_msg = "ready to write " + 
+                std::to_string((uint64_t)cb);
+
             if (log_verbose)
                 LOG(log_msg);
             if (global_log_verbose)
                 gf->global_log(log_msg);
 
+            *reply = grpr::Transaction();
             reply->set_success(false);
             IVersioned* ve = 0;
 
             std::string err_msg;
+
             do {
-                if (!req->success()) {
+                if (!req->success() && cb->get_writes_done() == 0) {
                     err_msg = "success == false in a request: ";
                     break;
                 }
 
-                IHandshakeHandler* hh = gf->get_handshake_handler();
+                IHandshakeHandler* hh = gf->get_handshake_handler(false);
                 if (handshake_expected != (hh != 0)) {
                     err_msg = handshake_expected ? 
                         "handshake not ongoing " :
@@ -444,7 +449,9 @@ namespace gradido {
                     break;
                 }
 
-                if (!validate_sig(ve, hh)) {
+                if (!validate_sig(ve, hh) && 
+                    cb->get_writes_done() == 0) {
+                    // checking signature only for first ready to write
                     err_msg = "cannot validate signature for ";
                     break;
                 }
@@ -453,7 +460,7 @@ namespace gradido {
             } while (0);
 
             if (err_msg.length()) {
-                err_msg += req->DebugString();
+                err_msg += " " + debug_str(*req);
                 if (log_verbose)
                     LOG(err_msg);
                 if (global_log_verbose)
@@ -485,8 +492,10 @@ namespace gradido {
         }
         virtual void process_transaction(IVersioned* ve,
                                          IHandshakeHandler* hh) {
-            if (hh && cb->get_writes_done() == 0)
+            if (hh && cb->get_writes_done() == 0) {
+                LOG("sending h1");
                 *reply = hh->get_response_h0(*req, ve);
+            }
         }
 
     public:
@@ -507,7 +516,7 @@ namespace gradido {
     public:
         FinalizeLauncherAfterHandshake(IGradidoFacade* gf) : gf(gf) {}
         virtual void run() {
-            gf->exit("launcher finished");
+            gf->exit("launcher finished successfully");
         }
     };
 

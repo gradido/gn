@@ -444,5 +444,33 @@ namespace gradido {
         return own_endpoint;
     }
 
+    AdminEnquiry::AdminEnquiry() : has_data(false) {
+        Poco::File ae("admin-enquiry.conf");
+        if (ae.exists()) {
+            try {
+                pfc = new Poco::Util::PropertyFileConfiguration(
+                                      "admin-enquiry.conf");
+                ae.remove();
+                has_data = true;
+            } catch (std::exception& e) {
+                throw std::runtime_error("Couldn't open admin-enquiry.conf file: " + std::string(e.what()));
+            }
+        }
+    }
+    bool AdminEnquiry::has() {
+        return has_data;
+    }
+    std::string AdminEnquiry::get_pub_key() {
+        SAFE_GET_CONF_ITEM(getString, "pub_key");
+    }
+    std::string AdminEnquiry::get_name() {
+        SAFE_GET_CONF_ITEM(getString, "name");
+    }
+    std::string AdminEnquiry::get_email() {
+        SAFE_GET_CONF_ITEM(getString, "email");
+    }
+    std::string AdminEnquiry::get_signature() {
+        SAFE_GET_CONF_ITEM(getString, "signature");
+    }
     
 }

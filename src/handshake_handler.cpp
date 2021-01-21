@@ -5,6 +5,11 @@
 
 namespace gradido {
 
+    grpr::Transaction HandshakeHandler::get_h3_signed_contents() {
+        return h3_signed;
+    }
+
+
     void HandshakeHandler::SbRecordAdded::on_transaction(
                                           grpr::Transaction& t) {
         std::string err_msg;
@@ -34,7 +39,7 @@ namespace gradido {
         } while (0);
 
         if (err_msg.length()) {
-            err_msg += " " + t.DebugString();
+            err_msg += " " + debug_str(t);
             gf->exit(err_msg);
         }        
     }
@@ -43,6 +48,12 @@ namespace gradido {
         std::string err_msg;
 
         do {
+            if (h2_complete) {
+                if (t.success())
+                    err_msg = "handshake expected to have single h3 response";
+                break;
+            }
+
             if (!t.success()) {
                 err_msg = "success == false in a request";
                 break;
@@ -68,6 +79,7 @@ namespace gradido {
                 break;
             }
 
+            /* TODO: fix
             if (!(h3.transaction_id().seconds() == 
                   h3_ts.seconds() &&
                   h3.transaction_id().nanos() == 
@@ -75,6 +87,7 @@ namespace gradido {
                 err_msg = "h3 ts doesn't match";
                 break;
             }
+            */
 
             grpr::Transaction t2;
             if (!ve->translate_sb_transaction(h3.sb_transaction(), 
@@ -84,16 +97,24 @@ namespace gradido {
             }
             
             ve->sign(&t);
-            ICommunicationLayer* c = 
-                gf->get_communications();
-            std::string ep = 
-                gf->get_sb_ordering_node_endpoint();
-            c->submit_to_blockchain(ep, t2, &sbra);
+            h2_complete = true;
 
+            if (gf->get_conf()->is_sb_host()) {
+                LOG("appending own entry to subcluster blockchain");
+                h3_signed = t2;                
+                gf->continue_init_after_handshake_done();
+            } else {
+                LOG("submitting own entry to subcluster blockchain");
+                ICommunicationLayer* c = 
+                    gf->get_communications();
+                std::string ep = 
+                    gf->get_sb_ordering_node_endpoint();
+                c->submit_to_blockchain(ep, t2, &sbra);
+            }
         } while (0);
 
         if (err_msg.length()) {
-            err_msg += " " + t.DebugString();
+            err_msg += " " + debug_str(t);
             gf->exit(err_msg);
         }        
     }
@@ -107,7 +128,7 @@ namespace gradido {
             gf->exit("cannot translate h0");
         if (!ve->prepare_h1(h0.transaction_id(), res))
             gf->exit("cannot prepare h1");
-
+        res.set_success(true);
         ve->sign(&res);
 
         grpr::Transaction t2;
@@ -128,6 +149,13 @@ namespace gradido {
         std::string err_msg;
 
         do {
+            if (h0_complete) {
+                if (t.success())
+                    err_msg = "handshake expected to have single h1 response";
+                break;
+            }
+
+
             if (!t.success()) {
                 err_msg = "success == false in a request";
                 break;
@@ -160,7 +188,7 @@ namespace gradido {
         } while (0);
 
         if (err_msg.length()) {
-            err_msg += " " + t.DebugString();
+            err_msg += " " + debug_str(t);
             gf->exit(err_msg);
         }        
     }

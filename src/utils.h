@@ -35,6 +35,7 @@ bool ends_with(std::string const & value, std::string const & ending);
 void dump_in_hex(const char* in, char* out, size_t in_len);
 void dump_in_hex(const char* in, std::string& out, size_t in_len);
 
+std::vector<char> hex_to_bytes(const std::string& hex);
 
 template<typename T>
 void dump_transaction_in_json(const typename BlockchainTypes<T>::Record& r, std::ostream& out) {
@@ -57,6 +58,7 @@ void dump_transaction_in_json(const typename BlockchainTypes<T>::Record& r, std:
 
 void dump_transaction_in_json(const GradidoRecord& t, std::ostream& out);
 void dump_transaction_in_json(const GroupRegisterRecord& t, std::ostream& out);
+void dump_transaction_in_json(const SbRecord& t, std::ostream& out);
 
 std::string read_key_from_file(std::string file_name); 
 void save_key_to_file(std::string key, std::string file_name, 
@@ -65,6 +67,13 @@ void save_key_to_file(std::string key, std::string file_name,
 bool create_kp_identity(std::string& priv, std::string& pub);
 int create_keypair(private_key_t *sk, public_key_t *pk);
 
+std::string sign(std::string material, 
+                 const std::string& pub_key,
+                 const std::string& priv_key);
+std::string sign(uint8_t* mat, 
+                 uint32_t mat_len,
+                 const std::string& pub_key,
+                 const std::string& priv_key);
 
 }
 

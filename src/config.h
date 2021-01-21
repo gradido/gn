@@ -191,6 +191,19 @@ namespace gradido {
         virtual std::string get_grpc_endpoint();
     };
 
+    class AdminEnquiry {
+    private:
+        bool has_data;
+        Poco::AutoPtr<Poco::Util::PropertyFileConfiguration> pfc;
+    public:
+        AdminEnquiry();
+        bool has();
+        std::string get_pub_key();
+        std::string get_name();
+        std::string get_email();
+        std::string get_signature();
+    };
+
 }
 
 #endif

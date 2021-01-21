@@ -12,6 +12,18 @@
 
 namespace gradido {
 
+std::vector<char> hex_to_bytes(const std::string& hex) {
+    std::vector<char> bytes;
+
+    for (unsigned int i = 0; i < hex.length(); i += 2) {
+        std::string byteString = hex.substr(i, 2);
+        char byte = (char) strtol(byteString.c_str(), NULL, 16);
+        bytes.push_back(byte);
+    }
+
+    return bytes;
+}
+
 // copied from libsodium: https://github.com/jedisct1/libsodium
 
 char *
@@ -164,6 +176,77 @@ std::string get_as_str(GroupRegisterRecordType r) {
     }
 }
 
+std::string get_as_str(SbRecordType r) {
+    switch (r) {
+    case SbRecordType::SB_HEADER:
+        return "SB_HEADER";
+    case SbRecordType::SB_ADD_ADMIN:
+        return "SB_ADD_ADMIN";
+    case SbRecordType::SB_ADD_NODE:
+        return "SB_ADD_NODE";
+    case SbRecordType::ENABLE_ADMIN:
+        return "ENABLE_ADMIN";
+    case SbRecordType::DISABLE_ADMIN:
+        return "DISABLE_ADMIN";
+    case SbRecordType::ENABLE_NODE:
+        return "ENABLE_NODE";
+    case SbRecordType::DISABLE_NODE:
+        return "DISABLE_NODE";
+    case SbRecordType::ADD_BLOCKCHAIN:
+        return "ADD_BLOCKCHAIN";
+    case SbRecordType::ADD_NODE_TO_BLOCKCHAIN:
+        return "ADD_NODE_TO_BLOCKCHAIN";
+    case SbRecordType::REMOVE_NODE_FROM_BLOCKCHAIN:
+        return "REMOVE_NODE_FROM_BLOCKCHAIN";
+    case SbRecordType::SIGNATURES:
+        return "SIGNATURES";
+    }
+}
+
+std::string get_as_str(SbTransactionResult r) {
+    switch (r) {
+    case SbTransactionResult::SUCCESS:
+        return "SUCCESS";
+    case SbTransactionResult::DUPLICATE_PUB_KEY:
+        return "DUPLICATE_PUB_KEY";
+    case SbTransactionResult::BAD_ADMIN_SIGNATURE:
+        return "BAD_ADMIN_SIGNATURE";
+    case SbTransactionResult::NON_MAJORITY:
+        return "NON_MAJORITY";
+    case SbTransactionResult::DUPLICATE_ALIAS:
+        return "DUPLICATE_ALIAS";
+    case SbTransactionResult::NODE_ALREADY_ADDED_TO_BLOCKCHAIN:
+        return "NODE_ALREADY_ADDED_TO_BLOCKCHAIN";
+    }
+}
+std::string get_as_str(SbNodeType r) {
+    switch (r) {
+    case SbNodeType::ORDERING:
+        return "ORDERING";
+    case SbNodeType::GRADIDO:
+        return "GRADIDO";
+    case SbNodeType::LOGIN:
+        return "LOGIN";
+    case SbNodeType::BACKUP:
+        return "BACKUP";
+    case SbNodeType::LOGGER:
+        return "LOGGER";
+    case SbNodeType::PINGER:
+        return "PINGER";
+    }
+}
+std::string get_as_str(SbInitialKeyType r) {
+    switch (r) {
+    case SbInitialKeyType::SELF_SIGNED:
+        return "SELF_SIGNED";
+    case SbInitialKeyType::CA_SIGNED:
+        return "CA_SIGNED";
+    }
+}
+
+
+// TODO: probably should refactor those functions, code is repeating;
+// on the other hand, it is very clear what comes out from them
 void dump_transaction_in_json(const GradidoRecord& t, std::ostream& out) {
 
     std::string record_type = get_as_str((GradidoRecordType)t.record_type);
@@ -491,6 +574,171 @@ void dump_transaction_in_json(const GroupRegisterRecord& t, std::ostream& out) {
     
 }
 
+void dump_transaction_in_json(const SbRecord& t, std::ostream& out) {
+    out << "{" << std::endl;
+    char buff[1024];
+
+    dump_in_hex((char*)t.hedera_transaction.runningHash, buff, 48);
+    std::string running_hash(buff);
+    std::string memo = std::string((char*)t.memo);
+    std::string record_type = get_as_str((SbRecordType)t.record_type);
+    std::string result_str = get_as_str((SbTransactionResult)t.result);
+
+
+    out << "  \"version_number\": " << (int)t.version_number << ", " << std::endl;
+    out << "  \"hedera_transaction\": {" << std::endl
+        << "    \"consensusTimestamp\": {" << std::endl
+        << "      \"seconds\": " << t.hedera_transaction.consensusTimestamp.seconds << ", " << std::endl
+        << "      \"nanos\": " << t.hedera_transaction.consensusTimestamp.nanos  << std::endl
+        << "    }," << std::endl
+        << "    \"runningHash\": \"" << running_hash << "\", " << std::endl
+        << "    \"sequenceNumber\": " << t.hedera_transaction.sequenceNumber << ", " << std::endl
+        << "    \"runningHashVersion\": " << t.hedera_transaction.runningHashVersion << std::endl;
+    out << "  }," << std::endl;
+
+    out << "  \"record_type\": \"" << record_type << "\", " << std::endl;
+    out << "  \"memo\": \"" << memo << "\", " << std::endl;        
+    out << "  \"signature_count\": " << (int)t.signature_count << ", " << std::endl;
+    out << "  \"result\": \"" << result_str << "\", " << std::endl;
+
+
+    switch ((SbRecordType)t.record_type) {
+    case SbRecordType::SB_HEADER: {
+        dump_in_hex((char*)t.header.pub_key, buff, 
+                    PUB_KEY_LENGTH);
+
+        out << "  \"header\": {" << std::endl;
+        out << "    \"subcluster_name\": \"" << std::string((char*)t.header.subcluster_name) << "\", "
+            << std::endl;
+        out << "    \"initial_key_type\": \"" <<  
+            get_as_str((SbInitialKeyType)t.header.initial_key_type)
+            << "\", " << std::endl;
+        out << "    \"pub_key\": \"" << std::string(buff) << "\", "
+            << std::endl;
+        out << "    \"ca_pub_key_chain_length\": " << 
+            t.header.ca_pub_key_chain_length << std::endl;
+        out << "  }" << std::endl;
+
+        break;
+    }
+    case SbRecordType::SB_ADD_ADMIN: {
+        out << "  \"admin\": {" << std::endl;
+        dump_in_hex((char*)t.admin.pub_key, buff, 
+                    PUB_KEY_LENGTH);
+        out << "    \"pub_key\": \"" << std::string(buff) << "\", "
+            << std::endl;
+        out << "    \"name\": \"" << std::string((char*)t.admin.name)
+            << "\", " << std::endl;
+        out << "    \"email\": \"" << std::string((char*)t.admin.email)
+            << "\"" << std::endl;
+        out << "  }" << std::endl;
+        break;
+    }
+    case SbRecordType::SB_ADD_NODE: {
+        dump_in_hex((char*)t.add_node.pub_key, buff, 
+                    PUB_KEY_LENGTH);
+        out << "  \"add_node\": {" << std::endl;
+        out << "    \"node_type\": \"" << 
+            get_as_str((SbNodeType)t.add_node.node_type) << "\", "
+            << std::endl;
+        out << "    \"pub_key\": \"" << std::string(buff) << "\""
+            << std::endl;
+        out << "  }" << std::endl;
+        break;
+    }
+    case SbRecordType::ENABLE_ADMIN: {
+        dump_in_hex((char*)t.enable_admin.pub_key, buff, 
+                    PUB_KEY_LENGTH);
+        out << "  \"enable_admin\": \"" << std::string(buff) << "\""
+            << std::endl;
+        break;
+    }
+    case SbRecordType::DISABLE_ADMIN: {
+        dump_in_hex((char*)t.disable_admin.pub_key, buff, 
+                    PUB_KEY_LENGTH);
+        out << "  \"disable_admin\": \"" << std::string(buff) << "\""
+            << std::endl;
+        break;
+    }
+    case SbRecordType::ENABLE_NODE: {
+        dump_in_hex((char*)t.enable_node.pub_key, buff, 
+                    PUB_KEY_LENGTH);
+        out << "  \"enable_node\": \"" << std::string(buff) << "\""
+            << std::endl;
+        break;
+    }
+    case SbRecordType::DISABLE_NODE: {
+        dump_in_hex((char*)t.disable_node.pub_key, buff, 
+                    PUB_KEY_LENGTH);
+        out << "  \"disable_node\": \"" << std::string(buff) << "\""
+            << std::endl;
+        break;
+    }
+    case SbRecordType::ADD_BLOCKCHAIN: {
+        dump_in_hex((char*)t.add_blockchain.pub_key, buff, 
+                    PUB_KEY_LENGTH);
+        out << "  \"add_blockchain\": \"" << std::string(buff) << "\""
+            << std::endl;
+        break;
+    }
+    case SbRecordType::ADD_NODE_TO_BLOCKCHAIN: {
+        out << "  \"add_node_to_blockchain\": {" << std::endl;
+        dump_in_hex((char*)t.add_node_to_blockchain.node_pub_key, buff, 
+                    PUB_KEY_LENGTH);
+        out << "    \"node_pub_key\": \"" << std::string(buff) << "\", "
+            << std::endl;
+        dump_in_hex((char*)t.add_node_to_blockchain.blockchain_pub_key, 
+                    buff, 
+                    PUB_KEY_LENGTH);
+        out << "    \"blockchain_pub_key\": \"" << std::string(buff)
+            << "\", " << std::endl;
+        out << "    \"alias\": \"" << 
+            std::string((char*)t.add_node_to_blockchain.alias)
+            << "\"" << std::endl;
+        out << "  }" << std::endl;
+        break;
+    }
+    case SbRecordType::REMOVE_NODE_FROM_BLOCKCHAIN: {
+        out << "  \"remove_node_from_blockchain\": {" << std::endl;
+        dump_in_hex((char*)t.remove_node_from_blockchain.node_pub_key, buff, 
+                    PUB_KEY_LENGTH);
+        out << "    \"node_pub_key\": \"" << std::string(buff) << "\", "
+            << std::endl;
+        dump_in_hex((char*)t.remove_node_from_blockchain.blockchain_pub_key, 
+                    buff, 
+                    PUB_KEY_LENGTH);
+        out << "    \"blockchain_pub_key\": \"" << std::string(buff)
+            << "\", " << std::endl;
+        out << "    \"alias\": \"" << 
+            std::string((char*)t.remove_node_from_blockchain.alias)
+            << "\"" << std::endl;
+        out << "  }" << std::endl;
+        break;
+    }
+    case SbRecordType::SIGNATURES: {
+        for (int i = 0; i < SB_SIGNATURES_PER_RECORD; i++) {
+            const Signature* s = t.signatures + i;
+            if (s->pubkey[0] == 0)
+                break;
+            dump_in_hex((char*)s->pubkey, buff, PUB_KEY_LENGTH);
+            std::string pubkey(buff);
+            dump_in_hex((char*)s->signature, buff, SIGNATURE_LENGTH);
+            std::string signature(buff);
+
+            out << "  \"signatures\": [" << std::endl;
+            out << "    {" << std::endl;
+            out << "      \"pubkey\": \"" << pubkey << "\", " << std::endl;
+            out << "      \"signature\": \"" << signature << "\"" << std::endl;
+            out << "    }" << std::endl;
+            out << "  ]" << std::endl;
+        }
+        break;
+    }
+    }
+    out << "}" << std::endl;
+}
+
+
 std::string read_key_from_file(std::string file_name) {
     std::ifstream t(file_name);
     std::string str((std::istreambuf_iterator<char>(t)),
@@ -531,6 +779,11 @@ bool create_kp_identity(std::string& priv, std::string& pub) {
 int create_keypair(private_key_t *sk, public_key_t *pk) {
     Poco::Random rng;
     // TODO: consider cryptographical safety
+    struct timespec t;
+    timespec_get(&t, TIME_UTC);
+    uint32_t seed = (uint32_t)t.tv_sec ^ (uint32_t)t.tv_nsec;
+    rng.seed(seed);
+
     char* csk = (char*)sk;
     for (int i = 0; i < ed25519_privkey_SIZE; i++)
         csk[i] = rng.nextChar();
@@ -538,6 +791,32 @@ int create_keypair(private_key_t *sk, public_key_t *pk) {
     return ED25519_SUCCESS;
 }
 
+std::string sign(uint8_t* mat, 
+                 uint32_t mat_len,
+                 const std::string& pub_key,
+                 const std::string& priv_key) {
+    signature_t sig;
+    public_key_t pk;
+    std::vector<char> pk0 = hex_to_bytes(pub_key);
+    for (int i = 0; i < pk0.size(); i++)
+        pk.data[i] = pk0[i];
+    private_key_t sk;
+    std::vector<char> sk0 = hex_to_bytes(priv_key);
+    for (int i = 0; i < sk0.size(); i++)
+        sk.data[i] = sk0[i];
+    ed25519_sign(&sig, (const unsigned char*)mat, 
+                 mat_len, 
+                 &pk, &sk);
+    std::string res;
+    dump_in_hex((char*)sig.data, res, ed25519_signature_SIZE);
+    return res;
+}
 
+std::string sign(std::string material, 
+                 const std::string& pub_key,
+                 const std::string& priv_key) {
+    return sign((uint8_t*)material.c_str(), material.length(),
+                pub_key, priv_key);
+}
 
 }

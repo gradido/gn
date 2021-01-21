@@ -13,6 +13,9 @@ namespace gradido {
     
 using namespace com::hedera::mirror::api::proto;
 namespace grpr = ::com::gradido::proto;
+
+std::string debug_str(const grpr::Transaction& t);
+
     
 }
 

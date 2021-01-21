@@ -42,6 +42,12 @@
 
 namespace gradido {
 
+#define GRADIDO_VERSION_MAJOR 0
+#define GRADIDO_VERSION_MINOR 1
+
+std::string get_gradido_version_string();
+
+
 // TODO: consider moving utility things away
 
 #define NOT_SUPPORTED LOG("not supported"); throw std::runtime_error("not supported");
@@ -64,7 +70,12 @@ T min(T a, T b) {
 
 std::string get_time();
 extern pthread_mutex_t gradido_logger_lock;
-#define LOG(msg) pthread_mutex_lock(&gradido_logger_lock); std::cerr << __FILE__ << ":" << __LINE__ << ":#" << (uint64_t)pthread_self() << ":" << get_time() << ": "; try { std::cerr << msg; } catch (...) { std::cerr << "log message expression throws exception"; }; std::cerr << std::endl; pthread_mutex_unlock(&gradido_logger_lock);
+
+std::string sanitize_for_log(std::string s);
+
+// complexity is needed to avoid badly formatted logs; keep in one line
+// to simplify debugging
+#define LOG(msg) {std::stringstream _logger_stream; std::string _logger_string; try {_logger_stream << msg; _logger_string = sanitize_for_log(_logger_stream.str());} catch (std::exception& e) {_logger_string = std::string("log expression throws exception: ") + e.what(); } catch (...) {_logger_string = "log expression throws exception"; } pthread_mutex_lock(&gradido_logger_lock); std::cerr << __FILE__ << ":" << __LINE__ << ":#" << (uint64_t)pthread_self() << ":" << get_time() << ": " << _logger_string << std::endl; pthread_mutex_unlock(&gradido_logger_lock);}
 
 proto::Timestamp get_current_time();
 
@@ -89,7 +100,7 @@ public:
         }
 
         Record() {
-            memset(this, 0, sizeof(Record));
+            ZERO_THIS;
         }
         ~Record() {}
     };
@@ -161,7 +172,7 @@ struct GroupInfo {
     // used as id and to name blockchain folder
     char alias[GROUP_ALIAS_LENGTH];
 
-    GroupInfo() { memset(this, 0, sizeof(this)); }
+    GroupInfo() { ZERO_THIS; }
 
     std::string get_directory_name() {
         std::stringstream ss;
@@ -247,6 +258,8 @@ public:
     };
     // doesn't take ownership
     virtual void on_succ_append(INotifier* n) = 0;
+
+
 };
 
 
@@ -577,6 +590,7 @@ public:
                                               IVersioned* ve) = 0;
     virtual grpr::Transaction get_response_h2(grpr::Transaction req,
                                               IVersioned* ve) = 0;
+    virtual grpr::Transaction get_h3_signed_contents() = 0;
 };
 
 // nodes have some things in common, such as subcluster blockchain they
@@ -591,8 +605,9 @@ public:
     virtual IVersioned* get_current_versioned() = 0;
     virtual void global_log(std::string message) = 0;
 
-    // if handshake is not ongoing returns 0
-    virtual IHandshakeHandler* get_handshake_handler() = 0;
+    // if handshake is not ongoing returns 0; if force, always return
+    // pointer
+    virtual IHandshakeHandler* get_handshake_handler(bool force) = 0;
     virtual ISubclusterBlockchain* get_subcluster_blockchain() = 0;
     virtual void continue_init_after_handshake_done() = 0;
 

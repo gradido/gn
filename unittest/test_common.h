@@ -50,6 +50,8 @@ using ::testing::Return;
 using ::testing::_;
 using ::testing::NiceMock;
 
+#define PRECISE_THROW(msg) {LOG(msg); throw std::runtime_error(msg);}
+
 class MockSampleTask : public ITask {
 public:
     MOCK_METHOD(void, run, (), (override));

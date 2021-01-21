@@ -20,14 +20,18 @@ namespace gradido {
             virtual void on_transaction(grpr::Transaction& t);
         };
         SbRecordAdded sbra;
+        bool h2_complete;
+        grpr::Transaction h3_signed;
     public:
         virtual void on_transaction(grpr::Transaction& t);
     public:
-        HandshakeHandler(IGradidoFacade* gf) : gf(gf), sbra(gf) {}
+        HandshakeHandler(IGradidoFacade* gf) : gf(gf), sbra(gf), 
+            h2_complete(false) {}
         virtual grpr::Transaction get_response_h0(grpr::Transaction req,
                                                   IVersioned* ve);
         virtual grpr::Transaction get_response_h2(grpr::Transaction req,
                                                   IVersioned* ve) {NOT_SUPPORTED;}
+        virtual grpr::Transaction get_h3_signed_contents();
     };
 
     class StarterHandshakeHandler : public IHandshakeHandler,
@@ -44,6 +48,8 @@ namespace gradido {
                                                   IVersioned* ve) {NOT_SUPPORTED;}
         virtual grpr::Transaction get_response_h2(grpr::Transaction req,
                                                   IVersioned* ve);
+        virtual grpr::Transaction get_h3_signed_contents() {NOT_SUPPORTED;}
+
     };
 
 }

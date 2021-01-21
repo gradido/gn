@@ -242,6 +242,7 @@ private:
         uint8_t checksum[BLOCKCHAIN_CHECKSUM_SIZE];
         get_prev_checksum(block_index, checksum);
 
+        /* TODO: finish
         for (int i = 0; i < RecCount; i++) {
             if (r[i].type == (uint8_t)RecordType::CHECKSUM) {
                 if (strncmp((char*)r[i].checksum,
@@ -255,6 +256,7 @@ private:
                 calc_checksum(checksum, r + i, checksum);
             }
         }
+        */
         ec = OK;
         return true;
     }

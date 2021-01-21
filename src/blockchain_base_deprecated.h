@@ -15,6 +15,25 @@ namespace gradido {
 
 #define BLOCKCHAIN_RESET_TIMEOUT_SECONDS 5
 
+static std::string ensure_blockchain_folder_deprecated(
+                          const Poco::Path& sr,
+                          std::string name,
+                          HederaTopicID topic_id) {
+    Poco::Path p0(sr);
+    std::string blockchain_folder = GroupInfo::get_directory_name(
+                                                                  name,
+                                                                  topic_id);
+    p0.append(blockchain_folder);
+
+    Poco::File srf(p0.absolute());
+    if (!srf.exists())
+        srf.createDirectories();
+    if (!srf.exists() || !srf.isDirectory())
+        throw std::runtime_error("group register: cannot create folder");
+    return p0.absolute().toString();
+}
+
+
 // all blockchains have something in common; this is kept here
 // T: record type
 // Child: BlockchainBase is expected to be inherited; have to specify
@@ -128,23 +147,6 @@ class BlockchainBaseDeprecated : public Parent,
     std::string data_storage_root;
     StorageType storage;
 
-    static std::string ensure_blockchain_folder(const Poco::Path& sr,
-                                                std::string name,
-                                                HederaTopicID topic_id) {
-        Poco::Path p0(sr);
-        std::string blockchain_folder = GroupInfo::get_directory_name(
-                                        name,
-                                        topic_id);
-        p0.append(blockchain_folder);
-
-        Poco::File srf(p0.absolute());
-        if (!srf.exists())
-            srf.createDirectories();
-        if (!srf.exists() || !srf.isDirectory())
-            throw std::runtime_error("group register: cannot create folder");
-        return p0.absolute().toString();
-    }
-
     pthread_mutex_t main_lock;
     std::string fetch_endpoint;
 
@@ -230,7 +232,8 @@ class BlockchainBaseDeprecated : public Parent,
                 HederaTopicID topic_id) :
     state(INITIAL), gf(gf), name(name),
         topic_id(topic_id),
-        data_storage_root(ensure_blockchain_folder(root_folder, name, 
+        data_storage_root(ensure_blockchain_folder_deprecated(
+                                                   root_folder, name, 
                                                    topic_id)),
         storage(name, data_storage_root, 100, 100, *((Child*)this)),
         fetched_record_count(0), block_to_fetch(0), 

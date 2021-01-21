@@ -232,6 +232,7 @@ bc_verify_checksum(_) ->
 %   - name
 %   - public key
 %   - signature with initial key
+%     - all fields concatenated for signing in their respective order
 % - ordering node (it is associated with subclaster blockchain in 1:1
 %   relationship)
 %   - type (ordering node)

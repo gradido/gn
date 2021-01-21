@@ -110,7 +110,7 @@ namespace gradido {
         auto ts0 = z.mutable_transaction_id();
         *ts0 = ts;
         IGradidoConfig* conf = gf->get_conf();
-        std::string ep = conf->get_launch_node_endpoint();
+        std::string ep = conf->get_grpc_endpoint();
         z.set_starter_endpoint(ep);
 
         out.set_version_number(vnum);
@@ -123,6 +123,17 @@ namespace gradido {
 
     bool Versioned_1::prepare_h1(proto::Timestamp ts,
                                  grpr::Transaction& out) {
+        grpr::Handshake1 z;
+        auto ts0 = z.mutable_transaction_id();
+        *ts0 = ts;
+        IGradidoConfig* conf = gf->get_conf();
+        z.set_pub_key(conf->kp_get_pub_key());
+
+        out.set_version_number(vnum);
+        std::string buff;
+        z.SerializeToString(&buff);
+        out.set_body_bytes(buff);
+        out.set_success(true);
         return true;
     }
     bool Versioned_1::prepare_h2(proto::Timestamp ts, 
@@ -145,6 +156,19 @@ namespace gradido {
     bool Versioned_1::prepare_h3(proto::Timestamp ts, 
                                  grpr::Transaction sb,
                                  grpr::Transaction& out) {
+        grpr::Handshake3 z;
+        auto ts0 = z.mutable_transaction_id();
+        *ts0 = ts;
+        IGradidoConfig* conf = gf->get_conf();
+        std::string buff;
+        sb.SerializeToString(&buff);
+        z.set_sb_transaction(buff);
+
+        out.set_version_number(vnum);
+        std::string buff2;
+        z.SerializeToString(&buff2);
+        out.set_body_bytes(buff2);
+        out.set_success(true);
         return true;
     }
 

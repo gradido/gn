@@ -587,16 +587,32 @@ namespace gradido {
     GradidoValue BlockchainGradido::calc_deflation(
                  HederaTimestamp t0, HederaTimestamp t1,
                  GradidoValue val0) {
+
+        // TODO: check if needed
+        if (val0.amount == 0 && val0.decimal_amount == 0) {
+            return GradidoValue();
+        }
         HederaTimestamp d = t1 - t0;
+
+        LOG("crodo " << t0.seconds);
+        LOG("crodo2 " << t1.seconds);
+
 
         GradidoWithDecimal gradidos;
         gradidos.gradido = val0.amount;
         gradidos.decimal = val0.decimal_amount;
         gradidos = calculateDecay(gradidos, d.seconds, decay_factor);
+
+        LOG("crodo3 " << val0.amount);
+        LOG("crodo3b " << val0.decimal_amount);
+
         
         GradidoValue res;
         res.amount = gradidos.gradido;
         res.decimal_amount = gradidos.decimal;
+
+        LOG("crodo4 " << res.amount);
+
 
         return res;
     }

@@ -1,12 +1,35 @@
 #include "gradido_interfaces.h"
 #include <time.h>
 
+#define QUOTES2(x) #x
+#define QUOTES(x) QUOTES2(x)
+
 namespace gradido {
 
 pthread_mutex_t gradido_logger_lock;
 
+std::string sanitize_for_log(std::string s) {
+    std::replace(s.begin(), s.end(), (char)0, ' ');
+    std::replace(s.begin(), s.end(), '\n', ' ');
+    if (s.length() == 0)
+        s = " "; // empty string could be interpreted as end-of-stream,
+                 // if followed by a newline (could be added by log 
+                 // function); preventing it here
+    // TODO: escape all special characters
+    return s;
+}
+
+std::string get_gradido_version_string() {
+    return "v" + std::to_string(GRADIDO_VERSION_MAJOR) + "." + 
+        std::to_string(GRADIDO_VERSION_MINOR) + ":git_hash=" + 
+        QUOTES(GIT_HASH_VERSION);
+}
+
+
+// TODO: quiet start optional
 bool init_logging() {
     SAFE_PT(pthread_mutex_init(&gradido_logger_lock, 0));
+    LOG("gradido base " + get_gradido_version_string());
     LOG("logger initialized");
     return true;
 }

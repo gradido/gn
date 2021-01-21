@@ -39,7 +39,7 @@ public:
     virtual std::string get_node_type_str() {NOT_SUPPORTED;}
     virtual ISubclusterBlockchain* get_subcluster_blockchain() {NOT_SUPPORTED;}
     virtual void global_log(std::string message) {NOT_SUPPORTED;}
-    virtual IHandshakeHandler* get_handshake_handler() {NOT_SUPPORTED;}
+    virtual IHandshakeHandler* get_handshake_handler(bool force) {NOT_SUPPORTED;}
     virtual IVersioned* get_versioned(int version_number) {NOT_SUPPORTED;}
     virtual IVersioned* get_current_versioned() {NOT_SUPPORTED;}
     virtual void continue_init_after_group_register_done() {NOT_SUPPORTED;}
@@ -368,7 +368,7 @@ public:
     virtual void global_log(std::string message);
     virtual IVersioned* get_versioned(int version_number);
     virtual IVersioned* get_current_versioned();
-    virtual IHandshakeHandler* get_handshake_handler();
+    virtual IHandshakeHandler* get_handshake_handler(bool force);
     virtual ISubclusterBlockchain* get_subcluster_blockchain();
     virtual void continue_init_after_sb_done();
     virtual std::string get_sb_ordering_node_endpoint();
@@ -409,7 +409,7 @@ public:
     virtual void continue_init_after_handshake_done();
     virtual ISubclusterBlockchain* get_subcluster_blockchain();
     virtual std::string get_sb_ordering_node_endpoint();
-    virtual IHandshakeHandler* get_handshake_handler();
+    virtual IHandshakeHandler* get_handshake_handler(bool force);
 };
 
 
@@ -460,6 +460,7 @@ private:
     HandlerFactory handler_factory;
 public:
     OrderingNode() : handler_factory(this) {}
+    virtual void continue_init_after_sb_done();
     
 };
 
@@ -508,7 +509,7 @@ public:
     virtual ~NodeLauncher();
     virtual void init(const std::vector<std::string>& params);
     virtual IVersioned* get_versioned(int version_number);
-    virtual IHandshakeHandler* get_handshake_handler();
+    virtual IHandshakeHandler* get_handshake_handler(bool force);
 };
 
 class DemoLoginNode : public EmptyFacade {

@@ -7,7 +7,6 @@ using namespace gradido;
 int main(int argc, char** argv) {
 
     const std::string err_msg = "couldn't create key pair identity";
-
     std::string priv;
     std::string pub;
     if (create_kp_identity(priv, pub)) {

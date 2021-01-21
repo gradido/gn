@@ -2,7 +2,7 @@
 #define BLOCKCHAIN_GRADIDO_H
 
 #include <map>
-#include "gradidomath.h"
+#include "gradidomath/gradidomath.h"
 #include "gradido_interfaces.h"
 #include "blockchain_base_deprecated.h"
 
