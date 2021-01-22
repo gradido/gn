@@ -7,11 +7,12 @@
 #include "blockchain.h"
 #include "blockchain_base.h"
 #include "blockchain_gradido_def.h"
-
+#include "main_def.h"
 
 using namespace gradido;                            
                                                     
 int main(int argc, char** argv) {
+    GRADIDO_CMD_UTIL;
 
     KpIdentity kpi;
     std::vector<std::string> empty;

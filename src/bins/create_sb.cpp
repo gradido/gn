@@ -7,17 +7,17 @@
 #include "blockchain.h"
 #include "blockchain_base.h"
 #include "blockchain_gradido_def.h"
-
+#include "main_def.h"
 
 using namespace gradido;                            
                                                     
 int main(int argc, char** argv) {
-
-    if (argc != 2) {
+    GRADIDO_CMD_UTIL;
+    if (params.size() != 2) {
         std::cerr << "parameters: name" << std::endl;
         return 1;
     }
-    std::string sb_name(argv[1]);
+    std::string sb_name = params[1];
 
     KpIdentity kpi;
     std::vector<std::string> empty;

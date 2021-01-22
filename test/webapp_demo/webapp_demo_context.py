@@ -109,7 +109,7 @@ class WebappDemo(object):
         httpd = HTTPServer(('0.0.0.0', port), create_handler)
         httpd.serve_forever()
     def get_bchain(self):
-        bchain = subprocess.check_output(["../build/dump_blockchain", "test-stage/gradido-node-0/t_blocks.%s.bc" % self.topic_id], stderr=subprocess.STDOUT)
+        bchain = subprocess.check_output(["../build/dump_blockchain", "test-stage/gradido-node-0/t_blocks.%s.bc" % self.topic_id])
         return json.loads(bchain)
 
     def add_user(self, user):
@@ -176,7 +176,7 @@ class WebappDemo(object):
         self.cleanup()
         os.system('kill %d' % os.getpid())
     def get_record_number(self):
-        res = subprocess.check_output(["../build/dump_blockchain", "test-stage/gradido-node-0/t_blocks.%s.bc" % self.topic_id, "-c"], stderr=subprocess.STDOUT)
+        res = subprocess.check_output(["../build/dump_blockchain", "test-stage/gradido-node-0/t_blocks.%s.bc" % self.topic_id, "-c"])
         return int(res)
     def wait_for_update(self, initial):
         while (True):
@@ -528,8 +528,7 @@ class WebappDemoFull(object):
 
         if os.path.isdir(folder):
             bchain = subprocess.check_output(["../build/%s" % dumper, 
-                                              folder], 
-                                             stderr=subprocess.STDOUT)
+                                              folder])
             print "pukalito ", bchain
             return json.loads(bchain)
         else:
@@ -922,7 +921,7 @@ class WebappDemoFull(object):
         if not os.path.isdir(folder):
             return 0
 
-        res = subprocess.check_output(["../build/dump_blockchain", "test-stage/%s/%s.%s.bc" % (self.node_id, group_id, topic_id), "-c"], stderr=subprocess.STDOUT)
+        res = subprocess.check_output(["../build/dump_blockchain", "test-stage/%s/%s.%s.bc" % (self.node_id, group_id, topic_id), "-c"])
         return int(res)
     def wait_for_update(self, initial, group_id):
         if not (self.node_id in self.node_proc_ids):

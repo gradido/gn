@@ -1,11 +1,12 @@
 #include <string>
 #include <iostream>
 #include "utils.h"
+#include "main_def.h"
 
 using namespace gradido;                            
                                                     
 int main(int argc, char** argv) {
-
+    GRADIDO_CMD_UTIL;
     const std::string err_msg = "couldn't create key pair identity";
     std::string priv;
     std::string pub;

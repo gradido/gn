@@ -341,6 +341,9 @@ class BlockchainBaseDeprecated : public Parent,
                         delete [] batch.buff;
                         continue;
                     } else {
+
+        LOG("pukala " << has_latest << "; " << curr_seq_num << "; " << seq_num) ;
+
                         // TODO: more elaborate; need just some 
                         // records, not all of them
                         inbound.push(batch);

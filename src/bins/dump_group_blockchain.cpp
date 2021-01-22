@@ -1,8 +1,10 @@
 #include "utils.h"
 #include "dumper.h"
+#include "main_def.h"
 
 using namespace gradido;
 
 int main(int argc, char** argv) {
-    return dump<GroupRegisterRecord>(argc, argv, "Gradido blockchains");
+    GRADIDO_CMD_UTIL;
+    return dump<GroupRegisterRecord>(params, "Gradido blockchains");
 }    

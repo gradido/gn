@@ -1,10 +1,13 @@
 #ifndef TEST_COMMON_H
 #define TEST_COMMON_H
 
+// should be the first include in all test cases
+
 #include <unistd.h>
 #include <exception>
 #include <chrono>
 #include <thread>
+#include <typeinfo>
 #include "gtest/gtest.h"
 #include "gmock/gmock.h"
 #include "gradido_interfaces.h"
@@ -50,7 +53,7 @@ using ::testing::Return;
 using ::testing::_;
 using ::testing::NiceMock;
 
-#define PRECISE_THROW(msg) {LOG(msg); throw std::runtime_error(msg);}
+#define PRECISE_THROW(msg) {LOG(msg); std::stringstream ss; ss << msg; throw std::runtime_error(ss.str());}
 
 class MockSampleTask : public ITask {
 public:
@@ -85,5 +88,8 @@ class MockSimpleRec : public SimpleRec {
 };
 
 void erase_tmp_folder(std::string folder);
+
+extern bool loggin_init_done;
+extern bool not_supported_init_done;
 
 #endif

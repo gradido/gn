@@ -1,5 +1,8 @@
 #include "test_common.h"
 
+bool loggin_init_done = init_logging(true, true);
+bool not_supported_init_done = set_gradido_strict_not_supported(false);
+
 void task_settle() {
     std::this_thread::sleep_for(std::chrono::milliseconds(TASK_SETTLE_TIME_MS));
 }

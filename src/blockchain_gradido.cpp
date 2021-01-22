@@ -158,9 +158,43 @@ namespace gradido {
     bool BlockchainGradido::get_latest_transaction_id(uint64_t& res) {
         if (storage.get_rec_count() == 0)
             return false;
+        if (storage.get_rec_count() == 1) {
+            LOG("storage rec_count cannot be 1 (checksum is always last + empty block can exist)");
+            // TODO: handle by erasing all
+            return false;
+        }
+
         StorageType::ExitCode ec;
-        StorageType::Record* rec = storage.get_record(
-                                   storage.get_rec_count() - 2, ec);
+
+        uint64_t last = storage.get_rec_count() - 2; 
+        StorageType::Record* rec = 0;
+        bool zero_tried = false;
+        do {
+            if (last > 0 || !zero_tried) {
+                rec = storage.get_record(last, ec);
+                if (last > 0) {
+                    last--;
+                } else
+                    zero_tried = true;
+            } else {
+                rec = 0;
+            }
+        } while (rec && ec == StorageType::ExitCode::OK &&
+          (rec->type != (uint8_t)StorageType::RecordType::PAYLOAD ||
+           rec->payload.record_type != 
+           (uint8_t)GRADIDO_TRANSACTION));
+
+        if (!rec) {
+            // TODO: handle by erasing all
+            LOG("couldn't find previous seq_num, no transactions found");
+            return false;
+        }
+        if (ec != StorageType::ExitCode::OK) {
+            // TODO: handle by erasing all
+            LOG("bad storage operation, ec=" << (int)ec);
+            return false;
+        }
+
         GradidoRecord& gr = rec->payload;
         // TODO: stucturally bad message
         res = gr.transaction.hedera_transaction.sequenceNumber;

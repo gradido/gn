@@ -50,7 +50,9 @@ std::string get_gradido_version_string();
 
 // TODO: consider moving utility things away
 
-#define NOT_SUPPORTED LOG("not supported"); throw std::runtime_error("not supported");
+extern bool gradido_strict_not_supported;
+#define NOT_SUPPORTED LOG("not supported"); if (gradido_strict_not_supported) throw std::runtime_error("not supported");
+bool set_gradido_strict_not_supported(bool val);
 
 #define SAFE_PT(expr) if (expr != 0) throw std::runtime_error("couldn't " #expr)
 
@@ -66,16 +68,17 @@ T min(T a, T b) {
     return a < b ? a : b;
 }
 
-
-
 std::string get_time();
 extern pthread_mutex_t gradido_logger_lock;
+extern bool logging_include_line_header;
+
+bool init_logging(bool include_line_header, bool init_shows_version);
 
 std::string sanitize_for_log(std::string s);
 
 // complexity is needed to avoid badly formatted logs; keep in one line
 // to simplify debugging
-#define LOG(msg) {std::stringstream _logger_stream; std::string _logger_string; try {_logger_stream << msg; _logger_string = sanitize_for_log(_logger_stream.str());} catch (std::exception& e) {_logger_string = std::string("log expression throws exception: ") + e.what(); } catch (...) {_logger_string = "log expression throws exception"; } pthread_mutex_lock(&gradido_logger_lock); std::cerr << __FILE__ << ":" << __LINE__ << ":#" << (uint64_t)pthread_self() << ":" << get_time() << ": " << _logger_string << std::endl; pthread_mutex_unlock(&gradido_logger_lock);}
+#define LOG(msg) {std::stringstream _logger_stream; std::string _logger_string; try {_logger_stream << msg; _logger_string = sanitize_for_log(_logger_stream.str());} catch (std::exception& e) {_logger_string = std::string("log expression throws exception: ") + e.what(); } catch (...) {_logger_string = "log expression throws exception"; } pthread_mutex_lock(&gradido_logger_lock); if (logging_include_line_header) {std::cerr << __FILE__ << ":" << __LINE__ << ":#" << (uint64_t)pthread_self() << ":" << get_time() << ": ";} std::cerr << _logger_string << std::endl; pthread_mutex_unlock(&gradido_logger_lock);}
 
 proto::Timestamp get_current_time();
 
@@ -123,7 +126,9 @@ struct Batch {
     // not owned by this object
     T* buff;
     uint32_t size;
-    bool reset_blockchain;
+    bool reset_blockchain; // deprecated; TODO: remove
+    Batch() : buff(0), size(0), reset_blockchain(false) {}
+
 };
 
 typedef Batch<GroupRegisterRecord> GroupRegisterRecordBatch;

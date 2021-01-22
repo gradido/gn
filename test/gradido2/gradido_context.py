@@ -95,7 +95,7 @@ class GradidoContext(object):
         for i in os.listdir(instance_root):
             pp = os.path.join(instance_root, i)
             if os.path.isdir(pp):
-                bchain = subprocess.check_output(["../build/dump_blockchain", pp], stderr=subprocess.STDOUT)
+                bchain = subprocess.check_output(["../build/dump_blockchain", pp])
                 if bchain:
                     bchains[i] = json.loads(bchain)
                 else:

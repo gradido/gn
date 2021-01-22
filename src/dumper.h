@@ -15,11 +15,11 @@
 namespace gradido {
 
 template<typename T>
-int dump(int argc, char** argv, std::string type_desc) {
+int dump(std::vector<std::string> params, std::string type_desc) {
 
     using RecType = typename BlockchainTypes<T>::Record;
 
-    if (argc < 2) {
+    if (params.size() < 2) {
         std::cerr << "Utility for dumping " << type_desc << 
             std::endl << "Usage: " << std::endl << "dump_blockchain <blockchain_folder> <options>" << 
             std::endl << "options:" << 
@@ -29,14 +29,13 @@ int dump(int argc, char** argv, std::string type_desc) {
 
     try {
 
-        std::string bf(argv[1]);
+        std::string bf = params[1];
         Poco::Path block_root_name_path(bf);
         Poco::File block_root = Poco::File(block_root_name_path.absolute());
 
         bool just_count = false;
-        for (int i = 2; i < argc; i++) {
-            std::string opt(argv[i]);
-            if (opt.compare("-c") == 0)
+        for (auto i : params) {
+            if (i.compare("-c") == 0)
                 just_count = true;
         }
 

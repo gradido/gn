@@ -2,17 +2,19 @@
 #include <iostream>
 #include "utils.h"
 #include "config.h"
+#include "main_def.h"
 
 using namespace gradido;                            
                                                     
 int main(int argc, char** argv) {
+    GRADIDO_CMD_UTIL;
 
-    if (argc != 3) {
+    if (params.size() != 3) {
         std::cerr << "parameters: name email" << std::endl;
         return 1;
     }
-    std::string name(argv[1]);
-    std::string email(argv[2]);
+    std::string name = params[1];
+    std::string email = params[2];
 
     KpIdentity kpi;
     std::vector<std::string> empty;

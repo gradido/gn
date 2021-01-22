@@ -60,6 +60,46 @@
 
 namespace gradido {
 
+class EmptyCommunications : public ICommunicationLayer {
+ public:
+    virtual void init(int worker_count, 
+                      std::string rpcs_endpoint,
+                      int json_rpc_port,
+                      HandlerFactory* hf) {NOT_SUPPORTED;}
+    virtual void receive_hedera_transactions(std::string endpoint,
+                                             HederaTopicID topic_id,
+                                             TransactionListener* tl) {NOT_SUPPORTED;}
+    virtual void receive_grpr_transactions(
+                              std::string endpoint,
+                              std::string blockchain_name,
+                              GrprTransactionListener* tl) {NOT_SUPPORTED;}
+    virtual void stop_receiving_gradido_transactions(
+                         HederaTopicID topic_id) {NOT_SUPPORTED;}
+    virtual void require_block_data(std::string endpoint,
+                                    grpr::BlockDescriptor bd, 
+                                    BlockRecordReceiver* rr) {NOT_SUPPORTED;}
+    virtual void require_block_checksums(std::string endpoint,
+                                         grpr::BlockchainId gd, 
+                                         BlockChecksumReceiver* rr) {NOT_SUPPORTED;}
+    virtual void require_outbound_transaction(
+                         std::string endpoint,
+                         grpr::OutboundTransactionDescriptor otd,
+                         PairedTransactionReceiver* rr) {NOT_SUPPORTED;}
+    virtual void send_global_log_message(std::string endpoint,
+                                         std::string msg) {NOT_SUPPORTED;}
+    virtual void send_handshake0(std::string endpoint,
+                                 grpr::Transaction req,
+                                 GrprTransactionListener* listener) {NOT_SUPPORTED;}
+    virtual void send_handshake2(std::string endpoint,
+                                 grpr::Transaction req,
+                                 GrprTransactionListener* listener) {NOT_SUPPORTED;}
+    virtual bool submit_to_blockchain(std::string endpoint,
+                                      grpr::Transaction req,
+                                      GrprTransactionListener* listener) {NOT_SUPPORTED;}
+
+
+};
+
 class CommunicationLayer : public ICommunicationLayer {
 private:
 

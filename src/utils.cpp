@@ -66,10 +66,6 @@ bool is_hex(std::string str) {
 
 void dump_in_hex(const char* in, char* out, size_t in_len) {
     sodium_bin2hex(out, (in_len * 2)+1, (const unsigned char*)in, in_len);
-    return ;
-    for (size_t i = 0; i < in_len; i++)
-        sprintf(out + (i * 2), "%02X", in[i]);
-    out[in_len * 2] = 0;
 }
 
 void dump_in_hex(const char* in, std::string& out, size_t in_len) {
@@ -475,15 +471,19 @@ void dump_transaction_in_json(const GradidoRecord& t, std::ostream& out) {
     case SIGNATURES: {
         for (int i = 0; i < SIGNATURES_PER_RECORD; i++) {
             const Signature* s = t.signature + i;
-            if (s->pubkey[0] == 0)
+            bool zeroes = true;
+            for (int i = 0; i < PUB_KEY_LENGTH; i++)
+                if (s->pubkey[0] != 0) {
+                    zeroes = false;
+                    break;
+                }
+            if (zeroes)
                 break;
-
             char buff[1024];
             dump_in_hex((char*)s->pubkey, buff, PUB_KEY_LENGTH);
             std::string pubkey(buff);
             dump_in_hex((char*)s->signature, buff, SIGNATURE_LENGTH);
             std::string signature(buff);
-
             out << "  \"signature\": [" << std::endl;
             out << "    {" << std::endl;
             out << "      \"pubkey\": \"" << pubkey << "\", " << std::endl;
@@ -719,7 +719,13 @@ void dump_transaction_in_json(const SbRecord& t, std::ostream& out) {
     case SbRecordType::SIGNATURES: {
         for (int i = 0; i < SB_SIGNATURES_PER_RECORD; i++) {
             const Signature* s = t.signatures + i;
-            if (s->pubkey[0] == 0)
+            bool zeroes = true;
+            for (int i = 0; i < PUB_KEY_LENGTH; i++)
+                if (s->pubkey[0] != 0) {
+                    zeroes = false;
+                    break;
+                }
+            if (zeroes)
                 break;
             dump_in_hex((char*)s->pubkey, buff, PUB_KEY_LENGTH);
             std::string pubkey(buff);

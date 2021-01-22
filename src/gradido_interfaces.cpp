@@ -6,6 +6,12 @@
 
 namespace gradido {
 
+bool gradido_strict_not_supported = true;
+bool set_gradido_strict_not_supported(bool val) {
+    gradido_strict_not_supported = val;
+    return true;
+}
+
 pthread_mutex_t gradido_logger_lock;
 
 std::string sanitize_for_log(std::string s) {
@@ -25,19 +31,19 @@ std::string get_gradido_version_string() {
         QUOTES(GIT_HASH_VERSION);
 }
 
-
-// TODO: quiet start optional
-bool init_logging() {
-    SAFE_PT(pthread_mutex_init(&gradido_logger_lock, 0));
-    LOG("gradido base " + get_gradido_version_string());
-    LOG("logger initialized");
-    return true;
-}
+bool logging_include_line_header = false;
 
     // TODO: calc usual folder length to remove folder from __file__
     // TODO: infos, warnings, errors
 
-static bool gradido_logger_lock_initiated = init_logging();
+bool init_logging(bool include_line_header, bool init_shows_version) {
+    logging_include_line_header = include_line_header;
+    SAFE_PT(pthread_mutex_init(&gradido_logger_lock, 0));
+    if (init_shows_version)
+        LOG("gradido base " + get_gradido_version_string());
+    return true;
+}
+
 
 struct timespec get_now() {
     struct timespec ts;
