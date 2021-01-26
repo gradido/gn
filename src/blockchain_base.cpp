@@ -12,7 +12,7 @@ std::string ensure_blockchain_folder(const Poco::Path& sr,
     if (!srf.exists())
         srf.createDirectories();
     if (!srf.exists() || !srf.isDirectory())
-        throw std::runtime_error(name + ": cannot create folder");
+        PRECISE_THROW(name + ": cannot create folder");
     return p0.absolute().toString();
 }
 

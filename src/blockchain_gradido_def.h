@@ -5,7 +5,7 @@
 #include <math.h>
 #include <string.h>
 #include "ed25519/ed25519.h"
-
+#include "gradido_core_utils.h"
 
 namespace gradido {
 
@@ -69,22 +69,11 @@ namespace gradido {
 // current version is set to this by default and incremented as per sb
 #define DEFAULT_VERSION_NUMBER 1
 
-#if 0
-// experimental; this reduces size of blocks on HDD by ~15%
-#define PACKED_STRUCT __attribute__((__packed__))
-#else
-#define PACKED_STRUCT
-#endif
-
-// some structs (mostly those defined in this file) are ment to be
-// erased by zeroing them
-// TODO: verify memset is not optimized out, so it can be used for
-// security reasons as well
-#define ZERO_THIS volatile void* p = memset(this, 0, sizeof(*this));
-
 // ca chain is mentioned only once per blockchain, just after header 
 // record; no need to pack them tightly
 #define CA_CHAIN_PER_RECORD 1
+
+#define SB_ENDPOINT_LENGTH 128
 
 struct PACKED_STRUCT PubKeyEntity {
     uint8_t pub_key[PUB_KEY_LENGTH];
@@ -109,7 +98,7 @@ struct PACKED_STRUCT GradidoValue {
     GradidoValue operator-(const GradidoValue& v) {
         GradidoValue res;
         if (*this < v)
-            throw std::runtime_error("GradidoValue less than zero");
+            PRECISE_THROW("GradidoValue less than zero");
         res.amount = amount - v.amount;
         if (decimal_amount >= v.decimal_amount) {
             res.decimal_amount = decimal_amount - v.decimal_amount;
@@ -507,6 +496,7 @@ struct PACKED_STRUCT SbAdmin {
 struct PACKED_STRUCT SbNode {
     uint8_t node_type; // SbNodeType 
     uint8_t pub_key[PUB_KEY_LENGTH];
+    uint8_t endpoint[SB_ENDPOINT_LENGTH]; // zero terminated
     SbNode() { ZERO_THIS; }
 };
 

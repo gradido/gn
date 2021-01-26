@@ -86,13 +86,13 @@ private:
 
             Poco::File tmp(storage_root);
             if (!tmp.exists())
-                throw std::runtime_error("storage root doesn't exist");
+                PRECISE_THROW("storage root doesn't exist");
             if (!tmp.isDirectory())
-                throw std::runtime_error("storage root is not a folder");
+                PRECISE_THROW("storage root is not a folder");
             if (!tmp.canRead())
-                throw std::runtime_error("storage root cannot be read");
+                PRECISE_THROW("storage root cannot be read");
             if (!tmp.canWrite())
-                throw std::runtime_error("storage root cannot be written");
+                PRECISE_THROW("storage root cannot be written");
         }
         uint32_t get_file_count() const {
             uint32_t res = 0;
@@ -111,13 +111,13 @@ private:
 
                         // TODO: after cast it may overlap
                         if (std::to_string(block_num).compare(ss[1]) != 0)
-                            throw std::runtime_error("bad block number for " + fname);
+                            PRECISE_THROW("bad block number for " + fname);
                         if (res <= block_num)
                             res = block_num + 1;
                     }
                 }
                 if (res == UINT32_MAX)
-                    throw std::runtime_error("too many blocks");
+                    PRECISE_THROW("too many blocks");
             }
             return res;
         }
@@ -176,7 +176,7 @@ private:
                 memcpy(out, t.get_sup()->checksum, 
                        BLOCKCHAIN_CHECKSUM_SIZE);
             } else 
-                throw std::runtime_error("no checksum for block_index " + std::to_string(block_index));
+                PRECISE_THROW("no checksum for block_index " + std::to_string(block_index));
         }
     }
 
@@ -282,7 +282,7 @@ public:
         checksum_valid_block_count(0),
         rec_count(0) {
         if constexpr (RecCount < 2)
-            throw std::runtime_error("Blockchain: RecCount < 2");
+            PRECISE_THROW("Blockchain: RecCount < 2");
     }
 
     // TODO: rec_count and validation
@@ -438,7 +438,7 @@ public:
                     move_to_bad(checksum_valid_block_count);
                     res = false;
                 } else
-                    throw std::runtime_error(
+                    PRECISE_THROW(
                                "bad block file, cannot recover, " + 
                                fnr.get_file_name(checksum_valid_block_count));
             }

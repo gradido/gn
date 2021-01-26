@@ -14,7 +14,7 @@ using namespace gradido;
 int main(int argc, char** argv) {
     GRADIDO_CMD_UTIL;
     if (params.size() != 2) {
-        std::cerr << "parameters: name" << std::endl;
+        LOG("parameters: name");
         return 1;
     }
     std::string sb_name = params[1];
@@ -24,21 +24,19 @@ int main(int argc, char** argv) {
     try {
         kpi.init(empty);
     } catch (std::runtime_error& e) {
-        std::cerr << "cannot open key pair identity: " << e.what() << 
-            std::endl;
+        LOG("cannot open key pair identity: " << e.what());
         return 2;
     }    
 
     if (!kpi.kp_identity_has()) {
-        std::cerr << "no key pair identity in current folder" << 
-            std::endl;
+        LOG("no key pair identity in current folder");
         return 3;
     }
 
     std::string signature;
 
     try {
-        std::cerr << "creating sb" << std::endl;
+        LOG("creating sb");
 
         std::string name = kpi.kp_get_pub_key();
         Poco::Path root_folder(Poco::Path::current());
@@ -96,16 +94,14 @@ int main(int argc, char** argv) {
             }
         } while (0);
 
-        if ((uint8_t)ec == 0)
-            std::cerr << "sb created" << std::endl;
-        else {
-            std::cerr << "sb wasn't created, ec: " << (uint8_t)ec << 
-                std::endl;
+        if ((uint8_t)ec == 0) {
+            LOG("sb created");
+        } else {
+            LOG("sb wasn't created, ec: " << (uint8_t)ec);
             return 4;
         }
     } catch (std::runtime_error& e) {
-        std::cerr << "sb wasn't created: " << e.what() << 
-            std::endl;
+        LOG("sb wasn't created: " << e.what());
         return 5;
     }
     return 0;

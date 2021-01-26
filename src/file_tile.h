@@ -321,7 +321,7 @@ namespace gradido {
 
         Tile get_tile(uint32_t index) {
             if (index >= tiles.size())
-                throw std::runtime_error("TileFile: index too large");
+                PRECISE_THROW("TileFile: index too large");
             Tile res(tiles[index], &fnr, &mem_pool);
             return res;
         }

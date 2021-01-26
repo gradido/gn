@@ -30,7 +30,7 @@ namespace gradido {
             pfc = new Poco::Util::PropertyFileConfiguration(
                                   config_file_name);
         } catch (std::exception& e) {
-            throw std::runtime_error("Couldn't open configuration file: " + std::string(e.what()));
+            PRECISE_THROW("Couldn't open configuration file: " + std::string(e.what()));
         }
     }
 
@@ -97,7 +97,8 @@ namespace gradido {
                     if (re.split(fname, ss)) {
                         GroupInfo gi;
                         if (ss[1].size() >= GROUP_ALIAS_LENGTH - 1)
-                            throw std::runtime_error("blockchain name too long: " + ss[1]);
+                            PRECISE_THROW("blockchain name too long: " 
+                                          << ss[1]);
                         memcpy(gi.alias, ss[1].c_str(), ss[1].size());
                         gi.topic_id.shardNum = static_cast<uint64_t>(std::stoul(ss[2]));
                         gi.topic_id.realmNum = static_cast<uint64_t>(std::stoul(ss[3]));
@@ -107,7 +108,7 @@ namespace gradido {
                 }
             }
         } catch (std::exception& e) {
-            throw std::runtime_error("Couldn't init blockchain groups: " + std::string(e.what()));
+            PRECISE_THROW("Couldn't init blockchain groups: " + std::string(e.what()));
         }
     }
 
@@ -127,7 +128,7 @@ namespace gradido {
             }            
             in.close();
         } catch (std::exception& e) {
-            throw std::runtime_error("Couldn't open sibling file: " + std::string(e.what()));
+            PRECISE_THROW("Couldn't open sibling file: " + std::string(e.what()));
         }
     }
 
@@ -174,7 +175,7 @@ namespace gradido {
             LOG("config: missing sibling_node_file");
             throw e;
         } catch (std::exception& e) {
-            throw std::runtime_error("Couldn't save sibling file: " + std::string(e.what()));
+            PRECISE_THROW("Couldn't save sibling file: " + std::string(e.what()));
         }
     }
 
@@ -196,7 +197,7 @@ namespace gradido {
                          &group_register_topic_id.realmNum,
                          &group_register_topic_id.topicNum);
         if (res == EOF)
-            throw std::runtime_error("config: bad group register topic id");
+            PRECISE_THROW("config: bad group register topic id");
             
         reload_sibling_file();
         reload_group_infos();
@@ -257,7 +258,7 @@ namespace gradido {
                 ltf.remove();
                 present = true;
             } catch (std::exception& e) {
-                throw std::runtime_error("Couldn't open launch token file: " + 
+                PRECISE_THROW("Couldn't open launch token file: " + 
                                          std::string(e.what()));
             }
         }
@@ -278,7 +279,7 @@ namespace gradido {
                 priv_key = read_key_from_file(identity_priv_name);
                 pr_present = true;
             } catch (std::exception& e) {
-                throw std::runtime_error("Couldn't open priv key: " + 
+                PRECISE_THROW("Couldn't open priv key: " + 
                                          std::string(e.what()));
             }
         }
@@ -290,13 +291,13 @@ namespace gradido {
                 pub_key = read_key_from_file(identity_pub_name);
                 pu_present = true;
             } catch (std::exception& e) {
-                throw std::runtime_error("Couldn't open pub key: " + 
+                PRECISE_THROW("Couldn't open pub key: " + 
                                          std::string(e.what()));
             }
         }
         if (pr_present && !pu_present ||
             pu_present && !pr_present)
-            throw std::runtime_error("one of kp identity files doesn't exist");
+            PRECISE_THROW("one of kp identity files doesn't exist");
 
         present = pr_present && pu_present;
     }
@@ -391,6 +392,7 @@ namespace gradido {
     }
 
     int OrderingConfig::get_worker_count() {
+        // NOTE: very important to keep it like this
         return 1;
     }
     int OrderingConfig::get_io_worker_count() {
@@ -420,13 +422,13 @@ namespace gradido {
          const std::vector<std::string>& params) {
         kp.init(params);
         if (!kp.kp_identity_has())
-            throw std::runtime_error("need key pair identity");
+            PRECISE_THROW("need key pair identity");
         if (params.size() > 1 && params[1].length() > 0 &&
             params[2].length() > 0) {
             own_endpoint = params[1];
             endpoint = params[2];
         } else
-            throw std::runtime_error("required parameters: own_endpoint target_endpoint");
+            PRECISE_THROW("required parameters: own_endpoint target_endpoint");
     }
 
     std::string NodeLauncherConfig::get_launch_node_endpoint() {
@@ -453,7 +455,7 @@ namespace gradido {
                 ae.remove();
                 has_data = true;
             } catch (std::exception& e) {
-                throw std::runtime_error("Couldn't open admin-enquiry.conf file: " + std::string(e.what()));
+                PRECISE_THROW("Couldn't open admin-enquiry.conf file: " + std::string(e.what()));
             }
         }
     }

@@ -50,7 +50,7 @@ class BlockchainBase : public Parent,
         MLock lock(main_lock);
 
         if (state != FETCHING_BLOCKS)
-            throw std::runtime_error(name + " on_block_record(): wrong state");
+            PRECISE_THROW(name + " on_block_record(): wrong state");
         if (!br.success()) {
 
             bool last_block = block_to_fetch == fetched_checksums.size();
@@ -90,7 +90,7 @@ class BlockchainBase : public Parent,
         MLock lock(main_lock);
 
         if (state != FETCHING_CHECKSUMS)
-            throw std::runtime_error(name + " on_block_checksum(): wrong state");
+            PRECISE_THROW(name + " on_block_checksum(): wrong state");
 
         if (!bc.success()) {
             state = FETCHING_BLOCKS;
@@ -281,7 +281,7 @@ class BlockchainBase : public Parent,
         case FETCHING_CHECKSUMS:
         case FETCHING_BLOCKS:
         case READY:
-            throw std::runtime_error(
+            PRECISE_THROW(
                   name + " continue_validation(): wrong state " + 
                   std::to_string((int)state));
         }
@@ -301,7 +301,7 @@ class BlockchainBase : public Parent,
             // TODO: stucturally bad message
 
             if (batch.size < 1 || !batch.buff)
-                throw std::runtime_error("empty batch");
+                PRECISE_THROW("empty batch");
 
             uint64_t seq_num;
             bool has_latest = get_latest_transaction_id(seq_num);

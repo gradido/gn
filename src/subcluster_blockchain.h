@@ -72,6 +72,9 @@ public:
 
     virtual void on_succ_append(ISubclusterBlockchain::INotifier* n);
 
+    virtual std::vector<std::string> get_all_endpoints();
+
+
 };
 
 }

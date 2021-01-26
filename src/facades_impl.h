@@ -28,15 +28,18 @@ public:
     virtual void push_task(ITask* task) {NOT_SUPPORTED;}
     virtual void push_task(ITask* task, uint32_t after_seconds) {NOT_SUPPORTED;}
     virtual void push_task_and_join(ITask* task) {NOT_SUPPORTED;}
+    virtual void set_task_logging(bool enabled) {NOT_SUPPORTED;}
     virtual IGradidoConfig* get_conf() {NOT_SUPPORTED;}
     virtual ICommunicationLayer* get_communications() {NOT_SUPPORTED;}
     virtual void exit(int ret_val) {NOT_SUPPORTED;}
     virtual void exit(std::string msg) {NOT_SUPPORTED;}
     virtual void reload_config() {NOT_SUPPORTED;}
+    virtual std::string get_env_var(std::string name) {NOT_SUPPORTED;}
     virtual void continue_init_after_sb_done() {NOT_SUPPORTED;}
     virtual void continue_init_after_handshake_done() {NOT_SUPPORTED;}
     virtual std::string get_sb_ordering_node_endpoint() {NOT_SUPPORTED;}
     virtual std::string get_node_type_str() {NOT_SUPPORTED;}
+    virtual bool ordering_broadcast(IVersioned* ve, grpr::OrderingRequest* ore) {NOT_SUPPORTED;}
     virtual ISubclusterBlockchain* get_subcluster_blockchain() {NOT_SUPPORTED;}
     virtual void global_log(std::string message) {NOT_SUPPORTED;}
     virtual IHandshakeHandler* get_handshake_handler(bool force) {NOT_SUPPORTED;}
@@ -66,10 +69,10 @@ private:
     IGradidoConfig* config;
     WorkerPool worker_pool;
     CommunicationLayer communication_layer;
-
+    bool task_logging_enabled;
+    pthread_mutex_t main_lock;
 public:
-    AbstractFacade(IGradidoFacade* gf) : 
-        config(0), worker_pool(gf, "main"), communication_layer(gf) {}
+    AbstractFacade(IGradidoFacade* gf);
     virtual ~AbstractFacade();
     virtual void init(const std::vector<std::string>& params,
                       ICommunicationLayer::HandlerFactory* hf,
@@ -78,11 +81,13 @@ public:
     virtual void push_task(ITask* task);
     virtual void push_task(ITask* task, uint32_t after_seconds);
     virtual void push_task_and_join(ITask* task);
+    virtual void set_task_logging(bool enabled);
     virtual IGradidoConfig* get_conf();
     virtual ICommunicationLayer* get_communications();
     virtual void exit(int ret_val);
     virtual void exit(std::string msg);
     virtual void reload_config();
+    virtual std::string get_env_var(std::string name);
 };
 
 // deprecated
@@ -122,6 +127,9 @@ private:
 public:
     GroupBlockchainFacade(IGradidoFacade* gf) : gf(gf) {
         SAFE_PT(pthread_mutex_init(&main_lock, 0));
+    }
+    virtual ~GroupBlockchainFacade() {
+        pthread_mutex_destroy(&main_lock);
     }
 
     virtual void init();
@@ -184,11 +192,13 @@ public:
     virtual void push_task(ITask* task);
     virtual void push_task(ITask* task, uint32_t after_seconds);
     virtual void push_task_and_join(ITask* task);
+    virtual void set_task_logging(bool enabled);
     virtual IGradidoConfig* get_conf();
     virtual ICommunicationLayer* get_communications();
     virtual void exit(int ret_val);
     virtual void exit(std::string msg);
     virtual void reload_config();
+    virtual std::string get_env_var(std::string name);
 };
 
 class EmptyHandlerFactoryImpl : 
@@ -373,7 +383,7 @@ public:
     virtual void continue_init_after_sb_done();
     virtual std::string get_sb_ordering_node_endpoint();
     virtual std::string get_node_type_str() {NOT_SUPPORTED;}
-
+    virtual bool ordering_broadcast(IVersioned* ve, grpr::OrderingRequest* ore) {NOT_SUPPORTED;}
 };
 
 // nodes can inherit this 
@@ -435,7 +445,7 @@ private:
     HandlerFactory handler_factory;
 public:
     LoggerNode() : handler_factory(this) {}
-    virtual std::string get_node_type_str() { return "LOGGER"; }
+    virtual std::string get_node_type_str() { return get_as_str(SbNodeType::LOGGER); }
 };
 
 class OrderingNode : public NodeBase, public IConfigFactory {
@@ -447,6 +457,12 @@ protected:
     public:
         HandlerFactory(IGradidoFacade* gf) : 
             NodeBase::HandlerFactory(gf) {}
+        virtual ITask* subscribe_to_blockchain(
+                                 grpr::Transaction* req, 
+                                 grpr::Transaction* reply, 
+                                 ICommunicationLayer::HandlerCb* cb) {
+            return new SubscribeToBlockchainReceiver(gf, req, reply, cb);
+        }
         virtual ITask* submit_message(
                        grpr::Transaction* req, 
                        grpr::Transaction* reply, 
@@ -458,10 +474,30 @@ protected:
     virtual IConfigFactory* get_config_factory();
 private:
     HandlerFactory handler_factory;
+
+    class ConnectedClient {
+    public:
+        void send(grpr::OrderedBlockchainEvent& obe) {}
+    };
+
+    class BlockchainContext {
+    public:
+        uint64_t curr_seq_id;
+        std::string current_hash;
+        BlockchainContext() : curr_seq_id(0) {}
+    };
+
+    std::map<std::string, BlockchainContext*> blockchains_served;
+    std::map<std::string, ConnectedClient*> connected_clients;
+
 public:
     OrderingNode() : handler_factory(this) {}
     virtual void continue_init_after_sb_done();
-    
+
+    virtual std::string get_node_type_str() { return get_as_str(SbNodeType::ORDERING); }
+
+    virtual bool ordering_broadcast(IVersioned* ve, 
+                                    grpr::OrderingRequest ore);
 };
 
 class PingerNode : public NodeBase, public IConfigFactory {

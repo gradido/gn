@@ -118,7 +118,10 @@ public:
     }
 
     void kill() {
-        Poco::Process::kill(ph);
+        if (use_valgring)
+            Poco::Process::requestTermination(ph.id());
+        else
+            Poco::Process::kill(ph);
     }
 
     static void clear_processes() {
@@ -171,7 +174,14 @@ TestProcess* start_process(std::string exe_name0,
 
     std::string exe_name = build_dir + "/" + exe_name0;
     std::string err_file = get_err_file(exe_name0, instance_path);
-    return new TestProcess(exe_name, args, err_file);
+
+    if (use_valgring) {
+        Process::Args args2 = args;
+        args2.insert(args2.begin(), exe_name);
+        return new TestProcess("valgrind", args2, err_file);
+    } else {
+        return new TestProcess(exe_name, args, err_file);
+    }
 }
 
 TestProcess* start_process(std::string exe_name0, 
@@ -187,8 +197,16 @@ bool errlog_ends_with(std::string exe_name0,
     std::ifstream in(err_file);
     std::string str;
     std::string str2;
-    while (std::getline(in, str))
-        str2 = str;
+    while (std::getline(in, str)) {
+        if (use_valgring) {
+            if (str.length() == 0 || 
+                (str.length() > 1 && (str[0] == '=' && str[1] == '='))) {
+                // ignoring
+            } else
+                str2 = str;
+        } else
+            str2 = str;
+    }
 
     return ends_with(str2, suffix);
 }
@@ -281,6 +299,7 @@ void add_admin(std::string launcher_instance,
         PRECISE_THROW("adding admin to subcluster failed");
 }
 
+/*
 TEST(GradidoNodes, test_launch_logger) {
     std::string logger_instance;
 
@@ -328,7 +347,7 @@ TEST(GradidoNodes, test_launch_logger) {
               "submitting own entry to subcluster blockchain"), 
               true);
 }
-
+*/
 
 TEST(GradidoNodes, test_launch_initial_ordering) {
     std::string ordering_instance;
@@ -344,6 +363,7 @@ TEST(GradidoNodes, test_launch_initial_ordering) {
             prepare_instance("node_launcher");
         add_kp(launcher_instance);
         init_sb(launcher_instance, "subcluster0");
+
         add_admin(launcher_instance, admin0_instance);
         add_admin(launcher_instance, admin1_instance);
         add_admin(launcher_instance, admin2_instance);
@@ -364,23 +384,16 @@ TEST(GradidoNodes, test_launch_initial_ordering) {
             conf.insert({"blockchain_append_batch_size", "10"});
             conf.insert({"general_batch_size", "1000"});
             conf.insert({"is_sb_host", "1"});
-            //conf.insert({"sb_ordering_node_endpoint", 
-            //           sb_ordering_node_endpoint});
             conf.insert({"sb_pub_key", sb_pub_key});
-            //conf.insert({"sb_ordering_node_pub_key",
-            //            sb_ordering_node_pub_key});
             write_gradido_conf(conf, ordering_instance);
             create_launch_token(launcher_instance, ordering_instance);
             put_sb_on_primary_ordering(launcher_instance, 
                                        ordering_instance);
-            //start_process("ordering", ordering_instance);
+            start_process("ordering", ordering_instance);
         }
 
-        
-        /*
         launch_launcher(launcher_endpoint, ordering_endpoint,
                         launcher_instance);
-        */
     }
 
 }

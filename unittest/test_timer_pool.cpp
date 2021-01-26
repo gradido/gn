@@ -7,7 +7,7 @@ using namespace timer_pool;
 class TestTimerListenerImpl : public TimerListener {
 public:
     virtual void timerEvent(Timer* timer) {
-        std::cerr << "TIME!!!" << std::endl;
+        LOG("TIME!!!");
     }
 
 };
@@ -16,7 +16,7 @@ TEST(TimerPool, smoke) {
     Timer* t = TimerPool::getInstance()->createTimer();
     TestTimerListenerImpl listener;
     t->setListener(&listener);
-    std::cerr << "start!!!" << std::endl;
+    LOG("start!!!");
 
     t->start(2);
     sleep(3);

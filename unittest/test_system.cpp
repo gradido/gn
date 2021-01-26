@@ -43,7 +43,7 @@ void prepare_system_folders(std::string folder, int endpoint_port,
 class DelayedTask : public ITask {
 public:
     virtual void run() {
-        std::cerr << "time... " << std::endl;        
+        LOG("time... ");
     }
 };
 /*

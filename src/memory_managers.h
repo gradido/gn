@@ -139,7 +139,7 @@ namespace gradido {
         BigObjectMemoryPool(size_t item_block_size) : 
         item_allocator(item_block_size) {
             if constexpr (TCount < 1)
-                throw std::runtime_error("BigObjectMemoryPool: TCount < 1");
+                PRECISE_THROW("BigObjectMemoryPool: TCount < 1");
         }
 
         ~BigObjectMemoryPool() {
@@ -191,7 +191,7 @@ namespace gradido {
 
         void release(T* obj) {
             if (used.count == 0)
-                throw std::runtime_error("BigObjectMemoryPool: cannot release");
+                PRECISE_THROW("BigObjectMemoryPool: cannot release");
             Item* item = used.pop();
             item->payload = obj;
             ready.push(item);

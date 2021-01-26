@@ -9,72 +9,8 @@
 #include <Poco/Random.h>
 #include <ed25519/ed25519/ed25519.h>
 
-
 namespace gradido {
 
-std::vector<char> hex_to_bytes(const std::string& hex) {
-    std::vector<char> bytes;
-
-    for (unsigned int i = 0; i < hex.length(); i += 2) {
-        std::string byteString = hex.substr(i, 2);
-        char byte = (char) strtol(byteString.c_str(), NULL, 16);
-        bytes.push_back(byte);
-    }
-
-    return bytes;
-}
-
-// copied from libsodium: https://github.com/jedisct1/libsodium
-
-char *
-sodium_bin2hex(char* hex, const size_t hex_maxlen,
-               const unsigned char *const bin, const size_t bin_len)
-{
-    size_t       i = (size_t) 0U;
-    unsigned int x;
-    int          b;
-    int          c;
-
-    if (bin_len >= SIZE_MAX / 2 || hex_maxlen <= bin_len * 2U) {
-//        sodium_misuse(); /* LCOV_EXCL_LINE */
-          return NULL;
-    }
-    while (i < bin_len) {
-        c = bin[i] & 0xf;
-        b = bin[i] >> 4;
-        x = (unsigned char) (87U + c + (((c - 10U) >> 8) & ~38U)) << 8 |
-            (unsigned char) (87U + b + (((b - 10U) >> 8) & ~38U));
-        hex[i * 2U] = (char) x;
-        x >>= 8;
-        hex[i * 2U + 1U] = (char) x;
-        i++;
-    }
-    hex[i * 2U] = 0U;
-
-    return hex;
-}
-
-bool is_hex(std::string str) {
-    for (int i = 0; i < str.length(); i++) {
-        if (!((str[i] >= '0' && str[i] <= '9') ||
-              (str[i] >= 'a' && str[i] <= 'f') ||
-              (str[i] >= 'A' && str[i] <= 'F')))
-            return false;
-    }
-    return true;
-}
-
-void dump_in_hex(const char* in, char* out, size_t in_len) {
-    sodium_bin2hex(out, (in_len * 2)+1, (const unsigned char*)in, in_len);
-}
-
-void dump_in_hex(const char* in, std::string& out, size_t in_len) {
-    int blen = in_len * 2 + 1;
-    char buff[blen];
-    memset(buff, 0, blen);
-    dump_in_hex(in, buff, in_len);
-    out = std::string(buff);
-}
 
 std::string get_as_str(TransactionType r) {
     switch (r) {
@@ -751,19 +687,19 @@ std::string read_key_from_file(std::string file_name) {
     std::string str((std::istreambuf_iterator<char>(t)),
                     std::istreambuf_iterator<char>());    
     if (str.length() != KEY_LENGTH_HEX || !is_hex(str))
-        throw std::runtime_error("cannot read, not a key: " + file_name);
+        PRECISE_THROW("cannot read, not a key: " << file_name);
     return str;
 }
 
 void save_key_to_file(std::string key, std::string file_name, bool set_permissions) {
     if (key.length() != KEY_LENGTH_HEX || !is_hex(key))
-        throw std::runtime_error("cannot write, not a key: " + key);
+        PRECISE_THROW("cannot write, not a key: " << key);
 
     Poco::File pk(file_name);
     // not overwriting for safety; key files have to be removed manually
     if (pk.exists())
-        throw std::runtime_error("cannot write, key exists " + 
-                                 file_name);
+        PRECISE_THROW("cannot write, key exists " <<
+                      file_name);
 
     std::ofstream ofs(file_name, std::ofstream::trunc);
     ofs << key;

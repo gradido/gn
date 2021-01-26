@@ -6,7 +6,8 @@
 #include "communications.h"
 #include "config.h"
 
-
+// TODO: better to split between related branches, where possible; 
+// extracting and naming utility classes would be too painful
 #define ISSUES_TEST_FOLDER "/tmp/gradido-issues-folder"
 
 class TestComm : public EmptyCommunications {
@@ -34,14 +35,21 @@ public:
     virtual ICommunicationLayer* get_communications() {return &comm;}
     virtual IGradidoConfig* get_conf() {return &conf;}
     virtual void push_task(ITask* task) {
-        LOG("added task " << typeid(*task).name());
+        LOG("added task " << task->get_task_info());
         tasks.push_back(task);
     }
     virtual void push_task(ITask* task, uint32_t after_seconds) {
-        LOG("added task " << typeid(*task).name() << " after " <<
-            after_seconds);
+        LOG("adding task " << task->get_task_info() << " after " <<
+            after_seconds << " seconds");
         tasks.push_back(task);
     }
+    virtual void push_task_and_join(ITask* task) {
+        LOG("added task " << task->get_task_info() << " for joining");
+        // cannot execute directly because of possible problems with
+        // reentrancy; this breaks behaviour, TODO: fix
+        tasks.push_back(task);
+    }
+
 
     virtual bool get_random_sibling_endpoint(std::string& res) {return false;}
 

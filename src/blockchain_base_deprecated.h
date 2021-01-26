@@ -29,7 +29,7 @@ static std::string ensure_blockchain_folder_deprecated(
     if (!srf.exists())
         srf.createDirectories();
     if (!srf.exists() || !srf.isDirectory())
-        throw std::runtime_error("group register: cannot create folder");
+        PRECISE_THROW("group register: cannot create folder");
     return p0.absolute().toString();
 }
 
@@ -63,7 +63,7 @@ class BlockchainBaseDeprecated : public Parent,
         MLock lock(main_lock);
 
         if (state != FETCHING_BLOCKS)
-            throw std::runtime_error("group register on_block_record(): wrong state");
+            PRECISE_THROW("group register on_block_record(): wrong state");
         if (!br.success()) {
 
             bool last_block = block_to_fetch == fetched_checksums.size();
@@ -103,7 +103,7 @@ class BlockchainBaseDeprecated : public Parent,
         MLock lock(main_lock);
 
         if (state != FETCHING_CHECKSUMS)
-            throw std::runtime_error(name + " on_block_checksum(): wrong state");
+            PRECISE_THROW(name + " on_block_checksum(): wrong state");
 
         if (!bc.success()) {
             state = FETCHING_BLOCKS;
@@ -289,7 +289,7 @@ class BlockchainBaseDeprecated : public Parent,
         case FETCHING_CHECKSUMS:
         case FETCHING_BLOCKS:
         case READY:
-            throw std::runtime_error(
+            PRECISE_THROW(
                   name + " continue_validation(): wrong state " + 
                   std::to_string((int)state));
         }
@@ -309,7 +309,7 @@ class BlockchainBaseDeprecated : public Parent,
 
             if (batch.reset_blockchain) {
                 if (!topic_reset_allowed)
-                    throw std::runtime_error("cannot reset topic");
+                    PRECISE_THROW("cannot reset topic");
                 storage.truncate(0);
                 indexed_blocks = 0;
                 clear_indexes();
@@ -318,7 +318,7 @@ class BlockchainBaseDeprecated : public Parent,
                 LOG(name + " blockchain reset done");
             } else {
                 if (batch.size < 1 || !batch.buff)
-                    throw std::runtime_error("empty batch");
+                    PRECISE_THROW("empty batch");
                 uint64_t seq_num;
                 bool has_latest = get_latest_transaction_id(seq_num);
                 uint64_t curr_seq_num;

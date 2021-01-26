@@ -438,7 +438,7 @@ TEST(Blockchain, non_existent_data_folder)
         ASSERT_EQ(std::string(e.what()).compare("storage root doesn't exist"), 0);
     }
     if (fail)
-        throw std::runtime_error("folder was considered ok");
+        PRECISE_THROW("folder was considered ok");
 }
 
 TEST(Blockchain, cannot_write_storage_root) 
@@ -460,7 +460,7 @@ TEST(Blockchain, cannot_write_storage_root)
         ASSERT_EQ(std::string(e.what()).compare("storage root cannot be written"), 0);
     }
     if (fail)
-        throw std::runtime_error("folder was considered ok");
+        PRECISE_THROW("folder was considered ok");
 }
 
 TEST(Blockchain, storage_root_not_a_folder) 
@@ -486,7 +486,7 @@ TEST(Blockchain, storage_root_not_a_folder)
         ASSERT_EQ(std::string(e.what()).compare("storage root is not a folder"), 0);
     }
     if (fail)
-        throw std::runtime_error("folder was considered ok");
+        PRECISE_THROW("folder was considered ok");
 }
 
 
@@ -512,7 +512,7 @@ TEST(Blockchain, get_rec_index_out_of_bounds)
         ASSERT_EQ(std::string(e.what()).compare("rec_num out of bounds: 1"), 0);
     }
     if (fail)
-        throw std::runtime_error("index was considered ok");
+        PRECISE_THROW("index was considered ok");
 }
 
 */

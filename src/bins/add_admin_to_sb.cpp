@@ -19,21 +19,18 @@ int main(int argc, char** argv) {
     try {
         kpi.init(empty);
     } catch (std::runtime_error& e) {
-        std::cerr << "cannot open key pair identity: " << e.what() << 
-            std::endl;
+        LOG("cannot open key pair identity: " << e.what());
         return 2;
     }    
 
     if (!kpi.kp_identity_has()) {
-        std::cerr << "no key pair identity in current folder" << 
-            std::endl;
+        LOG("no key pair identity in current folder");
         return 3;
     }
 
     AdminEnquiry ae;
     if (!ae.has()) {
-        std::cerr << "no admin-enquiry.conf file in current folder" << 
-            std::endl;
+        LOG("no admin-enquiry.conf file in current folder");
         return 4;
     }
 
@@ -44,7 +41,7 @@ int main(int argc, char** argv) {
     // not yet added to sb
 
     try {
-        std::cerr << "adding admin" << std::endl;
+        LOG("adding admin");
 
         std::string pub_key = ae.get_pub_key();
         std::string name = ae.get_name();
@@ -64,8 +61,8 @@ int main(int argc, char** argv) {
         blockchain.validate_next_checksum(ec);
         if (ec != 
             Blockchain<SbRecord, GRADIDO_BLOCK_SIZE>::ExitCode::OK) {
-            std::cerr << "sb blockchain cannot be validated, ec " <<
-                (int)ec << std::endl;
+            LOG("sb blockchain cannot be validated, ec " <<
+                (int)ec);
             return 1;
         }
 
@@ -119,16 +116,14 @@ int main(int argc, char** argv) {
             }
         } while (0);
 
-        if ((uint8_t)ec == 0)
-            std::cerr << "admin added" << std::endl;
-        else {
-            std::cerr << "admin wasn't added, ec: " << (uint8_t)ec << 
-                std::endl;
+        if ((uint8_t)ec == 0) {
+            LOG("admin added");
+        } else {
+            LOG("admin wasn't added, ec: " << (uint8_t)ec);
             return 5;
         }
     } catch (std::runtime_error& e) {
-        std::cerr << "admin wasn't added: " << e.what() << 
-            std::endl;
+        LOG("admin wasn't added: " << e.what());
         return 6;
     }
     return 0;

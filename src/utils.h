@@ -2,9 +2,9 @@
 #define GRADIDO_UTILS_H
 
 #include <iostream>
+#include "gradido_core_utils.h"
 
-// don't introduce dependencies to project infrastructure as much as
-// possible
+// should depend on data structures only, not gradido_interfaces.h
 #include "blockchain_gradido_def.h"
 #include "blockchain.h"
 
@@ -18,24 +18,9 @@
 
 namespace gradido {
 
-class MLock final {
-private:
-    pthread_mutex_t& m;
-public:
-    MLock(pthread_mutex_t& m) : m(m) {
-        pthread_mutex_lock(&m);
-    }
-    ~MLock() {
-        pthread_mutex_unlock(&m);
-    }
-};
+std::string get_as_str(SbNodeType r);
 
-bool ends_with(std::string const & value, std::string const & ending);
 
-void dump_in_hex(const char* in, char* out, size_t in_len);
-void dump_in_hex(const char* in, std::string& out, size_t in_len);
-
-std::vector<char> hex_to_bytes(const std::string& hex);
 
 template<typename T>
 void dump_transaction_in_json(const typename BlockchainTypes<T>::Record& r, std::ostream& out) {

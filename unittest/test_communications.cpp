@@ -12,7 +12,7 @@ private:
         worker_pool.init(3);
     }
     virtual void push_task(ITask* task) {
-        std::cerr << "push task" << std::endl;
+        LOG("push task");
 
         worker_pool.push(task);
     }
@@ -22,9 +22,7 @@ private:
 class BlockRecordReceiverImpl : public ICommunicationLayer::BlockRecordReceiver {
 public:
     virtual void on_block_record(grpr::BlockRecord br) {
-
-        std::cerr << "on_block_record() " << br.success() << "; "<< br.record()<< std::endl;
-
+        LOG("on_block_record() " << br.success() << "; "<< br.record());
     }
 
 };

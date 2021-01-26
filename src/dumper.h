@@ -20,10 +20,11 @@ int dump(std::vector<std::string> params, std::string type_desc) {
     using RecType = typename BlockchainTypes<T>::Record;
 
     if (params.size() < 2) {
-        std::cerr << "Utility for dumping " << type_desc << 
-            std::endl << "Usage: " << std::endl << "dump_blockchain <blockchain_folder> <options>" << 
-            std::endl << "options:" << 
-            std::endl << "  -c: returns number of records" << std::endl;
+        LOG("Utility for dumping " << type_desc);
+        LOG("Usage: ");
+        LOG("dump_blockchain <blockchain_folder> <options>");
+        LOG("options:");
+        LOG("  -c: returns number of records");
         return -1;
     }
 
@@ -47,7 +48,7 @@ int dump(std::vector<std::string> params, std::string type_desc) {
                 Poco::File f(ps);
                 if (f.getSize() == 0 || 
                     f.getSize() != GRADIDO_BLOCK_SIZE * sizeof(RecType))
-                    throw std::runtime_error(
+                    PRECISE_THROW(
                           "not a block file (bad size): " + ps);
 
                 blocks.push_back(ps);
@@ -86,7 +87,7 @@ int dump(std::vector<std::string> params, std::string type_desc) {
         else
             std::cout << "]" << std::endl;
     } catch (std::exception& e) {
-        std::cerr << e.what() << std::endl;
+        LOG(e.what());
         return 1;
     }
     return 0;

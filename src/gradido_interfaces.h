@@ -1,6 +1,8 @@
 #ifndef GRADIDO_INTERFACES_H
 #define GRADIDO_INTERFACES_H
 
+#include "gradido_core_utils.h"
+
 #include <unistd.h>
 #include <iostream>
 #include <vector>
@@ -42,43 +44,7 @@
 
 namespace gradido {
 
-#define GRADIDO_VERSION_MAJOR 0
-#define GRADIDO_VERSION_MINOR 1
-
-std::string get_gradido_version_string();
-
-
-// TODO: consider moving utility things away
-
-extern bool gradido_strict_not_supported;
-#define NOT_SUPPORTED LOG("not supported"); if (gradido_strict_not_supported) throw std::runtime_error("not supported");
-bool set_gradido_strict_not_supported(bool val);
-
-#define SAFE_PT(expr) if (expr != 0) throw std::runtime_error("couldn't " #expr)
-
 #define BLOCKCHAIN_HASH_SIZE 32
-
-template<typename T>
-T max(T a, T b) {
-    return a > b ? a : b;
-}
-
-template<typename T>
-T min(T a, T b) {
-    return a < b ? a : b;
-}
-
-std::string get_time();
-extern pthread_mutex_t gradido_logger_lock;
-extern bool logging_include_line_header;
-
-bool init_logging(bool include_line_header, bool init_shows_version);
-
-std::string sanitize_for_log(std::string s);
-
-// complexity is needed to avoid badly formatted logs; keep in one line
-// to simplify debugging
-#define LOG(msg) {std::stringstream _logger_stream; std::string _logger_string; try {_logger_stream << msg; _logger_string = sanitize_for_log(_logger_stream.str());} catch (std::exception& e) {_logger_string = std::string("log expression throws exception: ") + e.what(); } catch (...) {_logger_string = "log expression throws exception"; } pthread_mutex_lock(&gradido_logger_lock); if (logging_include_line_header) {std::cerr << __FILE__ << ":" << __LINE__ << ":#" << (uint64_t)pthread_self() << ":" << get_time() << ": ";} std::cerr << _logger_string << std::endl; pthread_mutex_unlock(&gradido_logger_lock);}
 
 proto::Timestamp get_current_time();
 
@@ -114,6 +80,10 @@ class ITask {
 public:
     virtual ~ITask() {}
     virtual void run() = 0;
+
+    // for debugging purposes; subclasses may decide to override to 
+    // provide more details; by default it is using typeid().name()
+    virtual std::string get_task_info();
 };
 
 struct BlockInfo {
@@ -264,7 +234,7 @@ public:
     // doesn't take ownership
     virtual void on_succ_append(INotifier* n) = 0;
 
-
+    virtual std::vector<std::string> get_all_endpoints() = 0;
 };
 
 
@@ -573,6 +543,9 @@ public:
     // does not take ownership
     virtual void push_task_and_join(ITask* task) = 0;
 
+    // enables logging of pushed event types 
+    virtual void set_task_logging(bool enabled) = 0;
+
     // available after init(), always
     virtual IGradidoConfig* get_conf() = 0;
 
@@ -587,6 +560,9 @@ public:
     // not possible to delete blockchain by deleting its folder while
     // system is running; use exclude_blockchain() instead
     virtual void reload_config() = 0;
+
+    // accesses OS env
+    virtual std::string get_env_var(std::string name) = 0;
 };
 
 class IHandshakeHandler {
@@ -618,6 +594,9 @@ public:
 
     virtual std::string get_sb_ordering_node_endpoint() = 0;
     virtual std::string get_node_type_str() = 0;
+
+    virtual bool ordering_broadcast(IVersioned* ve,
+                                    grpr::OrderingRequest* ore) = 0;
 };
 
 // this is to support deprecated group register blockchain

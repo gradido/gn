@@ -582,11 +582,51 @@ namespace gradido {
         }
     };
 
+    class SubscribeToBlockchainReceiver : public TransactionReceiver {
+    protected:
+        virtual bool validate_sig(IVersioned* ve,
+                                  IHandshakeHandler* hh) {
+            // TODO: move up
+            if (cb->get_writes_done() == 0)
+                return ve->get_request_sig_validator()->
+                    submit_message(*req);
+            else 
+                return true;
+        }
+        virtual void process_transaction(IVersioned* ve,
+                                         IHandshakeHandler* hh) {
+            if (!hh) {
+                /*
+                grpr::OrderingRequest ore;
+                if (ve->translate(*req, ore)) {
+                    grpr::Transaction t;
+                    t.set_version_number(req->version_number());
+                    t.set_success(gf->ordering_broadcast(ore, ve));
+                    ve->sign(&t);
+                } else {
+                    LOG("cannot translate into OrderingRequest");
+                }
+                */
+            }
+        }
+
+    public:
+        SubscribeToBlockchainReceiver(
+                             IGradidoFacade* gf,
+                             grpr::Transaction* req,
+                             grpr::Transaction* reply, 
+                             ICommunicationLayer::HandlerCb* cb) : 
+        TransactionReceiver(gf, req, reply, cb) {}
+
+        virtual void run() {
+            do_run(false, false, false);
+        }
+    };
+
     class OrderingMessageReceiver : public TransactionReceiver {
     protected:
         virtual bool validate_sig(IVersioned* ve,
                                   IHandshakeHandler* hh) {
-            // TODO: move outter "if" upwards
             if (cb->get_writes_done() == 0)
                 return ve->get_request_sig_validator()->
                     submit_message(*req);
@@ -599,18 +639,10 @@ namespace gradido {
                 grpr::OrderingRequest ore;
                 if (ve->translate(*req, ore)) {
                     grpr::Transaction t;
-                    t.set_success(true);
                     t.set_version_number(req->version_number());
-
-                    //OrderedBlockchainEvent obe;
-
-                    // TODO: set fields
-                    
-
-                    //t.set_body_bytes(obe.SerializeToString());
+                    // TODO
+                    //t.set_success(gf->ordering_broadcast(ve, ore));
                     ve->sign(&t);
-                    // TODO: send
-
                 } else {
                     LOG("cannot translate into OrderingRequest");
                 }

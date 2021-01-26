@@ -3,6 +3,7 @@
 #include <math.h>
 #include <set>
 #include "utils.h"
+#include <cstdlib>
 #include "blockchain_gradido.h"
 #include "group_register.h"
 #include "timer_pool.h"
@@ -32,16 +33,27 @@ namespace gradido {
         }
     };
 
+    AbstractFacade::AbstractFacade(IGradidoFacade* gf) : 
+        config(0), worker_pool(gf, "main"), communication_layer(gf),
+        task_logging_enabled(false) {
+        SAFE_PT(pthread_mutex_init(&main_lock, 0));
+    }
+
     AbstractFacade::~AbstractFacade() {
         if (config) {
             delete config;
             config = 0;
         }
+        pthread_mutex_destroy(&main_lock);
     }
 
     void AbstractFacade::init(const std::vector<std::string>& params,
                               ICommunicationLayer::HandlerFactory* hf,
                               IConfigFactory* config_factory) {
+        std::string ele = get_env_var(EXTENSIVE_LOGGING_ENABLED);
+        if (ele.length() > 0)
+            task_logging_enabled = true;
+
         config = config_factory->create();
         config->init(params);
         worker_pool.init(config->get_worker_count());
@@ -56,15 +68,27 @@ namespace gradido {
     }
 
     void AbstractFacade::push_task(ITask* task) {
+        if (task_logging_enabled)
+            LOG("added task " << task->get_task_info());
         worker_pool.push(task);
     }
 
     void AbstractFacade::push_task(ITask* task, uint32_t after_seconds) {
+        if (task_logging_enabled)
+            LOG("adding task " << task->get_task_info() << " after " <<
+                after_seconds << " seconds");
         new TimerListenerImpl(this, task, after_seconds);
     }
 
     void AbstractFacade::push_task_and_join(ITask* task) {
+        if (task_logging_enabled)
+            LOG("added task " << task->get_task_info() << 
+                " for joining");
         worker_pool.push_and_join(task);
+    }
+
+    void AbstractFacade::set_task_logging(bool enabled) {
+        task_logging_enabled = enabled;
     }
 
     IGradidoConfig* AbstractFacade::get_conf() {
@@ -107,6 +131,13 @@ namespace gradido {
         */
     }
 
+    std::string AbstractFacade::get_env_var(std::string name) {
+        MLock lock(main_lock);
+        char* cc = std::getenv(name.c_str());
+        return std::string(cc ? cc : "");
+    }
+    
+
     void NodeFacade::continue_init_after_sb_done() {
         // TODO
     }
@@ -140,17 +171,17 @@ namespace gradido {
         IGradidoConfig* conf = gf->get_conf();
         if (conf->launch_token_is_present()) {
             if (conf->kp_identity_has())
-                throw std::runtime_error("key pair identity already exists; delete both key files manually and redeploy launch token");
+                PRECISE_THROW("key pair identity already exists; delete both key files manually and redeploy launch token");
             std::string priv;
             std::string pub;
             if (!create_kp_identity(priv, pub))
-                throw std::runtime_error("cannot create kp identity");
+                PRECISE_THROW("cannot create kp identity");
             conf->kp_store(priv, pub);
             handshake_ongoing = true;
             LOG("waiting for handshake");
         } else {
             if (!conf->kp_identity_has())
-                throw std::runtime_error("no identity; provide launch token");
+                PRECISE_THROW("no identity; provide launch token");
             start_sb();
         }
     }
@@ -298,7 +329,7 @@ namespace gradido {
 
         auto wfp = waiting_for_paired.find(hti);        
         if (wfp == waiting_for_paired.end())
-            throw std::runtime_error("unexpected incoming pair");
+            PRECISE_THROW("unexpected incoming pair");
         waiting_for_paired.erase(hti);
 
         // TODO: should not be here
@@ -315,13 +346,13 @@ namespace gradido {
     void GroupBlockchainFacade::exec_once_paired_transaction_done(HederaTimestamp hti) {
         std::string se;
         if (!get_random_sibling_endpoint(se))
-            throw std::runtime_error("need sibling to get paired transaction");
+            PRECISE_THROW("need sibling to get paired transaction");
         PairedTransactionData ptd;
         {
             MLock lock(main_lock);
             auto zz = waiting_for_paired.find(hti);
             if (zz == waiting_for_paired.end())
-                throw std::runtime_error("cannot continue getting paired transaction");
+                PRECISE_THROW("cannot continue getting paired transaction");
             ptd = zz->second;
         }
         ICommunicationLayer* communication_layer = 
@@ -337,7 +368,7 @@ namespace gradido {
                         HederaTimestamp hti) {
         std::string se;
         if (!get_random_sibling_endpoint(se))
-            throw std::runtime_error("need sibling to get paired transaction2");
+            PRECISE_THROW("need sibling to get paired transaction2");
         grpr::OutboundTransactionDescriptor otd;
         {
             MLock lock(main_lock);
@@ -389,6 +420,9 @@ namespace gradido {
     void Executable::push_task_and_join(ITask* task) {
         af.push_task_and_join(task);
     }
+    void Executable::set_task_logging(bool enabled) {
+        af.set_task_logging(enabled);
+    }
     IGradidoConfig* Executable::get_conf() {
         return af.get_conf();
     }
@@ -403,6 +437,9 @@ namespace gradido {
     }
     void Executable::reload_config() {
         af.reload_config();
+    }
+    std::string Executable::get_env_var(std::string name) {
+        return af.get_env_var(name);
     }
 
     ITask* NodeHandlerFactoryDeprecated::subscribe_to_blocks(
@@ -459,7 +496,8 @@ namespace gradido {
     }
     IBlockchain* GradidoNodeDeprecated::create_group_blockchain(
                                         GroupInfo gi) {
-        return gbf.create_group_blockchain(gi);
+        // TODO
+        //return gbf.create_group_blockchain(gi);
     }
     IBlockchain* GradidoNodeDeprecated::create_or_get_group_blockchain(
                               std::string group) {
@@ -568,6 +606,45 @@ namespace gradido {
             // TODO: add it to sb
         }
     }
+
+    bool OrderingNode::ordering_broadcast(IVersioned* ve,
+                                          grpr::OrderingRequest ore) {
+        std::string b_id = ore.blockchain_pub_key();
+        auto bs = blockchains_served.find(b_id);
+        if (bs != blockchains_served.end()) {
+            grpr::OrderedBlockchainEvent obe;
+            {
+                BlockchainContext* bc = bs->second;
+                bc->curr_seq_id++;
+
+                // TODO
+                //obe.set_consensus_timestamp(ct);
+                obe.set_seq_num(bc->curr_seq_id);
+                obe.set_running_hash(bc->current_hash);
+                obe.set_blockchain_pub_key(b_id);
+                //obe.set_data();
+
+                //ve->sign(&ore);
+            }
+            {
+                ISubclusterBlockchain* sb = 
+                    nf.get_subcluster_blockchain();
+                std::vector<std::string> endpoints = 
+                    sb->get_all_endpoints();
+
+                for (auto i : endpoints) {
+                    auto cc = connected_clients.find(i);
+                    if (cc != connected_clients.end()) {
+                        // TODO
+                        //cc.second->send(obe);
+                    }
+                }
+            }
+            return true;
+        } else
+            return false;
+    }
+
 
     ICommunicationLayer::HandlerFactory* 
     PingerNode::get_handler_factory() {

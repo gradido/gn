@@ -22,7 +22,7 @@ int main(int argc, char** argv) {
             " and " << KP_IDENTITY_PRIV_NAME << std::endl;
         return 0;
     } else {
-        std::cerr << err_msg << std::endl;
+        LOG(err_msg);
     }
     return 2;
 }

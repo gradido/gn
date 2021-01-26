@@ -8,6 +8,9 @@
 
 namespace gradido {
 
+// TODO: should allow turning on / off extensive logging on a working
+// node
+
 class GradidoSignals {
 private:
     static GradidoSignals* signals;

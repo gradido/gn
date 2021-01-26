@@ -53,7 +53,9 @@ using ::testing::Return;
 using ::testing::_;
 using ::testing::NiceMock;
 
-#define PRECISE_THROW(msg) {LOG(msg); std::stringstream ss; ss << msg; throw std::runtime_error(ss.str());}
+// set to use valgrind when launching nodes
+#define GRADIDO_TEST_USE_VALGRIND "GRADIDO_TEST_USE_VALGRIND"
+
 
 class MockSampleTask : public ITask {
 public:
@@ -91,5 +93,9 @@ void erase_tmp_folder(std::string folder);
 
 extern bool loggin_init_done;
 extern bool not_supported_init_done;
+
+
+// some test cases uses this
+extern bool use_valgring;
 
 #endif
