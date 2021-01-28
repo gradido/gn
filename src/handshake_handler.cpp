@@ -126,7 +126,10 @@ namespace gradido {
         grpr::Handshake0 h0;
         if (!ve->translate(req, h0))
             gf->exit("cannot translate h0");
-        if (!ve->prepare_h1(h0.transaction_id(), res))
+
+        IGradidoConfig* conf = gf->get_conf();
+        std::string kp_pub_key = conf->kp_get_pub_key();        
+        if (!ve->prepare_h1(h0.transaction_id(), res, kp_pub_key))
             gf->exit("cannot prepare h1");
         res.set_success(true);
         ve->sign(&res);
@@ -135,7 +138,7 @@ namespace gradido {
         std::string starter_endpoint = h0.starter_endpoint();
         h3_ts = get_current_time();
         std::string type = gf->get_node_type_str();
-        if (!ve->prepare_h2(h3_ts, type, t2))
+        if (!ve->prepare_h2(h3_ts, type, t2, kp_pub_key))
             gf->exit("cannot prepare h2");
         ve->sign(&t2);
 

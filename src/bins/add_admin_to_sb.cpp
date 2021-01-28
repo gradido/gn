@@ -8,6 +8,7 @@
 #include "blockchain_base.h"
 #include "blockchain_gradido_def.h"
 #include "main_def.h"
+#include "versioned.h"
 
 using namespace gradido;                            
                                                     
@@ -65,6 +66,8 @@ int main(int argc, char** argv) {
                 (int)ec);
             return 1;
         }
+
+        SbTransactionFactory_1 tf;
 
         do {
             {

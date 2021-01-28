@@ -170,5 +170,11 @@ void dump_in_hex(const char* in, std::string& out, size_t in_len) {
     out = std::string(buff);
 }
 
+bool contains_null(std::string str) {
+    std::string s(str.c_str());
+    return s.length() != str.length();
+}
+
+
 
 }

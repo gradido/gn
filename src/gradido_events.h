@@ -716,7 +716,9 @@ namespace gradido {
             grpr::Transaction h0;
             // TODO: store in hh
             proto::Timestamp ts = get_current_time();
-            ve->prepare_h0(ts, h0);
+            IGradidoConfig* conf = gf->get_conf();
+            std::string ep = conf->get_grpc_endpoint();
+            ve->prepare_h0(ts, h0, ep);
             ve->sign(&h0);
             gf->get_communications()->send_handshake0(endpoint,
                                                       h0,

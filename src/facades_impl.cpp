@@ -167,7 +167,7 @@ namespace gradido {
 
     void NodeFacade::init() {
         MLock lock(main_lock);
-        versioneds.insert({1, new Versioned_1(gf)});
+        versioneds.insert({1, new Versioned_1()});
         IGradidoConfig* conf = gf->get_conf();
         if (conf->launch_token_is_present()) {
             if (conf->kp_identity_has())

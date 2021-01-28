@@ -90,6 +90,9 @@ std::vector<char> hex_to_bytes(const std::string& hex);
 #define PACKED_STRUCT __attribute__((__packed__))
 
 
+bool contains_null(std::string str);
+
+
 }
 
 #endif

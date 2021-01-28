@@ -26,6 +26,11 @@ message SignaturePair {
         bytes ed25519 = 2; // ed25519 signature (libsodium default)
 		bytes ed25519_ref10 = 3; // ed25519 ref10 signature
     }
+    // TODO: get rid of optional keyword
+    optional uint32 signed_signatures = 4; // how many signatures were 
+                                           // part of material
+    optional uint32 signed_body_bytes_size = 5; // how large was 
+                                                // body_bytes when signed
 }
 
 message SignatureMap {
@@ -330,9 +335,34 @@ message OrderedBlockchainEvent {
 }
 
 message Transaction {
-    // if another Transaction object is wrapped, version_number values
-    // have to match
 	uint64 version_number = 1;
+    // if body_bytes is blockchain record(s), its lifetime is as follows:
+    // - initially created with some fields == 0, rest set to needed
+    //   values
+    //   - version_number appears both inside of record and in 
+    //     version_number field (as it is a generalization of format,
+    //     used both for describing body_bytes type and also its
+    //     interpretation while validating)
+    // - signed by issuer, signature + pub key added to sigMap
+    // - sent to ordering node
+    // - ordering node verifies signature
+    // - it sets some fields, such as seq_num
+    // - it concatenates record with existing signatures, then signs it
+    // - signature is added to sigMap, updated record is stored in 
+    //   outbound transaction, which is sent out to recipients
+    // - knowing this procedure it is always possible to validate
+    //   blockchain
+    // 
+    // thus, following invariances:
+    // - records are updated by receivers; but update cannot hide or 
+    //   clear any existing data to allow signature verification later
+    //   - it can add to size of body_bytes; SignaturePair has two
+    //     fields which helps to track that; it is up to version
+    //     handler to interpret them
+    // - existing signatures are part of signature material
+    //
+    // those things are true when body_bytes are not blockchain records
+    // as well
     bytes body_bytes = 2;
     bool success = 3; // is ignored when Transaction is request
     SignatureMap sigMap = 4; // signing material is body_bytes + 

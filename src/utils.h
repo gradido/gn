@@ -60,6 +60,8 @@ std::string sign(uint8_t* mat,
                  const std::string& pub_key,
                  const std::string& priv_key);
 
+HederaTimestamp get_timestamp();
+
 }
 
 #endif

@@ -472,6 +472,77 @@ public:
     virtual bool ping(grpr::Transaction t) = 0;
 };
 
+class ITransactionFactoryBase {
+public:
+    // all identifiers are expected in hex
+    enum class ExitCode {
+        OK=0,
+        ID_BAD_LENGTH,
+        ID_NOT_A_HEX,
+        MEMO_TOO_LONG,
+        MEMO_CONTAINS_ZERO_CHAR
+    };
+};
+
+class ITransactionFactory : public ITransactionFactoryBase {
+public:
+    virtual ExitCode create_gradido_creation(std::string user,
+                                             uint64_t amount,
+                                             std::string memo,
+                                             uint8_t** out, 
+                                             uint32_t* out_length) = 0;
+
+    virtual ExitCode create_local_transfer(std::string user0,
+                                           std::string user1,
+                                           uint64_t amount,
+                                           std::string memo,
+                                           uint8_t** out, 
+                                           uint32_t* out_length) = 0;
+    virtual ExitCode create_inbound_transfer(std::string user0,
+                                             std::string user1,
+                                             std::string other_group,
+                                             uint64_t amount,
+                                             std::string memo,
+                                             uint8_t** out, 
+                                             uint32_t* out_length) = 0;
+    virtual ExitCode create_outbound_transfer(std::string user0,
+                                              std::string user1,
+                                              std::string other_group,
+                                              uint64_t amount,
+                                              std::string memo,
+                                              uint8_t** out, 
+                                              uint32_t* out_length) = 0;
+    virtual ExitCode add_group_friend(std::string id,
+                                      std::string memo,
+                                      uint8_t** out, 
+                                      uint32_t* out_length) = 0;
+    virtual ExitCode remove_group_friend(std::string id,
+                                         std::string memo,
+                                         uint8_t** out, 
+                                         uint32_t* out_length) = 0;
+    
+    virtual ExitCode add_user(std::string id,
+                              std::string memo,
+                              uint8_t** out, 
+                              uint32_t* out_length) = 0;
+    virtual ExitCode move_user_inbound(std::string id,
+                                       std::string other_group,
+                                       std::string memo,
+                                       uint8_t** out, 
+                                       uint32_t* out_length) = 0;
+    virtual ExitCode move_user_outbound(std::string id,
+                                        std::string other_group,
+                                        std::string memo,
+                                        uint8_t** out, 
+                                        uint32_t* out_length) = 0;
+    
+    
+};
+
+class ISbTransactionFactory : public ITransactionFactoryBase {
+public:
+};
+
 class IVersioned {
 public:
     virtual ~IVersioned() {}
@@ -496,18 +567,25 @@ public:
 
 
     virtual bool prepare_h0(proto::Timestamp ts,
-                            grpr::Transaction& out) = 0;
+                            grpr::Transaction& out,
+                            std::string endpoint) = 0;
     virtual bool prepare_h1(proto::Timestamp ts,
-                            grpr::Transaction& out) = 0;
+                            grpr::Transaction& out,
+                            std::string kp_pub_key) = 0;
     virtual bool prepare_h2(proto::Timestamp ts, 
                             std::string type,
-                            grpr::Transaction& out) = 0;
+                            grpr::Transaction& out,
+                            std::string kp_pub_key) = 0;
     virtual bool prepare_h3(proto::Timestamp ts, 
                             grpr::Transaction sb,
                             grpr::Transaction& out) = 0;
     virtual bool prepare_add_node(proto::Timestamp ts, 
                                   std::string type,
                                   grpr::Transaction& out) = 0;
+
+    virtual ITransactionFactory* get_transaction_factory() = 0;
+    virtual ISbTransactionFactory* get_sb_transaction_factory() = 0;
+
 };
 
 class IOrderer {

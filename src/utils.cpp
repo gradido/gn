@@ -341,6 +341,9 @@ void dump_transaction_in_json(const GradidoRecord& t, std::ostream& out) {
                         PUB_KEY_LENGTH);
             std::string receiver(buff);
 
+            std::string other_group((char*)tt.other_group);
+            HederaTimestamp ts = tt.paired_transaction_id;
+
             out << "    \"inbound_transfer\": {" << std::endl;
             out << "      \"sender\": {" << std::endl;
             out << "        \"user\": \"" << sender << "\"" << std::endl;
@@ -357,6 +360,11 @@ void dump_transaction_in_json(const GradidoRecord& t, std::ostream& out) {
             out << "      \"amount\": {" << std::endl;
             out << "        \"amount\": " << tt.amount.amount << ", " << std::endl;
             out << "        \"decimal_amount\": " << tt.amount.decimal_amount << std::endl;
+            out << "      }," << std::endl;
+            out << "      \"other_group\": \"" << other_group << "\"," << std::endl;
+            out << "      \"paired_transaction_id\": {" << std::endl;
+            out << "        \"seconds\": " << ts.seconds  << ", " << std::endl;
+            out << "        \"nanos\": " << ts.nanos << std::endl;
             out << "      }" << std::endl;
             out << "    }," << std::endl;
             break;
@@ -369,6 +377,8 @@ void dump_transaction_in_json(const GradidoRecord& t, std::ostream& out) {
             dump_in_hex((char*)tt.receiver.user, buff, 
                         PUB_KEY_LENGTH);
             std::string receiver(buff);
+            std::string other_group((char*)tt.other_group);
+            HederaTimestamp ts = tt.paired_transaction_id;
 
             out << "    \"outbound_transfer\": {" << std::endl;
             out << "      \"sender\": {" << std::endl;
@@ -385,6 +395,11 @@ void dump_transaction_in_json(const GradidoRecord& t, std::ostream& out) {
             out << "      \"amount\": {" << std::endl;
             out << "        \"amount\": " << tt.amount.amount << ", " << std::endl;
             out << "        \"decimal_amount\": " << tt.amount.decimal_amount << std::endl;
+            out << "      }," << std::endl;
+            out << "      \"other_group\": \"" << other_group << "\"," << std::endl;
+            out << "      \"paired_transaction_id\": {" << std::endl;
+            out << "        \"seconds\": " << ts.seconds  << ", " << std::endl;
+            out << "        \"nanos\": " << ts.nanos << std::endl;
             out << "      }" << std::endl;
             out << "    }," << std::endl;
             break;
@@ -761,5 +776,15 @@ std::string sign(std::string material,
     return sign((uint8_t*)material.c_str(), material.length(),
                 pub_key, priv_key);
 }
+
+HederaTimestamp get_timestamp() {
+    struct timespec t;
+    timespec_get(&t, TIME_UTC);
+    HederaTimestamp res;
+    res.seconds = t.tv_sec;
+    res.nanos = t.tv_nsec;
+    return res;
+}
+
 
 }

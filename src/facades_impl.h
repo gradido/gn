@@ -541,7 +541,7 @@ private:
     IVersioned* versioned;
 public:
     NodeLauncher() : handler_factory(this), hh(this), 
-        versioned(new Versioned_1(this)) {}
+        versioned(new Versioned_1()) {}
     virtual ~NodeLauncher();
     virtual void init(const std::vector<std::string>& params);
     virtual IVersioned* get_versioned(int version_number);

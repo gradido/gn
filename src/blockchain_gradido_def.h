@@ -7,6 +7,8 @@
 #include "ed25519/ed25519.h"
 #include "gradido_core_utils.h"
 
+// TODO: widen types from uint8_t to something bigger
+
 namespace gradido {
 
 // change with care; blockchain validity depends on those structs
@@ -28,6 +30,7 @@ namespace gradido {
 
 #define HEDERA_RUNNING_HASH_LENGTH 48
 
+    // TODO: remove
 #define MAX_RECORD_PARTS 5
 
 // not flexible; would take some more adjustments when changing this
@@ -41,10 +44,13 @@ namespace gradido {
 #define PUB_KEY_LENGTH ed25519_pubkey_SIZE
 #define PRIV_KEY_LENGTH ed25519_privkey_SIZE
 
+#define PUB_KEY_LENGTH_HEX PUB_KEY_LENGTH * 2
+
 #define SIGNATURE_LENGTH 64
 
 #define MEMO_MAIN_SIZE 16
 #define MEMO_FULL_SIZE 150
+#define MAX_TOTAL_MEMO_LENGTH MEMO_FULL_SIZE * 5 + MEMO_MAIN_SIZE
 
 #define GROUP_REGISTER_NAME "group-register"
 
@@ -235,7 +241,7 @@ struct PACKED_STRUCT LocalTransfer : public AbstractTransferOp {
 
 struct PACKED_STRUCT PairedTransaction {
     HederaTimestamp paired_transaction_id;
-    uint8_t other_group[GROUP_ALIAS_LENGTH];
+    uint8_t other_group[PUB_KEY_LENGTH];
     PairedTransaction() { ZERO_THIS; }
 };
 
@@ -253,7 +259,7 @@ struct PACKED_STRUCT OutboundTransfer : public AbstractTransferOp,
 };
 
 struct PACKED_STRUCT FriendUpdate {
-    uint8_t group[GROUP_ALIAS_LENGTH];
+    uint8_t group[PUB_KEY_LENGTH];
     FriendUpdate() { ZERO_THIS; }
 };
 
@@ -301,10 +307,11 @@ struct PACKED_STRUCT TransactionCommonHeader {
     uint32_t version_number;
 
     // other parts may follow this record; if not, then parts == 1;
-    // cannot be larger than MAX_RECORD_PARTS for structurally validated
-    // transaction (one which is therefore translated); for 
-    // structurally_bad_message it is unlimited
-    uint8_t parts;
+    // this is set prior to inserting
+    uint32_t parts;
+
+    // this is set at origin
+    HederaTimestamp transaction_id;
 
     HederaTransaction hedera_transaction;
     TransactionCommonHeader() { ZERO_THIS; }
@@ -320,6 +327,7 @@ struct PACKED_STRUCT GradidoHeader {
 struct PACKED_STRUCT Transaction : public TransactionCommonHeader {
 
     // additional signatures can be stored in more parts
+    // TODO: remove or add some more
     Signature signature;
     uint8_t signature_count;
 
