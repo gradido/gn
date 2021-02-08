@@ -643,6 +643,19 @@ public:
     virtual std::string get_env_var(std::string name) = 0;
 };
 
+
+class IOrderingNodeSubscription {
+public:
+    virtual grpr::Transaction get_next() = 0;
+    virtual void channel_closed() = 0;
+};
+
+class IOrderingNode {
+public:
+    virtual IOrderingNodeSubscription* create_subscription_for(
+                               grpr::Transaction req) = 0;
+};
+
 class IHandshakeHandler {
 public:
     virtual grpr::Transaction get_response_h0(grpr::Transaction req,
@@ -753,7 +766,8 @@ class IGradidoFacade :
     public IAbstractFacade, 
     public INodeFacade,
     public IGroupRegisterFacade, 
-    public IGroupBlockchainFacade {
+    public IGroupBlockchainFacade,
+    public IOrderingNode {
 public:
     virtual void init(const std::vector<std::string>& params,
                       IConfigFactory* config_factory) = 0;
@@ -761,6 +775,7 @@ public:
 
 
 };
+
 
 }
 

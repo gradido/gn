@@ -628,25 +628,14 @@ namespace gradido {
         }
         HederaTimestamp d = t1 - t0;
 
-        LOG("crodo " << t0.seconds);
-        LOG("crodo2 " << t1.seconds);
-
-
         GradidoWithDecimal gradidos;
         gradidos.gradido = val0.amount;
         gradidos.decimal = val0.decimal_amount;
         gradidos = calculateDecay(gradidos, d.seconds, decay_factor);
 
-        LOG("crodo3 " << val0.amount);
-        LOG("crodo3b " << val0.decimal_amount);
-
-        
         GradidoValue res;
         res.amount = gradidos.gradido;
         res.decimal_amount = gradidos.decimal;
-
-        LOG("crodo4 " << res.amount);
-
 
         return res;
     }

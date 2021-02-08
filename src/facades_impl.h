@@ -62,6 +62,9 @@ public:
     virtual void exec_once_paired_transaction_done(
                            HederaTimestamp hti) {NOT_SUPPORTED;}
     virtual bool get_random_sibling_endpoint(std::string& res) {NOT_SUPPORTED;}
+    virtual IOrderingNodeSubscription* create_subscription_for(
+                               grpr::Transaction req) {NOT_SUPPORTED;}
+
 };
 
 class AbstractFacade : public IAbstractFacade {
@@ -177,7 +180,7 @@ public:
     virtual bool get_random_sibling_endpoint(std::string& res);
 };
 
-// almost any executable needs this, extracting as a separate class
+// almost any executable needs this; extracting as a separate class
 // to reduce repetition
 class Executable : public EmptyFacade {
 private:
@@ -451,6 +454,34 @@ public:
 class OrderingNode : public NodeBase, public IConfigFactory {
 public:
     virtual IGradidoConfig* create();
+
+private:
+
+    class Subscription : public IOrderingNodeSubscription {
+    private:
+        OrderingNode* parent;
+        std::queue<grpr::Transaction> queue;
+    public:
+        Subscription(OrderingNode* parent) : parent(parent) {}
+        virtual grpr::Transaction get_next() {
+            grpr::Transaction res = queue.front();
+            queue.pop();
+            return res;
+        }
+        virtual void channel_closed() {
+            parent->channel_closed(this);
+        }
+    public:
+        void enqueue(grpr::Transaction msg) {
+            // TODO
+            //queue.push_back(msg);
+        }
+    };
+
+public:
+
+    void channel_closed(Subscription* s);
+
     
 protected:
     class HandlerFactory : public NodeBase::HandlerFactory {
@@ -475,11 +506,6 @@ protected:
 private:
     HandlerFactory handler_factory;
 
-    class ConnectedClient {
-    public:
-        void send(grpr::OrderedBlockchainEvent& obe) {}
-    };
-
     class BlockchainContext {
     public:
         uint64_t curr_seq_id;
@@ -488,7 +514,8 @@ private:
     };
 
     std::map<std::string, BlockchainContext*> blockchains_served;
-    std::map<std::string, ConnectedClient*> connected_clients;
+    // TODO: finish
+    //std::map<std::string, ConnectedClient*> connected_clients;
 
 public:
     OrderingNode() : handler_factory(this) {}
@@ -498,6 +525,10 @@ public:
 
     virtual bool ordering_broadcast(IVersioned* ve, 
                                     grpr::OrderingRequest ore);
+
+    virtual IOrderingNodeSubscription* create_subscription_for(
+                                       grpr::Transaction req);
+
 };
 
 class PingerNode : public NodeBase, public IConfigFactory {

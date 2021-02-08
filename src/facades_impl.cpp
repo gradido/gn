@@ -368,14 +368,16 @@ namespace gradido {
                         HederaTimestamp hti) {
         std::string se;
         if (!get_random_sibling_endpoint(se))
-            PRECISE_THROW("need sibling to get paired transaction2");
+            PRECISE_THROW("need sibling to get paired transaction");
         grpr::OutboundTransactionDescriptor otd;
         {
             MLock lock(main_lock);
             auto zz = waiting_for_paired.find(hti);
-            if (zz != waiting_for_paired.end())
+            if (zz != waiting_for_paired.end()) {
                 // not more than one blockchain can request it
+                LOG("more than one blockchain attempting to listen paired transaction with the same id");
                 return;
+            }
 
             otd.set_group(group);
             ::proto::Timestamp* ts = otd.mutable_paired_transaction_id();
@@ -496,8 +498,7 @@ namespace gradido {
     }
     IBlockchain* GradidoNodeDeprecated::create_group_blockchain(
                                         GroupInfo gi) {
-        // TODO
-        //return gbf.create_group_blockchain(gi);
+        return gbf.create_group_blockchain(gi);
     }
     IBlockchain* GradidoNodeDeprecated::create_or_get_group_blockchain(
                               std::string group) {
@@ -599,6 +600,10 @@ namespace gradido {
         return new OrderingConfig();
     }
 
+    void OrderingNode::channel_closed(Subscription* s) {
+        // TODO
+    }
+
     void OrderingNode::continue_init_after_sb_done() {
         if (get_conf()->is_sb_host()) {
             IHandshakeHandler* hh = get_handshake_handler(true);
@@ -632,6 +637,7 @@ namespace gradido {
                 std::vector<std::string> endpoints = 
                     sb->get_all_endpoints();
 
+                /* TODO
                 for (auto i : endpoints) {
                     auto cc = connected_clients.find(i);
                     if (cc != connected_clients.end()) {
@@ -639,12 +645,18 @@ namespace gradido {
                         //cc.second->send(obe);
                     }
                 }
+                */
             }
             return true;
         } else
             return false;
     }
 
+    IOrderingNodeSubscription* OrderingNode::create_subscription_for(
+                               grpr::Transaction req) {
+        // TODO
+        return 0;
+    }
 
     ICommunicationLayer::HandlerFactory* 
     PingerNode::get_handler_factory() {

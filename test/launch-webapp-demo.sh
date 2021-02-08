@@ -1,3 +1,5 @@
+export EXTENSIVE_LOGGING_ENABLED=1
+
 #while :
 #do
 #    python ncd.py ncd.yaml case=brisbane hedera-topic-id=0,0,17023

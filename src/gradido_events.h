@@ -305,10 +305,8 @@ namespace gradido {
                     reply->set_success(false);
                 else {
                     reply->set_success(true);
-
                     GroupInfo gi = GroupInfo::create(req->group(), 
                                                      topic_id);
-
                     gf->create_group_blockchain(gi);
                 }
             }
@@ -479,6 +477,13 @@ namespace gradido {
                             ICommunicationLayer::HandlerCb* cb) : 
         gf(gf), req(req), reply(reply), cb(cb) {}
 
+        virtual std::string get_task_info() {
+            std::string req_str = req ? req->DebugString() : "";
+            std::string reply_str = reply ? reply->DebugString() : "";
+            return ITask::get_task_info() + " [" + req_str + " -> " + 
+                reply_str + "]";
+                
+        }
     };
 
     class Handshake0Receiver : public TransactionReceiver {
