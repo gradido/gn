@@ -1,0 +1,14 @@
+build:
+
+# cd docker/deprecated-hedera-node
+# docker build -t $INSTANCE_NAME .
+
+run:
+
+# docker run --ulimit core=-1 -v $INSTANCE_FOLDER:/opt/instance $INSTANCE_NAME
+
+where
+$INSTANCE_FOLDER:   home of instance; should contain gradido.conf, 
+                    siblings.txt; note, that folder is referred from
+                    inside of gradido.conf as well
+$INSTANCE_NAME:     arbitrary name of instance
