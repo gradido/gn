@@ -470,6 +470,8 @@ namespace gradido {
             cb->write_ready();
         }
 
+        std::string task_info;
+
     public:
         TransactionReceiver(IGradidoFacade* gf,
                             grpr::Transaction* req,
@@ -477,12 +479,16 @@ namespace gradido {
                             ICommunicationLayer::HandlerCb* cb) : 
         gf(gf), req(req), reply(reply), cb(cb) {}
 
+
         virtual std::string get_task_info() {
-            std::string req_str = req ? req->DebugString() : "";
-            std::string reply_str = reply ? reply->DebugString() : "";
-            return ITask::get_task_info() + " [" + req_str + " -> " + 
-                reply_str + "]";
-                
+            if (task_info.length() == 0) {
+                std::string req_str = req ? req->DebugString() : "";
+                std::string reply_str = reply ? reply->DebugString() : 
+                    "";
+                task_info = ITask::get_task_info() + " [" + req_str + 
+                    " -> " + reply_str + "]";
+            }
+            return task_info;
         }
     };
 

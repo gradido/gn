@@ -1,4 +1,10 @@
+# NOTE: in order to launch, should prepare hedera-credentials.cfg file
+# in this folder, check hedera-credentials.template.cfg
+
 export EXTENSIVE_LOGGING_ENABLED=1
+
+# uncomment outter cycle in order for "reset all" feature to work inside
+# webapp
 
 #while :
 #do

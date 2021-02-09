@@ -6,7 +6,6 @@
 #include <stdexcept>
 #include <stack>
 #include "gradido_interfaces.h"
-#include "utils.h"
 
 namespace gradido {
 
@@ -31,6 +30,7 @@ namespace gradido {
 
 class WorkerPool final {
 private:
+    bool task_logging_enabled;
     IGradidoFacade* gf;
     std::string name;
     std::queue<ITask*> queue;

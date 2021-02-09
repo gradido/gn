@@ -30,7 +30,8 @@ namespace gradido {
             pfc = new Poco::Util::PropertyFileConfiguration(
                                   config_file_name);
         } catch (std::exception& e) {
-            PRECISE_THROW("Couldn't open configuration file: " + std::string(e.what()));
+            PRECISE_THROW("Couldn't open configuration file: " + 
+                          std::string(e.what()) + " " + config_file_name);
         }
     }
 

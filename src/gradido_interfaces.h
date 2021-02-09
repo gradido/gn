@@ -762,6 +762,8 @@ class IGroupBlockchainFacade {
 // same way as current solution)
 //
 // keeping it simple here
+//
+// graceful shutdown is expected to happen via destructors
 class IGradidoFacade : 
     public IAbstractFacade, 
     public INodeFacade,

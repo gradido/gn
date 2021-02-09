@@ -259,6 +259,8 @@ def do_grow():
         test_stage = "/tmp"
         test_stage = obtain_file_path_from_config(e.doc,
                                                   "test-stage", "/tmp")
+        if not os.path.exists(test_stage):
+            os.makedirs(test_stage)
         output_name = obtain_file_path_from_config(e.doc,
                                                    "output-file-name",
                                                    "ncd-output.yaml")

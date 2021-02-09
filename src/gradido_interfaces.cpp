@@ -14,7 +14,9 @@ proto::Timestamp get_current_time() {
 }
 
 std::string ITask::get_task_info() {
-    return typeid(*this).name();
+    std::stringstream ss;
+    ss << this << ":" << typeid(*this).name();
+    return ss.str();
 }
     
 }

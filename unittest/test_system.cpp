@@ -5,6 +5,7 @@
 #define NODE_1_FOLDER "/tmp/test-system/node-1"
 
 void prepare_system_folders(std::string folder, int endpoint_port,
+                            int json_rpc_port,
                             std::vector<std::string> siblings) {
     erase_tmp_folder(folder);
     Poco::File bf(folder);
@@ -28,6 +29,7 @@ void prepare_system_folders(std::string folder, int endpoint_port,
         file << "block_record_outbound_batch_size = 100" << std::endl;
         file << "group_register_topic_id = 0.0.79574" << std::endl;
         file << "topic_reset_allowed = 1" << std::endl;
+        file << "json_rpc_port = " << json_rpc_port << std::endl;
 
         file.close();
     }
@@ -49,7 +51,7 @@ public:
 /*
 TEST(GradidoSystem, delay_task) {
     
-    prepare_system_folders(NODE_0_FOLDER, 13000, 
+    prepare_system_folders(NODE_0_FOLDER, 13000, 0,
                            std::vector<std::string>());
 
     GradidoFacade gf0;
@@ -68,13 +70,12 @@ TEST(GradidoSystem, delay_task) {
 TEST(GradidoSystem, smoke) {
 
     // checking if group contents is properly fetched from another node
-    prepare_system_folders(NODE_0_FOLDER, 13000, 
+    prepare_system_folders(NODE_0_FOLDER, 13000, 0,
                            std::vector<std::string>());
     GradidoNodeDeprecated gf0;
     {    
         std::vector<std::string> params;
-        params.push_back("unneeded param");
-        params.push_back(std::string(NODE_0_FOLDER) + "/gradido.conf");
+        chdir(NODE_0_FOLDER);
         gf0.init(params);
     }
     HederaTopicID tid;
@@ -86,12 +87,11 @@ TEST(GradidoSystem, smoke) {
 
     std::vector<std::string> siblings1;
     siblings1.push_back("0.0.0.0:" + std::to_string(13000));
-    prepare_system_folders(NODE_1_FOLDER, 13001, siblings1);
+    prepare_system_folders(NODE_1_FOLDER, 13001, 0, siblings1);
     GradidoNodeDeprecated gf1;
     {    
         std::vector<std::string> params;
-        params.push_back("unneeded param");
-        params.push_back(std::string(NODE_1_FOLDER) + "/gradido.conf");
+        chdir(NODE_1_FOLDER);
         gf1.init(params);
     }
     sleep(1);

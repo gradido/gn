@@ -26,11 +26,10 @@ message SignaturePair {
         bytes ed25519 = 2; // ed25519 signature (libsodium default)
 		bytes ed25519_ref10 = 3; // ed25519 ref10 signature
     }
-    // TODO: get rid of optional keyword
-    optional uint32 signed_signatures = 4; // how many signatures were 
-                                           // part of material
-    optional uint32 signed_body_bytes_size = 5; // how large was 
-                                                // body_bytes when signed
+    uint32 signed_signatures = 4; // how many signatures were 
+                                  // part of material
+    uint32 signed_body_bytes_size = 5; // how large was 
+                                       // body_bytes when signed
 }
 
 message SignatureMap {

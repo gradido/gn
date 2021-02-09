@@ -42,6 +42,7 @@ namespace gradido {
         WorkerPool* wp = (WorkerPool*)arg;
         while (1) {
             ITask* task = 0;
+            bool tle = false;
             {
                 MLock lock(wp->main_lock);
                 wp->busy_workers--;
@@ -54,10 +55,17 @@ namespace gradido {
                 task = wp->queue.front();
                 wp->queue.pop();
                 wp->busy_workers++;
+                tle = wp->task_logging_enabled;
             }
-            //            try {
+            try {
+                if (!task)
+                    throw std::runtime_error("null task");
+                if (tle)
+                    LOG("running task " << task->get_task_info());
                 task->run();
-                /*
+                if (tle)
+                    LOG("task done " << task->get_task_info());
+
             } catch (std::exception& e) {
                 std::string msg = "error in worker thread: " + 
                     std::string(e.what());
@@ -66,12 +74,13 @@ namespace gradido {
             } catch (...) {
                 LOG("unknown error");
                 wp->gf->exit(1);
-                }*/
+            }
             delete task;
         }
     }
 
     WorkerPool::WorkerPool(IGradidoFacade* gf, std::string name) : 
+        task_logging_enabled(false),
         gf(gf), name(name), shutdown(false), busy_workers(0) {
         SAFE_PT(pthread_mutex_init(&main_lock, 0));
         SAFE_PT(pthread_cond_init(&queue_cond, 0));
@@ -83,6 +92,10 @@ namespace gradido {
     }
     void WorkerPool::init(int worker_count) {
         MLock lock(main_lock);
+        std::string ele = gf->get_env_var(EXTENSIVE_LOGGING_ENABLED);
+        if (ele.length() > 0)
+            task_logging_enabled = true;
+
         busy_workers = worker_count;
         for (int i = 0; i < worker_count; i++) {
             pthread_t t;

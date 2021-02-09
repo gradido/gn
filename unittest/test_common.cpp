@@ -35,6 +35,14 @@ bool should_use_valgrind() {
     return uv.length() > 0;
 }
 
-bool use_valgring = should_use_valgrind();
+bool use_valgrind = should_use_valgrind();
+
+std::string init_build_dir() {
+    std::string res = Poco::Path::current();
+    res = build_dir.substr(0, build_dir.length() - 1);
+    return res;
+}
+
+std::string build_dir = init_build_dir();
 
 

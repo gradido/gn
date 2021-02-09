@@ -48,8 +48,11 @@ namespace gradido {
     }
 
     void CommunicationLayer::PollService::stop() {
-        // TODO: probably shut down streams as well
         shutdown = true;
+
+        LOG("stopping poll service");
+        for (auto i : clients)
+            i->stop(cq);
         cq.Shutdown();
     }
 
@@ -154,14 +157,16 @@ namespace gradido {
     }
 
     CommunicationLayer::~CommunicationLayer() {
-        for (auto* i : poll_services)
+        for (auto* i : poll_services) {
             i->stop();
+            // deleted by worker pool when done
+        }
+
         if (rpcs_service)
             rpcs_service->stop();
-
         worker_pool.init_shutdown();
         worker_pool.join();
-        
+
         // tasks (poll services) are owned by worker pool and deleted
         // from it
 

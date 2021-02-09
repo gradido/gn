@@ -69,11 +69,11 @@ public:
 
 class AbstractFacade : public IAbstractFacade {
 private:
-    IGradidoConfig* config;
-    WorkerPool worker_pool;
-    CommunicationLayer communication_layer;
-    bool task_logging_enabled;
     pthread_mutex_t main_lock;
+    bool task_logging_enabled;
+    IGradidoConfig* config;
+    CommunicationLayer communication_layer;
+    WorkerPool worker_pool;
 public:
     AbstractFacade(IGradidoFacade* gf);
     virtual ~AbstractFacade();

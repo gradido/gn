@@ -12,14 +12,20 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
+// TODO: remove
+#include <iostream>
 
 namespace gradido {
+
+    // those containers attempt to zero objects they return; if T is
+    // polymorphic, reset_to_zero() method is called; otherwise it is
+    // memset()
 
     // assumes allocated blocks won't need to be released during lifetime
     // of this object; block contents is initialized to 0, without
     // calling T constructor
     //
-    // T cannot be array type
+    // T cannot be array
     template<typename T>
     class PermanentBlockAllocator {
     private:
@@ -29,18 +35,29 @@ namespace gradido {
         const size_t block_size;
 
         PermanentBlockAllocator(size_t block_size) : 
-        block_size(block_size) {
-        }
+        block_size(block_size) {}
 
         ~PermanentBlockAllocator() {
             for (auto i : blocks) {
                 delete [] i;
             }
+            blocks.clear();
         }
 
-        void allocate(T** out) {
-            *out = new T[block_size];
-            memset(*out, 0, sizeof(T) * block_size);
+        template<typename T2=T>
+        typename std::enable_if<std::is_polymorphic<T2>::value, void>::type
+        allocate(T2** out) {
+            *out = new T2[block_size];
+            for (int i = 0; i < block_size; i++)
+                (*out)[i].reset_to_zero();
+            blocks.push_front(*out);
+        }
+
+        template<typename T2=T>
+        typename std::enable_if<!std::is_polymorphic<T2>::value, void>::type
+        allocate(T2** out) {
+            *out = new T2[block_size];
+            memset(*out, 0, sizeof(T2) * block_size);
             blocks.push_front(*out);
         }
     };
@@ -135,6 +152,21 @@ namespace gradido {
         ItemList no_payload;
         ItemList ready;
         ItemList used;
+
+        template<typename T2=T, int TCount2=TCount>
+        typename std::enable_if<std::is_polymorphic<T2>::value, void>::type
+        reset_to_zero(T2* rec) {
+            for (int i = 0; i < TCount2; i++)
+                rec[i].reset_to_zero();
+        }
+
+        template<typename T2=T, int TCount2=TCount>
+        typename std::enable_if<!std::is_polymorphic<T2>::value, void>::type
+        reset_to_zero(T2* rec) {
+            memset(rec, 0, sizeof(T2) * TCount2);
+        }
+
+
     public:
         BigObjectMemoryPool(size_t item_block_size) : 
         item_allocator(item_block_size) {
@@ -165,7 +197,7 @@ namespace gradido {
             if (ready.count > 0) {
                 Item* item = ready.pop();
                 res = item->payload;
-                memset(res, 0, sizeof(T) * TCount);
+                reset_to_zero(res);
                 item->payload = 0;
                 used.push(item);
             } else if (no_payload.count > 0) {
@@ -177,7 +209,7 @@ namespace gradido {
                  } else {
                     res = new T[TCount];
                 }
-                memset(res, 0, sizeof(T) * TCount);
+                reset_to_zero(res);
             } else {
                 Item* new_items;
                 item_allocator.allocate(&new_items);

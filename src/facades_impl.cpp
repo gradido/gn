@@ -34,12 +34,15 @@ namespace gradido {
     };
 
     AbstractFacade::AbstractFacade(IGradidoFacade* gf) : 
-        config(0), worker_pool(gf, "main"), communication_layer(gf),
-        task_logging_enabled(false) {
+        task_logging_enabled(false), config(0), communication_layer(gf),
+        worker_pool(gf, "main") {
         SAFE_PT(pthread_mutex_init(&main_lock, 0));
     }
 
     AbstractFacade::~AbstractFacade() {
+        worker_pool.init_shutdown();
+        worker_pool.join();
+
         if (config) {
             delete config;
             config = 0;
@@ -134,7 +137,9 @@ namespace gradido {
     std::string AbstractFacade::get_env_var(std::string name) {
         MLock lock(main_lock);
         char* cc = std::getenv(name.c_str());
-        return std::string(cc ? cc : "");
+        if (cc && *cc)
+            return std::string(cc);
+        else return std::string();
     }
     
 

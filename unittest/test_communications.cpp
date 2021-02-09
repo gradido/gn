@@ -3,7 +3,7 @@
 #include "communications.h"
 #include "facades_impl.h"
 
-class AlmostEmptyFacade : public EmptyFacade {
+class AlmostEmptyFacade : public EnvFacade {
 private:
     WorkerPool worker_pool;
  public:

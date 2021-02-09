@@ -1,0 +1,210 @@
+This contains description of important invariances of blockchain and 
+distributed system. Tag numbers are expected to be used inside code, 
+therefore they should not be changed.
+
+This doesn't describe everything; for example, data types aren't 
+elaborated. Purpose of those rules is to describe most important 
+invariances, to be able to test code and validate blockchains. In 
+practice, it should be used together with code, describing data 
+structures, process of data signing, calculating checksums, etc.
+
+--- base
+#00001 blockchain consists of equal-sized rows (lines)
+#00002 blockchain always ends with checksum if at least one record is in 
+       it
+#00003 blockchain consists of equal-sized blocks; each block ends with
+       checksum; each block has constant number of rows in it
+#00004 block size doesn't change during operation; block is created in
+       exact size and filled with ASCII null characters; this character 
+       is used for all data which is logically NULL
+#00005 each record contains record version number
+#00006 each new record version should not break previous version 
+       validation
+#00007 transaction is the logical unit, which makes blockchain
+#00008 each transaction can span one or more records
+#00009 transaction can have more records than it is allowed in block
+#00010 participant is an entity identify-able by its private/public key
+       pair and ability to sign transactions with it
+#00011 each transaction is expected to be signed by one or more 
+       participant
+#00012 gradido distributed network performs necessary functions for
+       processing gradido financial data
+#00013 node is a process which performs clearly defined functions in a
+       distributed network
+#00014 ordering service is a node which assigns sequence number and 
+       timestamp to transactions which are to be insterted into 
+       blockchain
+#00015 sequence number of a blockchain can be only growing, it starts 
+       with 1 and doesn't have holes
+#00016 transaction timestamp is only growing
+#00017 transaction timestamp is Unix time (seconds from 00:00:00 1 
+       January 1970) and nanoseconds for the last second
+#00018 transaction's records all have same record version number, which 
+       is described in first record
+#00019 each transaction can have ordinary fields and calculated fields
+#00020 ordinary field data is provided by creator of transaction
+#00021 calculated field data is obtained before inserting transaction in
+       blockchain
+#00022 calculated field data is functionally dependent only on data 
+       currently inside blockchain
+#00023 it should be possible to check blockchain validity by moving
+       through its records, checking signatures, checksums and calculated
+       fields; no other source of data is necessary to do formal 
+       validation
+#00024 result field is a calculated field which denotes if transaction
+       was successful and error code in case of failure
+#00025 checksum is created by concatenating previous checksum and last
+       record, then applying checksum algorithm
+#00026 for the first record, previous checksum is string of ASCII null
+       characters (on #00025)
+#00027 each blockchain has its ordering service
+#00028 when a node starts it may require missing blockchain data from
+       other nodes
+#00029 node may require blockchain checksum list before getting 
+       blockchain data
+
+
+--- gradido
+#01000 login nodes are sending gradido transactions to ordering service
+#01001 gradido nodes are listening to ordering service, each receiving 
+       stream of ordered transactions and storing them into blockchain
+#01002 gradido group is a group of people participating in gradido
+       financial system
+#01003 there are multiple groups in gradido financial system
+#01004 each gradido group is hosted by a particular login node
+#01005 each gradido group has its own blockchain where financial data
+       is stored
+#01006 each user has to be created inside group's blockchain before he
+       can do any transactions
+       ??? who is signing initial / other add_user?
+#01007 gradido currency is created in user's accounts by a special
+       transaction
+       ??? who is signing it?
+#01008 not more than certain amount of gradidos can be created per 
+       month for a single user
+       ??? need to specify amount
+#01009 exception to #01008 is first month of a user in a blockchain;
+       at this time it is possible to create gradidos for three months
+       instead of one
+#01010 gradido creation for a month can be split into multiple 
+       transactions
+#01011 gradido users can send currency from one to another if they are
+       in the same group
+#01012 to send currency to a user inside another group, both groups 
+       should be friends
+#01013 group friendship is denoted by existence of two transactions, one
+       per involved group, in their respective blockchains
+#01014 group friendship transaction should be signed by majority of 
+       group's users
+       ??? specify other ways
+#01015 transaction between two groups is called cross-group transaction
+#01016 each cross-group transaction involves two actual transactions
+       in both blockchains, in following sequence: 1) outbound 
+       transaction on sender blockchain's side; 2) inbound transaction
+       on receive blockchain's side
+#01017 inbound and outbound transactions are sharing common paired
+       transaction id which allows to relate them one to another
+#01018 receiving side doesn't sign (or agree) to receive gradidos
+#01019 if outbound transaction is successful (sender has enough 
+       gradidos), its amount is no longer accessible to sender 
+       immediately, without waiting for corresponding inbound 
+       transaction to be added to receiver's blockchain
+#01020 group friendship can be cancelled unilaterally by majority
+       decision
+       ??? specify other ways
+#01021 user can be deleted from a group
+       ??? by who?
+#01022 outbound transactions always result in inbound transaction, even
+       if receiver user doesn't exist or if outbound transaction failed
+       because of insufficient funds
+#01023 if for some reason inbound transaction fails, sender gets his
+       gradidos back in a separate transaction; the fact of failure (or
+       success) is always traceable in receiver's blockchain
+#01024 user can move between groups; it is also cross-group transaction
+#01025 user movement involves outbound transaction (signed by user
+       himself), inbound transaction (signed by majority of receiving
+       group)
+#01026 if inbound transaction fails, user is reinstated in his initial
+       group (for #01025)
+#01027 transaction which sends currency from one account to another is
+       called transfer
+#01028 each transfer shows resulting balance of participating local 
+       user(s) after it was done; only true for successful transfers
+#01029 transaction time is set on ordering node
+#01030 gradido currency decays over time
+#01031 decay rate is hardcoded
+       ??? can it be agreed upon?
+#01032 actual balance of a user is calculated from last successful
+       transfer
+#01033 initial amount of gradidos for a user is zero
+
+--- gradido node v1
+#02000 each gradido node can host more than one group blockchain
+#02001 each gradido group may have alias name
+#02002 group alias is globally unique
+
+
+--- subcluster extension (node v2)
+#03000 for subcluster extension #02002 is not valid
+#03001 each node has its identity (private/public key pair)
+#03002 node's identity is used to sign outgoing messages so receiver can
+       can verify sender
+#03003 a set of nodes are organized in subcluster
+#03004 subcluster is maintained by a group of admins
+#03005 subcluster can host more than one gradido group
+#03006 structure of subcluster is contained in subcluster blockchain
+#03006 subcluster includes at least one ordering node, which serves
+       subcluster blockchain (it is called subcluster's primary
+       ordering node)
+#03007 each admin has its identity
+#03008 admins are added / removed from subcluster blockchain by majority
+       decision (of admins)
+#03009 any admin can add / remove nodes from subcluster blockchain
+#03010 each node in subcluster receives subcluster blockchain updates
+#03011 each node has single endpoint for all of its defined operations
+#03012 each node receiving transactions for subcluster blockchain
+       determines calculated fields and stores transaction inside
+       local copy of blockchain
+#03013 each node has defined type
+#03014 each node uses contents of subcluster blockchain according to
+       its functions, its type
+#03015 ordering nodes can temporary ban users, admins, nodes if they
+       flood blockchains (subcluster and gradido)
+#03016 decision to issue temporary ban is automated and it should be
+       clear why it was done by looking on previous transactions in
+       corresponding blockchain (for #03015)
+#03017 temporary ban of an identity is sent to corresponding blockchain 
+       as a special transaction
+#03018 each blockchain has its primary ordering node
+#03018 primary ordering node sends blockchain updates to those, who have
+       subscribed to them
+#03019 by default, only valid identities are allowed to subscribe to a
+       blockchain
+#03020 once per day majority of admins have to send approval-to-continue
+       transaction to each blockchain; this indicates that subcluster is
+       healthy and hasn't been taken over
+#03021 all admins are notified by automated messages if temporary bans
+       or subcluster blockchain updates happen
+#03022 logger node is a node which writes subcluster-global logs
+#03023 each admin should deploy his own logger node, not accessible to
+       other admins (recommendation)
+#03024 subcluster blockchain has to be populated with identities of
+       the initial set of admins and its primary ordering node identity +
+       endpoint
+#03025 node is expected to generate its id locally when preparing to add
+       it to subcluster blockchain
+#03026 any node generating transactions has to sign them (without
+       calculated fields set)
+#03027 ordering node endpoint is gateway from one subcluster to another
+#03028 subcluster blockchain is expected to stay private
+#03029 admin and node identities are mentioned in gradido blockchain to
+       allow its validation as per #00023
+#03030 pinger nodes periodically send signed ping message to all nodes
+       in subcluster which is responded by signed pong message
+#03031 if pinger node doesn't receive pong message, it adds new event
+       in subcluster log (it is recommended to inform admins about it as
+       well)
+#03032 cross-group transactions between different subclusters are done
+       via ordering nodes of those subclusters, acting as gateways, as
+       per #03027
+

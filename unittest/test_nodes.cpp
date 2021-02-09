@@ -8,24 +8,24 @@
 #include "facades_impl.h"
 #include "blockchain_base.h"
 
-
 #define NODES_TEST_FOLDER "/tmp/nodes-test-folder"
 
 using namespace Poco;
 using namespace gradido;
 
-static EmptyFacade empty_facade;
+static EnvFacade empty_facade;
 static WorkerPool wp(&empty_facade, "test"); // for err writing
-static std::string build_dir;
-void init_build_dir() {
-    if (build_dir.length() == 0) {
-        build_dir = Poco::Path::current();
-        build_dir = build_dir.substr(0, build_dir.length() - 1);
+static bool wp_initialized = false;
+
+void init_wp() {
+    if (!wp_initialized) {
+        wp_initialized = true;
         wp.init(10); // should be at least as much as concurrent nodes
     }
 }
+
 void set_instance(std::string instance_path) {
-    init_build_dir();
+    init_wp();
     if (chdir(instance_path.c_str()) != 0)
         PRECISE_THROW(std::string("couldn't chdir to ") + 
                                  instance_path);
@@ -118,7 +118,7 @@ public:
     }
 
     void kill() {
-        if (use_valgring)
+        if (use_valgrind)
             Poco::Process::requestTermination(ph.id());
         else
             Poco::Process::kill(ph);
@@ -146,7 +146,7 @@ public:
     GlobalNodeOwner() {
         //LOG("taking global node ownership");
         erase_tmp_folder(NODES_TEST_FOLDER);
-        init_build_dir();
+        init_wp();
         while (wp.get_busy_worker_count() > 0) {
             LOG("waiting for " + std::to_string(
                                  wp.get_busy_worker_count()) +
@@ -171,11 +171,10 @@ TestProcess* start_process(std::string exe_name0,
                            Process::Args args,
                            std::string instance_path) {
     set_instance(instance_path);
-
     std::string exe_name = build_dir + "/" + exe_name0;
     std::string err_file = get_err_file(exe_name0, instance_path);
 
-    if (use_valgring) {
+    if (use_valgrind) {
         Process::Args args2 = args;
         args2.insert(args2.begin(), exe_name);
         return new TestProcess("valgrind", args2, err_file);
@@ -198,7 +197,7 @@ bool errlog_ends_with(std::string exe_name0,
     std::string str;
     std::string str2;
     while (std::getline(in, str)) {
-        if (use_valgring) {
+        if (use_valgrind) {
             if (str.length() == 0 || 
                 (str.length() > 1 && (str[0] == '=' && str[1] == '='))) {
                 // ignoring
@@ -299,7 +298,6 @@ void add_admin(std::string launcher_instance,
         PRECISE_THROW("adding admin to subcluster failed");
 }
 
-/*
 TEST(GradidoNodes, test_launch_logger) {
     std::string logger_instance;
 
@@ -347,7 +345,7 @@ TEST(GradidoNodes, test_launch_logger) {
               "submitting own entry to subcluster blockchain"), 
               true);
 }
-*/
+
 
 TEST(GradidoNodes, test_launch_initial_ordering) {
     std::string ordering_instance;

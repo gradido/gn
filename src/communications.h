@@ -114,6 +114,7 @@ private:
     public:
         virtual bool got_data() = 0;
         virtual void init(grpc::CompletionQueue& cq) = 0;
+        virtual void stop(grpc::CompletionQueue& cq) = 0;
     };
 
     class PollService : public ITask {
@@ -144,6 +145,12 @@ private:
         bool first_message;
     public:
         AbstractSubscriber(std::string endpoint);
+        virtual void stop(grpc::CompletionQueue& cq) {
+            grpc::Alarm alarm;
+            alarm.Set(&cq, 
+                      std::chrono::system_clock::now(), 
+                      (void*)this);
+        }
     };
 
     class TopicSubscriber : public AbstractSubscriber {
@@ -178,6 +185,7 @@ private:
 
         virtual bool got_data();
         virtual void init(grpc::CompletionQueue& cq);
+
     };
 
     class BlockChecksumSubscriber : public AbstractSubscriber {
@@ -194,6 +202,7 @@ private:
 
         virtual bool got_data();
         virtual void init(grpc::CompletionQueue& cq);
+
     };
 
     class OutboundSubscriber : public AbstractSubscriber {
@@ -229,6 +238,7 @@ private:
 
         virtual bool got_data();
         virtual void init(grpc::CompletionQueue& cq);
+
     };
 
     class Handshake0Subscriber : public TransactionSubscriber {
@@ -239,6 +249,8 @@ private:
         Handshake0Subscriber(std::string endpoint,
                              grpr::Transaction req,
                              GrprTransactionListener* gtl);
+
+
     };
 
     class Handshake2Subscriber : public TransactionSubscriber {

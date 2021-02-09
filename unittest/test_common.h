@@ -12,6 +12,7 @@
 #include "gmock/gmock.h"
 #include "gradido_interfaces.h"
 #include "blockchain.h"
+#include "facades_impl.h"
 
 /*
 - philosophy
@@ -82,6 +83,7 @@ struct SimpleRec {
     virtual ~SimpleRec() {}
     int index;
     virtual void empty() {}
+    void reset_to_zero() {index=0;}
 };
 
 class MockSimpleRec : public SimpleRec {
@@ -96,6 +98,20 @@ extern bool not_supported_init_done;
 
 
 // some test cases uses this
-extern bool use_valgring;
+extern bool use_valgrind;
+
+class EnvFacade : public EmptyFacade {
+ public:
+    EnvFacade() {}
+    virtual std::string get_env_var(std::string name) {
+        if (name.compare(EXTENSIVE_LOGGING_ENABLED) == 0)
+            return "1";
+        else throw std::runtime_error("unexpected env var");
+    }
+
+};
+
+extern std::string build_dir;
+
 
 #endif
