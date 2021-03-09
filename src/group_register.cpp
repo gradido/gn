@@ -22,7 +22,7 @@ namespace gradido {
                 GroupRegisterRecord* pp = &rec->payload;
 
                 if (pp->record_type == 
-                    GroupRegisterRecordType::GROUP_RECORD && 
+                    (uint8_t)GroupRegisterRecordType::GROUP_RECORD && 
                     pp->group_record.success) {
 
                     // TODO: check false negatives
@@ -62,16 +62,15 @@ namespace gradido {
                                    HederaTopicID tid) {
         MLock lock(main_lock);
         GroupRegisterRecord rec1;
-        memset(&rec1, 0, sizeof(GroupRegisterRecord));
-        rec1.record_type = GroupRegisterRecordType::GROUP_RECORD;
+        rec1.record_type = (uint8_t)GroupRegisterRecordType::GROUP_RECORD;
         GroupRecord& rec0 = rec1.group_record;
-        memset(&rec0, 0, sizeof(GroupRecord));
         strcpy((char*)rec0.alias, (char*)alias.c_str());
         rec0.topic_id = tid;
         rec0.success = alias.size() > 0 && 
             aliases.find(alias) == aliases.end();
-        if (rec0.success)
+        if (rec0.success) {
             aliases.insert({alias, rec0});
+        }
         StorageType::ExitCode ec;
         storage.append(&rec1, 1, ec);
     }
@@ -94,8 +93,8 @@ namespace gradido {
                     GroupRegisterRecord* pp = &rec->payload;
 
                     if (pp->record_type == 
-                        GroupRegisterRecordType::GROUP_RECORD && 
-                        pp->group_record.success) {
+                        (uint8_t)GroupRegisterRecordType::GROUP_RECORD
+                        && pp->group_record.success) {
                         GroupInfo gi;
                         memcpy(gi.alias, pp->group_record.alias, 
                                GROUP_ALIAS_LENGTH);

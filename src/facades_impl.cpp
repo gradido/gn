@@ -612,8 +612,15 @@ namespace gradido {
     void OrderingNode::continue_init_after_sb_done() {
         if (get_conf()->is_sb_host()) {
             IHandshakeHandler* hh = get_handshake_handler(true);
-            grpr::Transaction t = hh->get_h3_signed_contents();
-            // TODO: add it to sb
+            if (hh->did_handshake_occur()) {
+                grpr::Transaction t = hh->get_h3_signed_contents();
+                // sending it to "self" node
+                ICommunicationLayer* c = 
+                    gf->get_communications();
+                std::string ep =
+                    gf->get_sb_ordering_node_endpoint();
+                c->submit_to_blockchain(ep, t, &sbra);
+            }
         }
     }
 

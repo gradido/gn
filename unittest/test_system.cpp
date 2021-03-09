@@ -82,6 +82,10 @@ TEST(GradidoSystem, smoke) {
     tid.shardNum = 0;
     tid.realmNum = 0;
     tid.topicNum = 79606;
+
+    // TODO: consider
+    sleep(1);
+    
     gf0.get_group_register()->add_record("some-group", tid);
     sleep(1);
 
@@ -113,7 +117,6 @@ TEST(GradidoSystem, smoke) {
     ASSERT_EQ(tid.realmNum, gii.topic_id.realmNum);
     ASSERT_EQ(tid.topicNum, gii.topic_id.topicNum);
     LOG("group data exchange complete");
-
 }
 
 

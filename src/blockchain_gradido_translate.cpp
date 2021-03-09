@@ -114,7 +114,8 @@ namespace gradido {
             int buff_size = 1;
             GroupRegisterRecord* r0 = buff;
 
-            r0->record_type = (uint8_t)GROUP_RECORD;
+            r0->record_type = (uint8_t)
+                GroupRegisterRecordType::GROUP_RECORD;
             GroupRecord* tt = &r0->group_record;
 
             grpr::AddGroupToRegister tb;
@@ -160,7 +161,7 @@ namespace gradido {
             // main
             int buff_size = 1;
             GradidoRecord* r0 = buff;
-            r0->record_type = (uint8_t)GRADIDO_TRANSACTION;
+            r0->record_type = (uint8_t)GradidoRecordType::GRADIDO_TRANSACTION;
             Transaction* tt = &r0->transaction;
 
             grpr::GradidoTransaction gt;
@@ -183,7 +184,7 @@ namespace gradido {
                 batch.reset_blockchain = true;
                 return;
             } else if (tb.has_creation()) {
-                tt->transaction_type = (uint8_t)GRADIDO_CREATION;
+                tt->transaction_type = (uint8_t)TransactionType::GRADIDO_CREATION;
                 tt->gradido_creation.amount.amount = 
                     tb.creation().receiver().amount();
                 memcpy(tt->gradido_creation.user, 
@@ -193,10 +194,10 @@ namespace gradido {
                 std::string g = tb.group_friends_update().group();
                 // TODO: mention exact pb enum type
                 if (tb.group_friends_update().action() == 0) {
-                    tt->transaction_type = (uint8_t)ADD_GROUP_FRIEND;
+                    tt->transaction_type = (uint8_t)TransactionType::ADD_GROUP_FRIEND;
                     memcpy(tt->add_group_friend.group, g.c_str(), g.size());
                 } else {
-                    tt->transaction_type = (uint8_t)REMOVE_GROUP_FRIEND;
+                    tt->transaction_type = (uint8_t)TransactionType::REMOVE_GROUP_FRIEND;
                     memcpy(tt->remove_group_friend.group, g.c_str(), g.size());
                 }
             } else if (tb.has_group_member_update()) {
@@ -204,10 +205,10 @@ namespace gradido {
                 std::string u = tb.group_member_update().user_pubkey();
 
                 if (mut == 0) {
-                    tt->transaction_type = (uint8_t)ADD_USER;
+                    tt->transaction_type = (uint8_t)TransactionType::ADD_USER;
                     memcpy(tt->add_user.user, u.c_str(), PUB_KEY_LENGTH);
                 } else if (mut == 1) {
-                    tt->transaction_type = (uint8_t)MOVE_USER_INBOUND;
+                    tt->transaction_type = (uint8_t)TransactionType::MOVE_USER_INBOUND;
                     memcpy(tt->move_user_inbound.user, u.c_str(), PUB_KEY_LENGTH);
                     tt->move_user_inbound.paired_transaction_id = 
                         translate_Timestamp_from_pb(tb.group_member_update().
@@ -217,7 +218,7 @@ namespace gradido {
                     memcpy(tt->move_user_inbound.other_group, 
                            group.c_str(), group.size());
                 } else {
-                    tt->transaction_type = (uint8_t)MOVE_USER_OUTBOUND;
+                    tt->transaction_type = (uint8_t)TransactionType::MOVE_USER_OUTBOUND;
                     memcpy(tt->move_user_outbound.user, u.c_str(), PUB_KEY_LENGTH);
                     tt->move_user_outbound.paired_transaction_id = 
                         translate_Timestamp_from_pb(tb.group_member_update().
@@ -230,7 +231,7 @@ namespace gradido {
             } else if (tb.has_transfer()) {
                 grpr::GradidoTransfer g2 = tb.transfer();
                 if (g2.has_local()) {
-                    tt->transaction_type = (uint8_t)LOCAL_TRANSFER;
+                    tt->transaction_type = (uint8_t)TransactionType::LOCAL_TRANSFER;
                     tt->local_transfer.amount.amount = g2.local().sender().amount();
                     memcpy(tt->local_transfer.sender.user, 
                            g2.local().sender().pubkey().c_str(), 
@@ -239,7 +240,7 @@ namespace gradido {
                            g2.local().receiver().c_str(), 
                            PUB_KEY_LENGTH);
                 } else if (g2.has_inbound()) {
-                    tt->transaction_type = (uint8_t)INBOUND_TRANSFER;
+                    tt->transaction_type = (uint8_t)TransactionType::INBOUND_TRANSFER;
                     tt->inbound_transfer.amount.amount = g2.inbound().
                         sender().amount();
                     memcpy(tt->inbound_transfer.sender.user, 
@@ -255,7 +256,7 @@ namespace gradido {
                     memcpy(tt->inbound_transfer.other_group, 
                            group.c_str(), group.size());
                 } else if (g2.has_outbound()) {
-                    tt->transaction_type = (uint8_t)OUTBOUND_TRANSFER;
+                    tt->transaction_type = (uint8_t)TransactionType::OUTBOUND_TRANSFER;
                     tt->outbound_transfer.amount.amount =
                         g2.outbound().sender().amount();
                     memcpy(tt->outbound_transfer.sender.user, 
@@ -272,7 +273,7 @@ namespace gradido {
                            group.c_str(), group.size());
                 }
             }
-            tt->result == UNKNOWN;
+            tt->result = (uint8_t)TransactionResult::UNKNOWN;
 
             std::string memo = tb.memo();
             bool multipart_memo = false;
@@ -296,7 +297,7 @@ namespace gradido {
                 r0 = buff + buff_size;
                 buff_size++;
 
-                r0->record_type = (uint8_t)MEMO;
+                r0->record_type = (uint8_t)GradidoRecordType::MEMO;
                 memcpy(r0->memo, other_part.c_str(), other_part.size());
             }
 
@@ -304,7 +305,7 @@ namespace gradido {
             for (int i = 0; i < sig_part_count; i++) {
                 r0 = buff + buff_size;
                 buff_size++;
-                r0->record_type = (uint8_t)SIGNATURES;
+                r0->record_type = (uint8_t)GradidoRecordType::SIGNATURES;
                 for (int j = 0; j < SIGNATURES_PER_RECORD; j++) {
                     r0->signature[j] = translate_Signature_from_pb(gt.sig_map().sig_pair()[cs++]);
                     if (cs == tt->signature_count)

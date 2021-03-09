@@ -149,7 +149,7 @@ struct PACKED_STRUCT Signature {
     Signature() { ZERO_THIS; }
 };
 
-enum TransactionType {
+enum class TransactionType {
     GRADIDO_CREATION=1,
     ADD_GROUP_FRIEND,
     REMOVE_GROUP_FRIEND,
@@ -267,7 +267,7 @@ struct PACKED_STRUCT FriendUpdate {
 struct PACKED_STRUCT AddUser : public User {}; 
 struct PACKED_STRUCT MoveUser : public User, PairedTransaction, UserState {};
 
-enum TransactionResult {
+enum class TransactionResult {
     SUCCESS=0,
 
     // not yet decided
@@ -367,7 +367,7 @@ struct PACKED_STRUCT Transaction : public TransactionCommonHeader {
 #define SIGNATURES_PER_RECORD (int)(sizeof(Transaction) / sizeof(Signature))
 #define RAW_MESSAGE_PART_SIZE MEMO_PART_SIZE
 
-enum GradidoRecordType {
+enum class GradidoRecordType {
     BLANK=0,
     GRADIDO_TRANSACTION,
     MEMO,
@@ -376,7 +376,7 @@ enum GradidoRecordType {
     RAW_MESSAGE
 };
 
-enum StructurallyBadMessageResult {
+enum class StructurallyBadMessageResult {
     // couldn't be deserialized
     UNDESERIALIZABLE=1,
 
@@ -440,9 +440,8 @@ struct PACKED_STRUCT GroupRecord {
     GroupRecord() { ZERO_THIS; }
 };
 
-enum PACKED_STRUCT GroupRegisterRecordType {
-    // TODO: 1
-    GROUP_RECORD=0,
+enum class GroupRegisterRecordType {
+    GROUP_RECORD=1,
     GR_STRUCTURALLY_BAD_MESSAGE,
     GR_RAW_MESSAGE
 };

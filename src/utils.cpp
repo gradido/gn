@@ -14,97 +14,97 @@ namespace gradido {
 
 std::string get_as_str(TransactionType r) {
     switch (r) {
-    case GRADIDO_CREATION:
+    case TransactionType::GRADIDO_CREATION:
         return "GRADIDO_CREATION";
-    case ADD_GROUP_FRIEND:
+    case TransactionType::ADD_GROUP_FRIEND:
         return "ADD_GROUP_FRIEND";
-    case REMOVE_GROUP_FRIEND:
+    case TransactionType::REMOVE_GROUP_FRIEND:
         return "REMOVE_GROUP_FRIEND";
-    case ADD_USER:
+    case TransactionType::ADD_USER:
         return "ADD_USER";
-    case MOVE_USER_INBOUND:
+    case TransactionType::MOVE_USER_INBOUND:
         return "MOVE_USER_INBOUND";
-    case MOVE_USER_OUTBOUND:
+    case TransactionType::MOVE_USER_OUTBOUND:
         return "MOVE_USER_OUTBOUND";
-    case LOCAL_TRANSFER:
+    case TransactionType::LOCAL_TRANSFER:
         return "LOCAL_TRANSFER";
-    case INBOUND_TRANSFER:
+    case TransactionType::INBOUND_TRANSFER:
         return "INBOUND_TRANSFER";
-    case OUTBOUND_TRANSFER:
+    case TransactionType::OUTBOUND_TRANSFER:
         return "OUTBOUND_TRANSFER";
     }
 }
 
 std::string get_as_str(TransactionResult r) {
     switch (r) {
-    case SUCCESS:
+    case TransactionResult::SUCCESS:
         return "SUCCESS";
-    case UNKNOWN:
+    case TransactionResult::UNKNOWN:
         return "UNKNOWN";
-    case NOT_ENOUGH_GRADIDOS:
+    case TransactionResult::NOT_ENOUGH_GRADIDOS:
         return "NOT_ENOUGH_GRADIDOS";
-    case UNKNOWN_LOCAL_USER:
+    case TransactionResult::UNKNOWN_LOCAL_USER:
         return "UNKNOWN_LOCAL_USER";
-    case UNKNOWN_REMOTE_USER:
+    case TransactionResult::UNKNOWN_REMOTE_USER:
         return "UNKNOWN_REMOTE_USER";
-    case UNKNOWN_GROUP:
+    case TransactionResult::UNKNOWN_GROUP:
         return "UNKNOWN_GROUP";
-    case OUTBOUND_TRANSACTION_FAILED:
+    case TransactionResult::OUTBOUND_TRANSACTION_FAILED:
         return "OUTBOUND_TRANSACTION_FAILED";
-    case USER_ALREADY_EXISTS:
+    case TransactionResult::USER_ALREADY_EXISTS:
         return "USER_ALREADY_EXISTS";
-    case GROUP_IS_ALREADY_FRIEND:
+    case TransactionResult::GROUP_IS_ALREADY_FRIEND:
         return "GROUP_IS_ALREADY_FRIEND";
-    case GROUP_IS_NOT_FRIEND:
+    case TransactionResult::GROUP_IS_NOT_FRIEND:
         return "GROUP_IS_NOT_FRIEND";
     }
 }
 
 std::string get_as_str(StructurallyBadMessageResult r) {
     switch (r) {
-    case UNDESERIALIZABLE:
+    case StructurallyBadMessageResult::UNDESERIALIZABLE:
         return "UNDESERIALIZABLE";
-    case INVALID_SIGNATURE:
+    case StructurallyBadMessageResult::INVALID_SIGNATURE:
         return "INVALID_SIGNATURE";
-    case MISSING_SIGNATURE:
+    case StructurallyBadMessageResult::MISSING_SIGNATURE:
         return "MISSING_SIGNATURE";
-    case TOO_LARGE:
+    case StructurallyBadMessageResult::TOO_LARGE:
         return "TOO_LARGE";
-    case NEGATIVE_AMOUNT:
+    case StructurallyBadMessageResult::NEGATIVE_AMOUNT:
         return "NEGATIVE_AMOUNT";
-    case BAD_MEMO_CHARACTER:
+    case StructurallyBadMessageResult::BAD_MEMO_CHARACTER:
         return "BAD_MEMO_CHARACTER";
-    case BAD_ALIAS_CHARACTER:
+    case StructurallyBadMessageResult::BAD_ALIAS_CHARACTER:
         return "BAD_ALIAS_CHARACTER";
-    case KEY_SIZE_NOT_CORRECT:
+    case StructurallyBadMessageResult::KEY_SIZE_NOT_CORRECT:
         return "KEY_SIZE_NOT_CORRECT";
     }
 }
 
 std::string get_as_str(GradidoRecordType r) {
     switch (r) {
-    case BLANK:
+    case GradidoRecordType::BLANK:
         return "BLANK";
-    case GRADIDO_TRANSACTION:
+    case GradidoRecordType::GRADIDO_TRANSACTION:
         return "GRADIDO_TRANSACTION";
-    case MEMO:
+    case GradidoRecordType::MEMO:
         return "MEMO";
-    case SIGNATURES:
+    case GradidoRecordType::SIGNATURES:
         return "SIGNATURES";
-    case STRUCTURALLY_BAD_MESSAGE:
+    case GradidoRecordType::STRUCTURALLY_BAD_MESSAGE:
         return "STRUCTURALLY_BAD_MESSAGE";
-    case RAW_MESSAGE:
+    case GradidoRecordType::RAW_MESSAGE:
         return "RAW_MESSAGE";
     }
 }
 
 std::string get_as_str(GroupRegisterRecordType r) {
     switch (r) {
-    case GROUP_RECORD:
+    case GroupRegisterRecordType::GROUP_RECORD:
         return "GROUP_RECORD";
-    case GR_STRUCTURALLY_BAD_MESSAGE:
+    case GroupRegisterRecordType::GR_STRUCTURALLY_BAD_MESSAGE:
         return "GR_STRUCTURALLY_BAD_MESSAGE";
-    case GR_RAW_MESSAGE:
+    case GroupRegisterRecordType::GR_RAW_MESSAGE:
         return "GR_RAW_MESSAGE";
     }
 }
@@ -187,7 +187,7 @@ void dump_transaction_in_json(const GradidoRecord& t, std::ostream& out) {
         << "  \"record_type\": \"" << record_type << "\", " << std::endl;
 
     switch ((GradidoRecordType)t.record_type) {
-    case GRADIDO_TRANSACTION: {
+    case GradidoRecordType::GRADIDO_TRANSACTION: {
         const Transaction& u = t.transaction;
 
         char buff[1024];
@@ -225,7 +225,7 @@ void dump_transaction_in_json(const GradidoRecord& t, std::ostream& out) {
         out << "    \"transaction_type\": \"" << ttype << "\", " << std::endl;
 
         switch ((TransactionType)u.transaction_type) {
-        case GRADIDO_CREATION: {
+        case TransactionType::GRADIDO_CREATION: {
             const GradidoCreation& v = u.gradido_creation;
             dump_in_hex((char*)v.user, buff, PUB_KEY_LENGTH);
             std::string user(buff);
@@ -243,21 +243,21 @@ void dump_transaction_in_json(const GradidoRecord& t, std::ostream& out) {
             out << "    }," << std::endl;
             break;
         }
-        case ADD_GROUP_FRIEND: {
+        case TransactionType::ADD_GROUP_FRIEND: {
             std::string group((char*)u.add_group_friend.group);
             out << "    \"add_group_friend\": {" << std::endl;
             out << "      \"group\": \"" << group << "\"" << std::endl;
             out << "    }," << std::endl;
             break;
         }
-        case REMOVE_GROUP_FRIEND: {
+        case TransactionType::REMOVE_GROUP_FRIEND: {
             std::string group((char*)u.add_group_friend.group);
             out << "    \"remove_group_friend\": {" << std::endl;
             out << "      \"group\": \"" << group << "\"" << std::endl;
             out << "    }," << std::endl;
             break;
         }
-        case ADD_USER: {
+        case TransactionType::ADD_USER: {
             dump_in_hex((char*)u.add_user.user, buff, PUB_KEY_LENGTH);
             std::string user(buff);
             out << "    \"add_user\": {" << std::endl;
@@ -265,7 +265,7 @@ void dump_transaction_in_json(const GradidoRecord& t, std::ostream& out) {
             out << "    }," << std::endl;
             break;
         }
-        case MOVE_USER_INBOUND: {
+        case TransactionType::MOVE_USER_INBOUND: {
             dump_in_hex((char*)u.move_user_inbound.user, buff, 
                         PUB_KEY_LENGTH);
             std::string user(buff);
@@ -281,7 +281,7 @@ void dump_transaction_in_json(const GradidoRecord& t, std::ostream& out) {
             out << "    }," << std::endl;
             break;
         }
-        case MOVE_USER_OUTBOUND: {
+        case TransactionType::MOVE_USER_OUTBOUND: {
             dump_in_hex((char*)u.move_user_outbound.user, buff, 
                         PUB_KEY_LENGTH);
             std::string user(buff);
@@ -297,7 +297,7 @@ void dump_transaction_in_json(const GradidoRecord& t, std::ostream& out) {
             out << "    }," << std::endl;
             break;
         }
-        case LOCAL_TRANSFER: {
+        case TransactionType::LOCAL_TRANSFER: {
             const LocalTransfer& tt = u.local_transfer;
             dump_in_hex((char*)tt.sender.user, buff, 
                         PUB_KEY_LENGTH);
@@ -332,7 +332,7 @@ void dump_transaction_in_json(const GradidoRecord& t, std::ostream& out) {
             out << "    }," << std::endl;
             break;
         }
-        case INBOUND_TRANSFER: {
+        case TransactionType::INBOUND_TRANSFER: {
             const InboundTransfer& tt = u.inbound_transfer;
             dump_in_hex((char*)tt.sender.user, buff, 
                         PUB_KEY_LENGTH);
@@ -369,7 +369,7 @@ void dump_transaction_in_json(const GradidoRecord& t, std::ostream& out) {
             out << "    }," << std::endl;
             break;
         }
-        case OUTBOUND_TRANSFER: {
+        case TransactionType::OUTBOUND_TRANSFER: {
             const OutboundTransfer& tt = u.outbound_transfer;
             dump_in_hex((char*)tt.sender.user, buff, 
                         PUB_KEY_LENGTH);
@@ -415,11 +415,11 @@ void dump_transaction_in_json(const GradidoRecord& t, std::ostream& out) {
         break;
     }
 
-    case MEMO: {
+    case GradidoRecordType::MEMO: {
         out << "  \"memo\": \"" << std::string((char*)t.memo) << "\" " << std::endl;
         break;
     }
-    case SIGNATURES: {
+    case GradidoRecordType::SIGNATURES: {
         for (int i = 0; i < SIGNATURES_PER_RECORD; i++) {
             const Signature* s = t.signature + i;
             bool zeroes = true;
@@ -444,7 +444,7 @@ void dump_transaction_in_json(const GradidoRecord& t, std::ostream& out) {
         }
         break;
     }
-    case STRUCTURALLY_BAD_MESSAGE: {
+    case GradidoRecordType::STRUCTURALLY_BAD_MESSAGE: {
         // TODO: refactor
         const StructurallyBadMessage& u = t.structurally_bad_message;
         char buff[1024];

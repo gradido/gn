@@ -23,6 +23,8 @@ namespace gradido {
         bool h2_complete;
         grpr::Transaction h3_signed;
     public:
+        // receives h3; not accessible before h2 is processed, as "this"
+        // is passed to communications as a listener
         virtual void on_transaction(grpr::Transaction& t);
     public:
         HandshakeHandler(IGradidoFacade* gf) : gf(gf), sbra(gf), 
@@ -32,6 +34,8 @@ namespace gradido {
         virtual grpr::Transaction get_response_h2(grpr::Transaction req,
                                                   IVersioned* ve) {NOT_SUPPORTED;}
         virtual grpr::Transaction get_h3_signed_contents();
+        virtual bool did_handshake_occur() { return h2_complete; };
+
     };
 
     class StarterHandshakeHandler : public IHandshakeHandler,
@@ -49,6 +53,7 @@ namespace gradido {
         virtual grpr::Transaction get_response_h2(grpr::Transaction req,
                                                   IVersioned* ve);
         virtual grpr::Transaction get_h3_signed_contents() {NOT_SUPPORTED;}
+        virtual bool did_handshake_occur() {NOT_SUPPORTED;};
 
     };
 

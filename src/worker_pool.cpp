@@ -48,10 +48,8 @@ namespace gradido {
                 wp->busy_workers--;
                 while (wp->queue.size() == 0 && !wp->shutdown) 
                     pthread_cond_wait(&wp->queue_cond, &wp->main_lock);
-                if (wp->shutdown) {
-                    pthread_mutex_unlock(&wp->main_lock);
+                if (wp->shutdown)
                     break;
-                }
                 task = wp->queue.front();
                 wp->queue.pop();
                 wp->busy_workers++;

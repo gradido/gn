@@ -264,6 +264,7 @@ class AdvancedHTTPRequestHandler(BaseHTTPRequestHandler):
                     </select>
                     <input type="text" name="receiver">
                 amount: <input type="text" name="amount">
+                #: <input type="text" name="repetitions" value="1">
                 <input type="submit" value="transfer" %(transfer-disabled)s>
         </form>
         </div>
@@ -468,7 +469,8 @@ class AdvancedHTTPRequestHandler(BaseHTTPRequestHandler):
             self.backend.transfer(postvars["sender"][0],
                                   postvars["receiver"][0],
                                   float(postvars["amount"][0]),
-                                  postvars["receiver-bchain"][0]
+                                  postvars["receiver-bchain"][0],
+                                  int(postvars["repetitions"][0])
             )
 
         elif rt == "add-group":
@@ -787,14 +789,15 @@ class WebappDemoFull(object):
         self.set_topic_id(req, self.blockchains[self.blockchain_id])
         self.exec_req_sync(req)
 
-    def transfer(self, sender, receiver, amount, receiver_group_id):
+    def transfer(self, sender, receiver, amount, receiver_group_id,
+                 repetitions):
         if receiver_group_id == self.blockchain_id:
-            self.local_transfer(sender, receiver, amount)
+            self.local_transfer(sender, receiver, amount, repetitions)
         else:
             self.outbound_transfer(sender, receiver, amount, 
                                    receiver_group_id)
 
-    def local_transfer(self, sender, receiver, amount):
+    def local_transfer(self, sender, receiver, amount, repetitions):
         ii = self.context.path.as_arr()[1]
         sr = self.context.doc["steps"][ii]
         req = copy.deepcopy(sr["messages"]["hedera-message"])
@@ -812,9 +815,15 @@ class WebappDemoFull(object):
         req["_arg"]["request"]["bodyBytes"]["consensusSubmitMessage"][
             "message"]["body_bytes"]["transfer"]["local"][
                 "receiver"] = receiver_pubkey
-        self.set_transaction_id(req)
         self.set_topic_id(req, self.blockchains[self.blockchain_id])
+
+        for i in range(repetitions - 1):
+            zz = copy.deepcopy(req)
+            self.set_transaction_id(zz)
+            self.exec_req_sync(zz, False)
+        self.set_transaction_id(req)
         self.exec_req_sync(req)
+
 
     def inbound_transfer(self, sender, receiver, amount,
                          receiver_group_id, paired_transaction_id):

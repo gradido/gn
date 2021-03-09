@@ -364,8 +364,9 @@ message Transaction {
     // as well
     bytes body_bytes = 2;
     bool success = 3; // is ignored when Transaction is request
-    SignatureMap sigMap = 4; // signing material is body_bytes + 
-                             // version_number + success
+    SignatureMap sigMap = 4; // signature material is body_bytes + 
+                             // version_number + success + existing
+                             // signatures
 }
 
 message Ping {

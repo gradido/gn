@@ -663,6 +663,7 @@ public:
     virtual grpr::Transaction get_response_h2(grpr::Transaction req,
                                               IVersioned* ve) = 0;
     virtual grpr::Transaction get_h3_signed_contents() = 0;
+    virtual bool did_handshake_occur() = 0;
 };
 
 // nodes have some things in common, such as subcluster blockchain they
@@ -686,6 +687,7 @@ public:
     virtual std::string get_sb_ordering_node_endpoint() = 0;
     virtual std::string get_node_type_str() = 0;
 
+    // TODO: move to a separate facet
     virtual bool ordering_broadcast(IVersioned* ve,
                                     grpr::OrderingRequest* ore) = 0;
 };

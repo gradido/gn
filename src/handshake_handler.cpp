@@ -96,7 +96,7 @@ namespace gradido {
                 break;
             }
             
-            ve->sign(&t);
+            ve->sign(&t2);
             h2_complete = true;
 
             if (gf->get_conf()->is_sb_host()) {
@@ -111,10 +111,12 @@ namespace gradido {
                     gf->get_sb_ordering_node_endpoint();
                 c->submit_to_blockchain(ep, t2, &sbra);
             }
+
         } while (0);
 
         if (err_msg.length()) {
             err_msg += " " + debug_str(t);
+            // any error stops the node
             gf->exit(err_msg);
         }        
     }
@@ -200,6 +202,7 @@ namespace gradido {
                       grpr::Transaction req,
                       IVersioned* ve) {
 
+        // exits are OK, as it is launcher utility
         if (!h0_complete)
             gf->exit("h0 not yet completed");
 

@@ -80,7 +80,7 @@ void create_gradido_add_user_with_two_signatures(
     rec.buff = new GradidoRecord[2];
     GradidoRecord* buff = rec.buff;
     {
-        buff[0].record_type = (uint8_t)GRADIDO_TRANSACTION;
+        buff[0].record_type = (uint8_t)GradidoRecordType::GRADIDO_TRANSACTION;
         buff[0].transaction.version_number = 1;
         buff[0].transaction.parts = 2;
         buff[0].transaction.hedera_transaction.consensusTimestamp.seconds = 1;
@@ -92,12 +92,12 @@ void create_gradido_add_user_with_two_signatures(
         buff[0].transaction.signature.pubkey[0] = 1;
         buff[0].transaction.signature.signature[0] = 1;
         buff[0].transaction.signature_count = 2;
-        buff[0].transaction.transaction_type = (uint8_t)ADD_USER;
+        buff[0].transaction.transaction_type = (uint8_t)TransactionType::ADD_USER;
         buff[0].transaction.add_user.user[0] = seq_num;
-        buff[0].transaction.result = (uint8_t)SUCCESS;
+        buff[0].transaction.result = (uint8_t)TransactionResult::SUCCESS;
     }
     {
-        buff[1].record_type = (uint8_t)SIGNATURES;
+        buff[1].record_type = (uint8_t)GradidoRecordType::SIGNATURES;
         buff[1].signature[0].pubkey[0] = 2;
         buff[1].signature[0].signature[0] = 2;
     }

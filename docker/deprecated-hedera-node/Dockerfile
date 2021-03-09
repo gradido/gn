@@ -1,3 +1,7 @@
+# TODO: require 64 bit arch
+# TODO: inherit
+# TODO: unittests
+# TODO: dockerfiles by name (?)
 FROM ubuntu:bionic
 WORKDIR /opt
 RUN apt update && apt install -y apt-utils git cmake build-essential ccache

@@ -29,13 +29,13 @@ namespace gradido {
                 GradidoRecord* pp = &rec->payload;
 
                 if (pp->record_type == 
-                    GradidoRecordType::GRADIDO_TRANSACTION && 
+                    (uint8_t)GradidoRecordType::GRADIDO_TRANSACTION && 
                     pp->transaction.result == (uint8_t)TransactionResult::SUCCESS) {
 
                     const Transaction& tr = pp->transaction;
 
                     switch ((TransactionType)tr.transaction_type) {
-                    case GRADIDO_CREATION: {
+                    case TransactionType::GRADIDO_CREATION: {
                         std::string user = std::string(
                                                        (char*)tr.gradido_creation.user, 
                                                        PUB_KEY_LENGTH);
@@ -48,18 +48,18 @@ namespace gradido {
                             tr.hedera_transaction.consensusTimestamp;
                         break;
                     }
-                    case ADD_GROUP_FRIEND: {
+                    case TransactionType::ADD_GROUP_FRIEND: {
                         std::string group((char*)tr.remove_group_friend.group);
                         FriendGroupInfo gi;
                         friend_group_index.insert({group, gi});
                         break;
                     }
-                    case REMOVE_GROUP_FRIEND: {
+                    case TransactionType::REMOVE_GROUP_FRIEND: {
                         std::string group((char*)tr.remove_group_friend.group);
                         friend_group_index.erase(group);
                         break;
                     }
-                    case ADD_USER: {
+                    case TransactionType::ADD_USER: {
                         UserInfo ui;
                         ui.last_record_with_balance = rec_num;
                         ui.timestamp_of_last_balance = 
@@ -68,7 +68,7 @@ namespace gradido {
                                                        PUB_KEY_LENGTH), ui});
                         break;
                     }
-                    case MOVE_USER_INBOUND: {
+                    case TransactionType::MOVE_USER_INBOUND: {
                         UserInfo ui;
                         ui.current_balance = tr.move_user_inbound.new_balance;
                         ui.last_record_with_balance = i * GRADIDO_BLOCK_SIZE + j;
@@ -77,7 +77,7 @@ namespace gradido {
                                                        PUB_KEY_LENGTH), ui});
                         break;
                     }
-                    case MOVE_USER_OUTBOUND: {
+                    case TransactionType::MOVE_USER_OUTBOUND: {
                         std::string user = std::string(
                                                        (char*)tr.move_user_outbound.user, 
                                                        PUB_KEY_LENGTH);
@@ -86,7 +86,7 @@ namespace gradido {
 
                         break;
                     }
-                    case LOCAL_TRANSFER: {
+                    case TransactionType::LOCAL_TRANSFER: {
                         {
                             std::string user = std::string(
                                                            (char*)tr.local_transfer.sender.user, 
@@ -113,7 +113,7 @@ namespace gradido {
                         }
                         break;
                     }            
-                    case INBOUND_TRANSFER: {
+                    case TransactionType::INBOUND_TRANSFER: {
                         {
                             std::string user = 
                                 std::string(
@@ -129,7 +129,7 @@ namespace gradido {
                         }
                         break;
                     }
-                    case OUTBOUND_TRANSFER: {
+                    case TransactionType::OUTBOUND_TRANSFER: {
                         {
                             std::string user = std::string(
                                  (char*)tr.outbound_transfer.sender.user, 
@@ -182,7 +182,7 @@ namespace gradido {
         } while (rec && ec == StorageType::ExitCode::OK &&
           (rec->type != (uint8_t)StorageType::RecordType::PAYLOAD ||
            rec->payload.record_type != 
-           (uint8_t)GRADIDO_TRANSACTION));
+           (uint8_t)GradidoRecordType::GRADIDO_TRANSACTION));
 
         if (!rec) {
             // TODO: handle by erasing all
@@ -231,13 +231,13 @@ namespace gradido {
         Transaction& tr = b.buff[0].transaction;
 
         switch ((TransactionType)tr.transaction_type) {
-        case GRADIDO_CREATION: {
+        case TransactionType::GRADIDO_CREATION: {
             std::string user = std::string(
                                (char*)tr.gradido_creation.user, 
                                PUB_KEY_LENGTH);
             auto urec = user_index.find(user);
             if (urec == user_index.end())
-                tr.result = UNKNOWN_LOCAL_USER;
+                tr.result = (uint8_t)TransactionResult::UNKNOWN_LOCAL_USER;
             else {
                 urec->second.current_balance = 
                     calc_deflation(
@@ -250,7 +250,7 @@ namespace gradido {
                     tr.gradido_creation.amount;
                 tr.gradido_creation.prev_transfer_rec_num = 
                     urec->second.last_record_with_balance;
-                tr.result = SUCCESS;
+                tr.result = (uint8_t)TransactionResult::SUCCESS;
 
                 urec->second.current_balance += 
                     tr.gradido_creation.amount;
@@ -262,38 +262,38 @@ namespace gradido {
             }
             break;
         }
-        case ADD_GROUP_FRIEND: {
+        case TransactionType::ADD_GROUP_FRIEND: {
             std::string group = std::string((char*)tr.add_group_friend.group);
             auto grec = friend_group_index.find(group);;
             if (grec != friend_group_index.end()) {
-                tr.result = GROUP_IS_ALREADY_FRIEND;
+                tr.result = (uint8_t)TransactionResult::GROUP_IS_ALREADY_FRIEND;
             } else {
-                tr.result = SUCCESS;
+                tr.result = (uint8_t)TransactionResult::SUCCESS;
                 FriendGroupInfo gi;
                 friend_group_index.insert({group, gi});
             }
             break;
         }
-        case REMOVE_GROUP_FRIEND: {
+        case TransactionType::REMOVE_GROUP_FRIEND: {
             std::string group = std::string((char*)tr.remove_group_friend.group);
             auto grec = friend_group_index.find(group);;
             if (grec == friend_group_index.end()) {
-                tr.result = GROUP_IS_NOT_FRIEND;
+                tr.result = (uint8_t)TransactionResult::GROUP_IS_NOT_FRIEND;
             } else {
-                tr.result = SUCCESS;
+                tr.result = (uint8_t)TransactionResult::SUCCESS;
                 friend_group_index.erase(group);
             }
             break;
         }
-        case ADD_USER: {
+        case TransactionType::ADD_USER: {
             std::string user = std::string(
                                (char*)tr.add_user.user, 
                                PUB_KEY_LENGTH);
             auto urec = user_index.find(user);
             if (urec != user_index.end()) {
-                tr.result = USER_ALREADY_EXISTS;
+                tr.result = (uint8_t)TransactionResult::USER_ALREADY_EXISTS;
             } else {
-                tr.result = SUCCESS;
+                tr.result = (uint8_t)TransactionResult::SUCCESS;
                 UserInfo ui;
                 ui.last_record_with_balance = storage.get_rec_count();
                 ui.timestamp_of_last_balance = 
@@ -304,13 +304,13 @@ namespace gradido {
             }
             break;
         }
-        case MOVE_USER_INBOUND: {
+        case TransactionType::MOVE_USER_INBOUND: {
             std::string user = std::string(
                                (char*)tr.move_user_inbound.user, 
                                PUB_KEY_LENGTH);
             auto urec = user_index.find(user);
             if (urec != user_index.end()) {
-                tr.result = USER_ALREADY_EXISTS;
+                tr.result = (uint8_t)TransactionResult::USER_ALREADY_EXISTS;
             } else {
                 std::string sender_group((char*)tr.move_user_inbound.other_group);
                 IBlockchain* b = gf->get_group_blockchain(sender_group);
@@ -354,10 +354,10 @@ namespace gradido {
                                              paired_transaction);
                         return false;
                     } else {
-                        if (tt.result != SUCCESS) {
-                            tr.result = OUTBOUND_TRANSACTION_FAILED;
+                        if (tt.result != (uint8_t)TransactionResult::SUCCESS) {
+                            tr.result = (uint8_t)TransactionResult::OUTBOUND_TRANSACTION_FAILED;
                         } else {
-                            tr.result = SUCCESS;
+                            tr.result = (uint8_t)TransactionResult::SUCCESS;
 
                             UserInfo ui;
                             ui.current_balance = tr.move_user_inbound.new_balance;
@@ -375,22 +375,22 @@ namespace gradido {
 
             break;
         }
-        case MOVE_USER_OUTBOUND: {
+        case TransactionType::MOVE_USER_OUTBOUND: {
             outbound_transactions.insert({tr.move_user_outbound.paired_transaction_id, storage.get_rec_count() - 1});
             std::string user = std::string(
                                (char*)tr.move_user_outbound.user, 
                                PUB_KEY_LENGTH);
             auto urec = user_index.find(user);
             if (urec == user_index.end()) {
-                tr.result = UNKNOWN_LOCAL_USER;
+                tr.result = (uint8_t)TransactionResult::UNKNOWN_LOCAL_USER;
             } else {
-                tr.result = SUCCESS;
+                tr.result = (uint8_t)TransactionResult::SUCCESS;
                 user_index.erase(user);
 
             }
             break;
         }
-        case LOCAL_TRANSFER: {
+        case TransactionType::LOCAL_TRANSFER: {
             LocalTransfer& lt = tr.local_transfer;
             std::string sender = std::string(
                                (char*)lt.sender.user, 
@@ -409,9 +409,9 @@ namespace gradido {
 
             if (r_sender == user_index.end() || 
                 r_receiver == user_index.end()) {
-                tr.result = UNKNOWN_LOCAL_USER;
+                tr.result = (uint8_t)TransactionResult::UNKNOWN_LOCAL_USER;
             } else if (sender_amount < lt.amount) {
-                tr.result = NOT_ENOUGH_GRADIDOS;
+                tr.result = (uint8_t)TransactionResult::NOT_ENOUGH_GRADIDOS;
             } else {
                 r_sender->second.current_balance = sender_amount;
                 r_receiver->second.current_balance = 
@@ -437,11 +437,11 @@ namespace gradido {
                 r_receiver->second.last_record_with_balance =
                     storage.get_rec_count();
 
-                tr.result = SUCCESS;
+                tr.result = (uint8_t)TransactionResult::SUCCESS;
             }
             break;
         }            
-        case INBOUND_TRANSFER: {
+        case TransactionType::INBOUND_TRANSFER: {
             InboundTransfer& lt = tr.inbound_transfer;
             std::string sender = std::string(
                                  (char*)lt.sender.user, 
@@ -455,7 +455,7 @@ namespace gradido {
             auto r_receiver = user_index.find(receiver);
 
             if (r_receiver == user_index.end()) {
-                tr.result = UNKNOWN_LOCAL_USER;
+                tr.result = (uint8_t)TransactionResult::UNKNOWN_LOCAL_USER;
             } else {
 
                 IBlockchain* b = gf->get_group_blockchain(sender_group);
@@ -496,8 +496,8 @@ namespace gradido {
                                              paired_transaction);
                         return false;
                     } else {
-                        if (tt.result != SUCCESS) {
-                            tr.result = OUTBOUND_TRANSACTION_FAILED;
+                        if (tt.result != (uint8_t)TransactionResult::SUCCESS) {
+                            tr.result = (uint8_t)TransactionResult::OUTBOUND_TRANSACTION_FAILED;
                         } else {
                             r_receiver->second.current_balance = 
                             calc_deflation(
@@ -515,14 +515,14 @@ namespace gradido {
                             r_receiver->second.last_record_with_balance =
                                 storage.get_rec_count();
 
-                            tr.result = SUCCESS;
+                            tr.result = (uint8_t)TransactionResult::SUCCESS;
                         }
                     }
                 }
             }
             break;
         }
-        case OUTBOUND_TRANSFER: {
+        case TransactionType::OUTBOUND_TRANSFER: {
             outbound_transactions.insert({tr.outbound_transfer.paired_transaction_id, storage.get_rec_count() - 1});
 
             OutboundTransfer& lt = tr.outbound_transfer;
@@ -537,9 +537,9 @@ namespace gradido {
                          r_sender->second.current_balance);
 
             if (r_sender == user_index.end()) {
-                tr.result = UNKNOWN_LOCAL_USER;
+                tr.result = (uint8_t)TransactionResult::UNKNOWN_LOCAL_USER;
             } else if (sender_amount < lt.amount) {
-                tr.result = NOT_ENOUGH_GRADIDOS;
+                tr.result = (uint8_t)TransactionResult::NOT_ENOUGH_GRADIDOS;
             } else {
                 r_sender->second.current_balance = sender_amount;
 
@@ -552,7 +552,7 @@ namespace gradido {
                     tr.hedera_transaction.consensusTimestamp;
                 r_sender->second.last_record_with_balance =
                     storage.get_rec_count();
-                tr.result = SUCCESS;
+                tr.result = (uint8_t)TransactionResult::SUCCESS;
             }
             break;
         }
@@ -593,7 +593,7 @@ namespace gradido {
                                             Transaction& t) {
         GradidoRecord rec;
         bool res = get_transaction(seq_num, rec);
-        if (!res || rec.record_type != (uint8_t)GRADIDO_TRANSACTION)
+        if (!res || rec.record_type != (uint8_t)GradidoRecordType::GRADIDO_TRANSACTION)
             return false;
         t = rec.transaction;
         return true;

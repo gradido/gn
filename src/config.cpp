@@ -109,7 +109,8 @@ namespace gradido {
                 }
             }
         } catch (std::exception& e) {
-            PRECISE_THROW("Couldn't init blockchain groups: " + std::string(e.what()));
+            PRECISE_THROW("Couldn't init blockchain groups: " + 
+                          std::string(e.what()));
         }
     }
 
