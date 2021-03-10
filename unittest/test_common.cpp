@@ -1,5 +1,9 @@
 #include "test_common.h"
 #include <stdlib.h>
+#include <libgen.h>
+#include <unistd.h>
+#include <linux/limits.h>
+
 
 bool test_init_logging() {
     init_logging(true, true, true);
@@ -37,10 +41,16 @@ bool should_use_valgrind() {
 
 bool use_valgrind = should_use_valgrind();
 
+
 std::string init_build_dir() {
-    std::string res = Poco::Path::current();
-    res = build_dir.substr(0, build_dir.length() - 1);
-    return res;
+    char result[PATH_MAX];
+    ssize_t count = readlink("/proc/self/exe", result, PATH_MAX);
+    const char *path;
+    if (count != -1) {
+        path = dirname(result);
+    }
+
+    return std::string(path);
 }
 
 std::string build_dir = init_build_dir();

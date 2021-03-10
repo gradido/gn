@@ -9,7 +9,6 @@
 TEST(CreateKpIdentity, smoke) {
     using namespace Poco;
 
-    std::string build_dir = Poco::Path::current();
     std::string exe_name = "create_kp_identity";
 
     erase_tmp_folder(CREATE_KP_IDENTITY_FOLDER);
