@@ -111,6 +111,7 @@ public:
         istr(outPipe), estr(errPipe) {
         processes.push_back(this);
         wp.push(new ErrWriterTask(&estr, err_file));
+        sleep(1); // assuming process has enough time to set up ports
     }
 
     void wait() {
