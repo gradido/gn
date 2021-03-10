@@ -615,11 +615,13 @@ namespace gradido {
             if (hh->did_handshake_occur()) {
                 grpr::Transaction t = hh->get_h3_signed_contents();
                 // sending it to "self" node
+                /*
                 ICommunicationLayer* c = 
                     gf->get_communications();
                 std::string ep =
                     gf->get_sb_ordering_node_endpoint();
                 c->submit_to_blockchain(ep, t, &sbra);
+                */
             }
         }
     }
