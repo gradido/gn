@@ -1,0 +1,16 @@
+name: on-push
+on: push
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Build the stack
+        run: docker build -t gradido-node .
+      - name: Test
+        env:
+          # env is not needed for tests, just setting them to avoid warnings in logs
+          GN_INSTANCE_FOLDER: /tmp/gradio-node-instance
+          GN_CONTAINER_NAME: gradido-node-build
+        run: docker run gradido-node /opt/gn/build/unit_tests
+        timeout-minutes: 2
