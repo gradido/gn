@@ -6,7 +6,7 @@
 #define ERROR_CHECK(arg1, arg2, arg3) if (arg1 != arg2) cerr << arg3 << endl;
 #define DEFAULT_EXECUTOR_COUNT 2
 
-namespace timer_pool
+namespace gradido
 {
 
     Timer::~Timer() {}
@@ -97,8 +97,7 @@ namespace timer_pool
 
         pthread_mutexattr_t attr;
         ERROR_CHECK(pthread_mutexattr_init(&attr), 0, "Couldn't init mutex attr");
-        ERROR_CHECK(pthread_mutex_init(&m_fieldGuard, &attr), 0,
-                    "Couldn't init mutex");
+        MINIT(m_fieldGuard);
         ERROR_CHECK(pthread_mutexattr_destroy(&attr), 0,
                     "Couldn't destroy mutex attr");
     }
@@ -106,7 +105,7 @@ namespace timer_pool
     PooledTimer::~PooledTimer()
     {
         m_timerPool->removeTimer(this);
-        pthread_mutex_destroy(&m_fieldGuard);
+        MDESTROY(m_fieldGuard);
     }
 
     void PooledTimer::setListener(TimerListener* new_listener)
@@ -182,8 +181,7 @@ namespace timer_pool
         {
             pthread_mutexattr_t attr;
             ERROR_CHECK(pthread_mutexattr_init(&attr), 0, "Couldn't init mutex attr");
-            ERROR_CHECK(pthread_mutex_init(&m_mainLoopMutex, &attr), 0,
-                        "Couldn't init mutex");
+            MINIT(m_mainLoopMutex);
             ERROR_CHECK(pthread_mutexattr_destroy(&attr), 0,
                         "Couldn't destroy mutex attr");
             ERROR_CHECK(pthread_cond_init(&m_mainLoopCond, NULL), 0,
@@ -209,7 +207,7 @@ namespace timer_pool
         m_executorContainer.shutdown();
         pthread_mutex_unlock(&m_mainLoopMutex);
 
-        pthread_mutex_destroy(&m_mainLoopMutex);
+        MDESTROY(m_mainLoopMutex);
     }
 
     void TimerPool::stopMainLoop()
@@ -415,8 +413,7 @@ namespace timer_pool
         {
             pthread_mutexattr_t attr;
             ERROR_CHECK(pthread_mutexattr_init(&attr), 0, "Couldn't init mutex attr");
-            ERROR_CHECK(pthread_mutex_init(&m_executorMutex, &attr), 0,
-                        "Couldn't init mutex");
+            MINIT(m_executorMutex);
             ERROR_CHECK(pthread_mutexattr_destroy(&attr), 0,
                         "Couldn't destroy mutex attr");
             ERROR_CHECK(pthread_cond_init(&m_executorCond, NULL), 0,
@@ -623,8 +620,7 @@ namespace timer_pool
     {    
         pthread_mutexattr_t attr;
         ERROR_CHECK(pthread_mutexattr_init(&attr), 0, "Couldn't init mutex attr");
-        ERROR_CHECK(pthread_mutex_init(&m_fieldGuard, &attr), 0,
-                    "Couldn't init mutex");
+        MINIT(m_fieldGuard);
         ERROR_CHECK(pthread_mutexattr_destroy(&attr), 0,
                     "Couldn't destroy mutex attr");
 
@@ -636,7 +632,7 @@ namespace timer_pool
 
     TimerPool::ExecutorContainer::~ExecutorContainer()
     {
-        pthread_mutex_destroy(&m_fieldGuard);
+        MDESTROY(m_fieldGuard);
     }
 
     void TimerPool::ExecutorContainer::shutdown()

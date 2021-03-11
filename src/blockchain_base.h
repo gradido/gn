@@ -47,7 +47,7 @@ class BlockchainBase : public Parent,
                                                       transaction));
     }
     virtual void on_block_record(grpr::BlockRecord br) {
-        MLock lock(main_lock);
+        MLOCK(main_lock);
 
         if (state != FETCHING_BLOCKS)
             PRECISE_THROW(name + " on_block_record(): wrong state");
@@ -87,7 +87,7 @@ class BlockchainBase : public Parent,
     }
 
     virtual void on_block_checksum(grpr::BlockChecksum bc) {
-        MLock lock(main_lock);
+        MLOCK(main_lock);
 
         if (state != FETCHING_CHECKSUMS)
             PRECISE_THROW(name + " on_block_checksum(): wrong state");
@@ -242,11 +242,11 @@ class BlockchainBase : public Parent,
         batch_size(gf->get_conf()->
                    get_blockchain_append_batch_size()) {
 
-        SAFE_PT(pthread_mutex_init(&main_lock, 0));
+        MINIT(main_lock);
     }
 
     virtual void continue_validation() {
-        MLock lock(main_lock);
+        MLOCK(main_lock);
 
         switch (state) {
         case INITIAL: {
@@ -288,7 +288,7 @@ class BlockchainBase : public Parent,
     }    
 
     virtual void continue_with_transactions() {
-        MLock lock(main_lock);
+        MLOCK(main_lock);
         if (state != READY)
             return;
 
@@ -339,7 +339,7 @@ class BlockchainBase : public Parent,
     }
 
     virtual uint64_t get_transaction_count() {
-        MLock lock(main_lock);
+        MLOCK(main_lock);
         if (state != READY)
             return 0;
         uint64_t rc = storage.get_rec_count();
@@ -351,7 +351,7 @@ class BlockchainBase : public Parent,
 
     virtual void add_transaction(Batch<T> rec) {
         {
-            MLock lock(main_lock);
+            MLOCK(main_lock);
             inbound.push(rec);
         }
         continue_with_transactions();
@@ -366,12 +366,12 @@ class BlockchainBase : public Parent,
     }
 
     virtual uint32_t get_block_count() {
-        MLock lock(main_lock);
+        MLOCK(main_lock);
         return storage.get_block_count();
     }
 
     virtual void get_checksums(std::vector<BlockInfo>& res) {
-        MLock lock(main_lock);
+        MLOCK(main_lock);
         res.clear();
 
         for (uint32_t i = 0; i < storage.get_block_count(); i++) {
@@ -402,7 +402,7 @@ class BlockchainBase : public Parent,
     }
     virtual bool get_block_record(uint64_t seq_num, 
                                   grpr::BlockRecord& res) {
-        MLock lock(main_lock);
+        MLOCK(main_lock);
 
         uint32_t block_num = (uint32_t)(seq_num / GRADIDO_BLOCK_SIZE);
         
@@ -427,7 +427,7 @@ class BlockchainBase : public Parent,
 
     virtual bool get_block_record(uint64_t seq_num, 
                                   grpr::OutboundTransaction& res) {
-        MLock lock(main_lock);
+        MLOCK(main_lock);
 
         uint32_t block_num = (uint32_t)(seq_num / GRADIDO_BLOCK_SIZE);
         

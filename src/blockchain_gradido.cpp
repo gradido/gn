@@ -569,7 +569,7 @@ namespace gradido {
     bool BlockchainGradido::get_paired_transaction(HederaTimestamp hti, 
                                                    uint64_t& seq_num) {
         //TODO: make reentrant
-        //MLock lock(main_lock);
+        //MLOCK(main_lock);
 
         auto pt = outbound_transactions.find(hti);
         if (pt == outbound_transactions.end()) 
@@ -582,7 +582,7 @@ namespace gradido {
 
     void BlockchainGradido::on_paired_transaction_done(Transaction t) {
         {
-            MLock lock(main_lock);
+            MLOCK(main_lock);
             waiting_for_paired = false;
             paired_tr = t;
         }
@@ -611,7 +611,7 @@ namespace gradido {
     }
 
     std::vector<std::string> BlockchainGradido::get_users() {
-        MLock lock(main_lock);
+        MLOCK(main_lock);
         std::vector<std::string> res;
         for (auto i : user_index)
             res.push_back(i.first);

@@ -11,23 +11,23 @@
 
 namespace gradido {
 
-    class TimerListenerImpl : public timer_pool::TimerListener {
+    class TimerListenerImpl : public TimerListener {
     private:
         IAbstractFacade* gf;
         ITask* task;
-        timer_pool::Timer* timer;
+        Timer* timer;
     public:
         TimerListenerImpl(IAbstractFacade* gf, ITask* task,
                           uint32_t after_seconds) : 
             gf(gf), task(task), 
-            timer(timer_pool::TimerPool::getInstance()->createTimer()) {
+            timer(TimerPool::getInstance()->createTimer()) {
             timer->setListener(this);
             timer->start(after_seconds);
         }
         virtual ~TimerListenerImpl() {
             delete timer;
         }
-        virtual void timerEvent(timer_pool::Timer* timer) {
+        virtual void timerEvent(Timer* timer) {
             gf->push_task(task);
             delete this;
         }
@@ -36,7 +36,7 @@ namespace gradido {
     AbstractFacade::AbstractFacade(IGradidoFacade* gf) : 
         task_logging_enabled(false), config(0), communication_layer(gf),
         worker_pool(gf, "main") {
-        SAFE_PT(pthread_mutex_init(&main_lock, 0));
+        MINIT(main_lock);
     }
 
     AbstractFacade::~AbstractFacade() {
@@ -47,7 +47,7 @@ namespace gradido {
             delete config;
             config = 0;
         }
-        pthread_mutex_destroy(&main_lock);
+        MDESTROY(main_lock);
     }
 
     void AbstractFacade::init(const std::vector<std::string>& params,
@@ -135,7 +135,7 @@ namespace gradido {
     }
 
     std::string AbstractFacade::get_env_var(std::string name) {
-        MLock lock(main_lock);
+        MLOCK(main_lock);
         char* cc = std::getenv(name.c_str());
         if (cc && *cc)
             return std::string(cc);
@@ -171,7 +171,7 @@ namespace gradido {
     }
 
     void NodeFacade::init() {
-        MLock lock(main_lock);
+        MLOCK(main_lock);
         versioneds.insert({1, new Versioned_1()});
         IGradidoConfig* conf = gf->get_conf();
         if (conf->launch_token_is_present()) {
@@ -199,7 +199,7 @@ namespace gradido {
     }
 
     void NodeFacade::continue_init_after_handshake_done() {
-        MLock lock(main_lock);
+        MLOCK(main_lock);
         handshake_ongoing = false;
         start_sb();
     }
@@ -212,7 +212,7 @@ namespace gradido {
     }
 
     IVersioned* NodeFacade::get_versioned(int version_number) {
-        MLock lock(main_lock);
+        MLOCK(main_lock);
         auto z = versioneds.find(version_number);
         if (z == versioneds.end())
             return 0;
@@ -224,7 +224,7 @@ namespace gradido {
     }
 
     IHandshakeHandler* NodeFacade::get_handshake_handler(bool force) {
-        MLock lock(main_lock);
+        MLOCK(main_lock);
         return handshake_ongoing || force ? &hh : 0;
     }
 
@@ -273,7 +273,7 @@ namespace gradido {
     void GroupBlockchainFacade::init() {}
 
     IBlockchain* GroupBlockchainFacade::get_group_blockchain(std::string group) {
-        MLock lock(main_lock);
+        MLOCK(main_lock);
         auto ii = blockchains.find(group);
         if (ii == blockchains.end()) 
             return 0;
@@ -281,7 +281,7 @@ namespace gradido {
     }
 
     IBlockchain* GroupBlockchainFacade::create_group_blockchain(GroupInfo gi) {
-        MLock lock(main_lock);
+        MLOCK(main_lock);
         std::string alias(gi.alias);
         auto ii = blockchains.find(alias);
         if (ii != blockchains.end()) {
@@ -302,7 +302,7 @@ namespace gradido {
     IBlockchain* GroupBlockchainFacade::create_or_get_group_blockchain(std::string group) {
         IGradidoConfig* config = gf->get_conf();
 
-        MLock lock(main_lock);
+        MLOCK(main_lock);
         auto ii = blockchains.find(group);
         if (ii != blockchains.end())
             return ii->second;
@@ -328,7 +328,7 @@ namespace gradido {
     void GroupBlockchainFacade::on_paired_transaction(
                         grpr::OutboundTransaction br,
                         grpr::OutboundTransactionDescriptor req) {
-        MLock lock(main_lock);
+        MLOCK(main_lock);
 
         HederaTimestamp hti = TransactionUtils::translate_Timestamp_from_pb(req.paired_transaction_id());
 
@@ -354,7 +354,7 @@ namespace gradido {
             PRECISE_THROW("need sibling to get paired transaction");
         PairedTransactionData ptd;
         {
-            MLock lock(main_lock);
+            MLOCK(main_lock);
             auto zz = waiting_for_paired.find(hti);
             if (zz == waiting_for_paired.end())
                 PRECISE_THROW("cannot continue getting paired transaction");
@@ -376,7 +376,7 @@ namespace gradido {
             PRECISE_THROW("need sibling to get paired transaction");
         grpr::OutboundTransactionDescriptor otd;
         {
-            MLock lock(main_lock);
+            MLOCK(main_lock);
             auto zz = waiting_for_paired.find(hti);
             if (zz != waiting_for_paired.end()) {
                 // not more than one blockchain can request it
@@ -401,7 +401,7 @@ namespace gradido {
 
     bool GroupBlockchainFacade::get_random_sibling_endpoint(std::string& res) {
         IGradidoConfig* config = gf->get_conf();
-        MLock lock(main_lock);
+        MLOCK(main_lock);
         std::vector<std::string> s = config->get_sibling_nodes();
         if (!s.size())
             return false;

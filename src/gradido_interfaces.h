@@ -1,7 +1,6 @@
 #ifndef GRADIDO_INTERFACES_H
 #define GRADIDO_INTERFACES_H
 
-#include "gradido_core_utils.h"
 
 #include <unistd.h>
 #include <iostream>
@@ -9,6 +8,8 @@
 #include <string>
 #include <sstream>
 #include <pthread.h>
+
+#include "gradido_core_utils.h"
 #include "blockchain_gradido_def.h"
 #include "gradido_messages.h"
 

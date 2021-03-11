@@ -71,7 +71,7 @@ bool init_logging(bool include_line_header, bool init_shows_version,
                   bool show_precise_throw_origin) {
     logging_include_line_header = include_line_header;
     logging_show_precise_throw_origin = show_precise_throw_origin;
-    SAFE_PT(pthread_mutex_init(&gradido_logger_lock, 0));
+    MINIT(gradido_logger_lock);
     if (init_shows_version)
         LOG("gradido base " + get_gradido_version_string());
     return true;

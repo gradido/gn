@@ -2,8 +2,6 @@
 
 #include "timer_pool.h"
 
-using namespace timer_pool;
-
 class TestTimerListenerImpl : public TimerListener {
 public:
     virtual void timerEvent(Timer* timer) {

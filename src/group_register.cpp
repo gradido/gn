@@ -60,7 +60,7 @@ namespace gradido {
 
     void GroupRegister::add_record(std::string alias, 
                                    HederaTopicID tid) {
-        MLock lock(main_lock);
+        MLOCK(main_lock);
         GroupRegisterRecord rec1;
         rec1.record_type = (uint8_t)GroupRegisterRecordType::GROUP_RECORD;
         GroupRecord& rec0 = rec1.group_record;
@@ -76,7 +76,7 @@ namespace gradido {
     }
 
     std::vector<GroupInfo> GroupRegister::get_groups() {
-        MLock lock(main_lock);
+        MLOCK(main_lock);
         std::vector<GroupInfo> res;
         if (state == READY) {
             StorageType::ExitCode ec;

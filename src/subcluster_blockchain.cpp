@@ -208,7 +208,7 @@ namespace gradido {
     std::vector<std::string> SubclusterBlockchain::get_all_endpoints() {
         std::vector<std::string> res;
 
-        MLock lock(main_lock);
+        MLOCK(main_lock);
         for (auto i : nodes) {
             res.push_back(std::string((char*)i.second.endpoint));
         }

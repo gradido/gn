@@ -21,7 +21,8 @@ namespace gradido {
     GradidoSignals::GradidoSignals(IGradidoFacade* facade) : 
         shutdown(false), facade(facade), last_signal(-1) {
 
-        SAFE_PT(pthread_mutex_init(&main_lock, 0));
+        MINIT(main_lock);
+
         SAFE_PT(pthread_cond_init(&queue_cond, 0));
         SAFE_PT(pthread_create(&worker, 0, &run_entry, (void*)this));
 
@@ -29,13 +30,13 @@ namespace gradido {
     }
 
     void GradidoSignals::notify(int signum) {
-        MLock lock(main_lock);
+        MLOCK(main_lock);
         last_signal = signum;
         pthread_cond_broadcast(&queue_cond);
     }
 
     void GradidoSignals::do_shutdown() {
-        MLock lock(main_lock);
+        MLOCK(main_lock);
         shutdown = true;
         pthread_cond_signal(&queue_cond);
     }
@@ -43,7 +44,7 @@ namespace gradido {
     void* GradidoSignals::run_entry(void* arg) {
         GradidoSignals* gs = (GradidoSignals*)arg;
         while (1) {
-            MLock lock(gs->main_lock);
+            MLOCK(gs->main_lock);
             while (gs->last_signal == -1 && !gs->shutdown) 
                 pthread_cond_wait(&gs->queue_cond, &gs->main_lock);
             if (gs->shutdown)

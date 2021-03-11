@@ -11,17 +11,17 @@ namespace gradido {
         pthread_cond_t cond;
     public:
         SyncedTask(ITask* task) : task(task), finished_status(false) {
-            SAFE_PT(pthread_mutex_init(&main_lock, 0));
+            MINIT(main_lock);
             SAFE_PT(pthread_cond_init(&cond, 0));
         }
         virtual ~SyncedTask() {
             pthread_cond_destroy(&cond);
-            pthread_mutex_destroy(&main_lock);
+            MDESTROY(main_lock);
         }
         virtual void run() {
             task->run();
             {
-                MLock lock(main_lock);
+                MLOCK(main_lock);
                 finished_status = true;
                 pthread_cond_signal(&cond);
                 while (finished_status) 
@@ -29,7 +29,7 @@ namespace gradido {
             }
         }
         void join() {
-            MLock lock(main_lock);
+            MLOCK(main_lock);
             while (!finished_status) 
                 pthread_cond_wait(&cond, &main_lock);
             // signalling back to not allow premature destructor call
@@ -44,7 +44,7 @@ namespace gradido {
             ITask* task = 0;
             bool tle = false;
             {
-                MLock lock(wp->main_lock);
+                MLOCK(wp->main_lock);
                 wp->busy_workers--;
                 while (wp->queue.size() == 0 && !wp->shutdown) 
                     pthread_cond_wait(&wp->queue_cond, &wp->main_lock);
@@ -80,16 +80,16 @@ namespace gradido {
     WorkerPool::WorkerPool(IGradidoFacade* gf, std::string name) : 
         task_logging_enabled(false),
         gf(gf), name(name), shutdown(false), busy_workers(0) {
-        SAFE_PT(pthread_mutex_init(&main_lock, 0));
+        MINIT(main_lock);
         SAFE_PT(pthread_cond_init(&queue_cond, 0));
     }
     WorkerPool::WorkerPool(IGradidoFacade* gf) : 
         gf(gf), name("unknown"), shutdown(false), busy_workers(0) {
-        SAFE_PT(pthread_mutex_init(&main_lock, 0));
+        MINIT(main_lock);
         SAFE_PT(pthread_cond_init(&queue_cond, 0));
     }
     void WorkerPool::init(int worker_count) {
-        MLock lock(main_lock);
+        MLOCK(main_lock);
         std::string ele = gf->get_env_var(EXTENSIVE_LOGGING_ENABLED);
         if (ele.length() > 0)
             task_logging_enabled = true;
@@ -104,7 +104,7 @@ namespace gradido {
     }
     WorkerPool::~WorkerPool() {
         {
-            MLock lock(main_lock);
+            MLOCK(main_lock);
             shutdown = true;
             pthread_cond_broadcast(&queue_cond);
         }
@@ -113,7 +113,7 @@ namespace gradido {
             pthread_join(i, 0);
 
         {
-            MLock lock(main_lock);
+            MLOCK(main_lock);
             workers.clear();
         }
 
@@ -124,10 +124,10 @@ namespace gradido {
         }
 
         pthread_cond_destroy(&queue_cond);
-        pthread_mutex_destroy(&main_lock);
+        MDESTROY(main_lock);
     }
     void WorkerPool::push(ITask* task) {
-        MLock lock(main_lock);
+        MLOCK(main_lock);
         if (!shutdown) {
             queue.push(task);
             pthread_cond_signal(&queue_cond);
@@ -139,7 +139,7 @@ namespace gradido {
     void WorkerPool::push_and_join(ITask* task) {
         SyncedTask* task2 = 0;
         {
-            MLock lock(main_lock);
+            MLOCK(main_lock);
             if (!shutdown) {
                 task2 = new SyncedTask(task);
                 queue.push(task2);
@@ -154,7 +154,7 @@ namespace gradido {
 
 
     size_t WorkerPool::get_worker_count() {
-        MLock lock(main_lock);
+        MLOCK(main_lock);
         return workers.size();
     }
 
@@ -162,23 +162,23 @@ namespace gradido {
         for (auto i : workers)
             pthread_join(i, 0);
         {
-            MLock lock(main_lock);
+            MLOCK(main_lock);
             workers.clear();
         }
     }
 
     size_t WorkerPool::get_task_queue_size() {
-        MLock lock(main_lock);
+        MLOCK(main_lock);
         return queue.size();
     }
 
     size_t WorkerPool::get_busy_worker_count() {
-        MLock lock(main_lock);
+        MLOCK(main_lock);
         return busy_workers;
     }
 
     void WorkerPool::init_shutdown() {
-        MLock lock(main_lock);
+        MLOCK(main_lock);
         shutdown = true;
         pthread_cond_broadcast(&queue_cond);
     }

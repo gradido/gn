@@ -35,12 +35,13 @@ either expressed or implied, of the FreeBSD Project.
 #include <set>
 #include <map>
 #include <iostream>
+#include "gradido_core_utils.h"
 
 using namespace std;
 
-#define TIMER_POOL timer_pool::TimerPool::getInstance()
+#define TIMER_POOL gradido::TimerPool::getInstance()
 
-namespace timer_pool
+namespace gradido
 {
     class TimerListener;
 

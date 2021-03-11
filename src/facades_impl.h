@@ -129,10 +129,10 @@ private:
     
 public:
     GroupBlockchainFacade(IGradidoFacade* gf) : gf(gf) {
-        SAFE_PT(pthread_mutex_init(&main_lock, 0));
+        MINIT(main_lock);
     }
     virtual ~GroupBlockchainFacade() {
-        pthread_mutex_destroy(&main_lock);
+        MDESTROY(main_lock);
     }
 
     virtual void init();
@@ -367,10 +367,10 @@ public:
     NodeFacade(IGradidoFacade* gf) : gf(gf), sb(0), hh(gf), 
         handshake_ongoing(false), 
         current_version_number(DEFAULT_VERSION_NUMBER) {
-            SAFE_PT(pthread_mutex_init(&main_lock, 0));
+            MINIT(main_lock);
     }
     virtual ~NodeFacade() {
-        pthread_mutex_destroy(&main_lock);
+        MDESTROY(main_lock);
         for (auto i : versioneds)
             delete i.second;
     }

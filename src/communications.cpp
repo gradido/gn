@@ -101,7 +101,7 @@ namespace gradido {
         gf(gf), worker_pool(gf, "comm-workers"), 
         round_robin_distribute_counter(0), 
         rpcs_service(0), jsonrpc_svs(0), jsonrpc_srv(0) {
-        SAFE_PT(pthread_mutex_init(&main_lock, 0));
+        MINIT(main_lock);
     }
 
     void CommunicationLayer::init(int worker_count,
@@ -182,7 +182,7 @@ namespace gradido {
     void CommunicationLayer::receive_hedera_transactions(std::string endpoint,
                                                          HederaTopicID topic_id,
                                                          TransactionListener* tl) {
-        MLock lock(main_lock); 
+        MLOCK(main_lock); 
         PollService* ps = get_poll_service();
         TopicSubscriber* ts = new TopicSubscriber(endpoint, topic_id, tl);
         ps->add_client(ts);
@@ -196,14 +196,14 @@ namespace gradido {
     }
 
     void CommunicationLayer::stop_receiving_gradido_transactions(HederaTopicID topic_id) {
-        MLock lock(main_lock); 
+        MLOCK(main_lock); 
         // TODO
     }
 
     void CommunicationLayer::require_block_data(std::string endpoint,
                                                 grpr::BlockDescriptor brd, 
                                                 BlockRecordReceiver* rr) {
-        MLock lock(main_lock); 
+        MLOCK(main_lock); 
         PollService* ps = get_poll_service();
         BlockSubscriber* bs = new BlockSubscriber(endpoint, brd, rr);
         ps->add_client(bs);
@@ -212,7 +212,7 @@ namespace gradido {
                              std::string endpoint,
                              grpr::BlockchainId brd, 
                              BlockChecksumReceiver* rr) {
-        MLock lock(main_lock); 
+        MLOCK(main_lock); 
         PollService* ps = get_poll_service();
         BlockChecksumSubscriber* bs = 
             new BlockChecksumSubscriber(endpoint, brd, rr);
@@ -376,7 +376,7 @@ namespace gradido {
                          std::string endpoint,
                          grpr::OutboundTransactionDescriptor otd,
                          PairedTransactionReceiver* rr) {
-        MLock lock(main_lock); 
+        MLOCK(main_lock); 
         PollService* ps = get_poll_service();
         OutboundSubscriber* bs = 
             new OutboundSubscriber(endpoint, otd, rr);
@@ -477,7 +477,7 @@ namespace gradido {
     void CommunicationLayer::send_handshake0(std::string endpoint,
          grpr::Transaction req,
          ICommunicationLayer::GrprTransactionListener* listener) {
-        MLock lock(main_lock); 
+        MLOCK(main_lock); 
         PollService* ps = get_poll_service();
         PollClient* hs = 
             new Handshake0Subscriber(endpoint, req, listener);
@@ -488,7 +488,7 @@ namespace gradido {
                              std::string endpoint,
                              grpr::Transaction req,
                              GrprTransactionListener* listener) {
-        MLock lock(main_lock); 
+        MLOCK(main_lock); 
         PollService* ps = get_poll_service();
         PollClient* hs = 
             new Handshake2Subscriber(endpoint, req, listener);

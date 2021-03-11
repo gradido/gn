@@ -135,7 +135,7 @@ namespace gradido {
     }
 
     bool GradidoNodeConfigDeprecated::add_sibling_node(std::string endpoint) {
-        MLock lock(main_lock);
+        MLOCK(main_lock);
         for (auto i : siblings)
             if (i.compare(endpoint) == 0)
                 return false;
@@ -145,7 +145,7 @@ namespace gradido {
     }
     
     bool GradidoNodeConfigDeprecated::remove_sibling_node(std::string endpoint) {
-        MLock lock(main_lock);
+        MLOCK(main_lock);
         std::vector<std::string> new_siblings;
         bool res = false;
         for (auto i : siblings)
@@ -159,7 +159,7 @@ namespace gradido {
     }
 
     std::vector<std::string> GradidoNodeConfigDeprecated::get_sibling_nodes() {
-        MLock lock(main_lock);
+        MLOCK(main_lock);
         return siblings;
     }
 
@@ -182,7 +182,7 @@ namespace gradido {
     }
 
     void GradidoNodeConfigDeprecated::add_blockchain(GroupInfo gi) {
-        MLock lock(main_lock);
+        MLOCK(main_lock);
         Poco::Path data_root(get_data_root_folder());
         Poco::Path bp = data_root.append(gi.get_directory_name());
         Poco::File bf(bp);
@@ -210,10 +210,10 @@ namespace gradido {
     }
 
     GradidoNodeConfigDeprecated::GradidoNodeConfigDeprecated() {
-        SAFE_PT(pthread_mutex_init(&main_lock, 0));
+        MINIT(main_lock);
     }
     GradidoNodeConfigDeprecated::~GradidoNodeConfigDeprecated() {
-        pthread_mutex_destroy(&main_lock);
+        MDESTROY(main_lock);
     }
 
     int GradidoNodeConfigDeprecated::get_worker_count() {
