@@ -92,6 +92,7 @@ public:
 
 #else
 
+ 
 class MLock final {
 private:
     pthread_mutex_t& m;

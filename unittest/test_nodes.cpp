@@ -86,10 +86,13 @@ private:
     class ErrWriterTask : public ITask {
     private:
         PipeInputStream* estr;
+        std::string proc_id;
         std::string out;
     public:
         ErrWriterTask(PipeInputStream* estr, 
-                      std::string out) : estr(estr), out(out) {}
+                      std::string proc_id,
+                      std::string out) : estr(estr), proc_id(proc_id), 
+                                         out(out) {}
         virtual void run() {
             std::ofstream f0(out, std::ios::out | std::ios::app);
             while (1) {
@@ -98,6 +101,7 @@ private:
                 if (line.length() == 0)
                     break;
                 f0 << line << std::endl;
+                LOG(proc_id << ": " << line);
             }
             f0.close();
         }
@@ -109,8 +113,11 @@ public:
                 std::string err_file) :
         ph(Process::launch(exe_name, args, 0, &outPipe, &errPipe)),
         istr(outPipe), estr(errPipe) {
+        LOG("starting " << exe_name);
         processes.push_back(this);
-        wp.push(new ErrWriterTask(&estr, err_file));
+        std::stringstream proc_id;
+        proc_id << "[" << exe_name << ":" << this << "]";
+        wp.push(new ErrWriterTask(&estr, proc_id.str(), err_file));
         sleep(1); // assuming process has enough time to set up ports
     }
 
