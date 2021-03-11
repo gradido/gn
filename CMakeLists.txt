@@ -5,6 +5,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# TODO: require 64 bit arch
+
+
 execute_process(
   COMMAND git rev-parse HEAD 
   WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
