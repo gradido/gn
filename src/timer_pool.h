@@ -3,13 +3,13 @@ Copyright (c) 2013, Pauls Jakovels
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met: 
+modification, are permitted provided that the following conditions are met:
 
 1. Redistributions of source code must retain the above copyright notice, this
-   list of conditions and the following disclaimer. 
+   list of conditions and the following disclaimer.
 2. Redistributions in binary form must reproduce the above copyright notice,
    this list of conditions and the following disclaimer in the documentation
-   and/or other materials provided with the distribution. 
+   and/or other materials provided with the distribution.
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
 ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
@@ -23,7 +23,7 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 The views and conclusions contained in the software and documentation are those
-of the authors and should not be interpreted as representing official policies, 
+of the authors and should not be interpreted as representing official policies,
 either expressed or implied, of the FreeBSD Project.
 **/
 
@@ -108,8 +108,8 @@ namespace gradido
     class TimespecComparator
     {
     public:
-        bool operator()(const timespec t, const timespec c)
-        {    
+        bool operator()(const timespec t, const timespec c) const
+        {
             return (c.tv_sec > t.tv_sec) ||
                 (c.tv_sec == t.tv_sec && c.tv_nsec > t.tv_nsec);
         }
@@ -117,7 +117,7 @@ namespace gradido
 
     /**
        TimerPool manages PooledTimer instances. It is intended as lightweight
-       timer factory. 
+       timer factory.
 
        Facts:
        - it is guaranteed that timer event will be fired not earlier than specified
@@ -131,7 +131,7 @@ namespace gradido
        take care of synchronization.
        - when executing timer event handler, executor doesn't hold any locks;
        so, no possible deadlocks (one can restart timer from executor thread)
-       - it is possible to kill executor thread, new will be created in place     
+       - it is possible to kill executor thread, new will be created in place
        - timer uses just memory and no other resources; no thread is created
        upon construction or stopped upon destruction
        - CTimerPool can be constructed instead of using getInstance() method
@@ -145,7 +145,7 @@ namespace gradido
        - when shutting down CTimerPool, thread, which deletes all timers, will
        wait for executors to finish - so, eternal block of executor means
        inability to shut down CTimerPool. See TODOs about this issue.
-     
+
        Conclusion:
        - use this if you need universal, lightweight timer with high level of
        concurrency between timers in same pool
@@ -170,13 +170,13 @@ namespace gradido
         static TimerPool* instance;
 
         /**
-          Inside TimerPool each timer can be 
+          Inside TimerPool each timer can be
           in either idle or running state. TimerPool::startTimer()
           puts timer in running state; TimerPool::stopTimer() puts timer
           in idle state; after executing, timer is put in idle state as well.
 
           m_runningTimers uses keys which are target time copies
-          from pooled timers (see PooledTimer::m_targetTime). 
+          from pooled timers (see PooledTimer::m_targetTime).
         */
         typedef map<timespec, PooledTimer*, TimespecComparator> RunningTimers;
         RunningTimers m_runningTimers;
@@ -195,7 +195,7 @@ namespace gradido
         {
         public:
             Executor(TimerPool::ExecutorContainer* cont);
-            virtual ~Executor();  
+            virtual ~Executor();
             bool tryExecute(PooledTimer* timer);
             PooledTimer* getServicedTimer();
 
@@ -213,13 +213,13 @@ namespace gradido
             PooledTimer* m_timer;
             int m_doCount;
             bool m_shutdownStarted;
-        
+
             void launchThread();
             static void onThreadExit(void* arg);
             void onThreadExitHandler();
             static void* runEntry(void* arg);
             void run();
-        
+
             void reduceCount();
         };
 
@@ -243,8 +243,8 @@ namespace gradido
 
             // this should be called while holding executor mutex
             void setRunning(Executor* executor, PooledTimer* associate);
-        
-        private:        
+
+        private:
             pthread_mutex_t m_fieldGuard;
             bool m_shutdownStarted;
 
@@ -263,9 +263,9 @@ namespace gradido
         void stopMainLoop();
 
         static bool isTimeReached(timespec& targetTime);
-    
+
         void doExecute(PooledTimer* pt, timespec t);
-   
+
         // For calls from PooledTimer
         void startTimer(PooledTimer* pt, timespec t);
         void stopTimer(PooledTimer* pt);
